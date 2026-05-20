@@ -1,0 +1,1476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pinc — Interactive Live Reality Check Simulator</title>
+  <!-- Outfit & Inter Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Leaflet Map CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  
+  <style>
+    :root {
+      --bg: #FDFBF7;
+      --card: #FFFFFF;
+      --border: #EFECE6;
+      --divider: #E8E4DB;
+      --primary: #FF4B72;
+      --primary-light: #FFEBF0;
+      --primary-dark: #D8234D;
+      --text-main: #1A1A1A;
+      --text-sub: #7A756B;
+      --text-muted: #A39E93;
+      --green: #2E7D32;
+      --green-light: #E8F5E9;
+      --yellow: #F57C00;
+      --yellow-light: #FFF3E0;
+      --red: #D32F2F;
+      --red-light: #FFEBEE;
+      --shadow-sm: 0 2px 4px rgba(26, 26, 26, 0.05);
+      --shadow-md: 0 6px 12px rgba(26, 26, 26, 0.08);
+      --shadow-lg: 0 12px 24px rgba(26, 26, 26, 0.12);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #FAF6EF;
+      color: var(--text-main);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 24px;
+      overflow-x: hidden;
+    }
+
+    .project-header {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    .project-header h1 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 2.2rem;
+      font-weight: 800;
+      color: var(--text-main);
+      letter-spacing: -0.5px;
+    }
+
+    .project-header h1 span {
+      color: var(--primary);
+    }
+
+    .project-header p {
+      font-size: 0.95rem;
+      color: var(--text-sub);
+      margin-top: 6px;
+    }
+
+    /* iPhone Device Shell Wrapper */
+    .device-shell {
+      width: 390px;
+      height: 844px;
+      border-radius: 48px;
+      background: #1A1A1A;
+      padding: 12px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+      position: relative;
+      border: 4px solid #333333;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* Speaker and Camera notch */
+    .device-notch {
+      width: 110px;
+      height: 30px;
+      background: #1A1A1A;
+      position: absolute;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      border-bottom-left-radius: 18px;
+      border-bottom-right-radius: 18px;
+      z-index: 1000;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .device-screen {
+      width: 100%;
+      height: 100%;
+      background: var(--bg);
+      border-radius: 36px;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Interactive Map Screen */
+    #map-container {
+      flex: 1;
+      width: 100%;
+      z-index: 1;
+    }
+
+    /* Custom Minimal Map Style Override */
+    .leaflet-container {
+      background-color: var(--bg) !important;
+    }
+
+    /* Glowing Markers Custom Styles */
+    .custom-marker {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+
+    .marker-aura {
+      position: absolute;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      animation: pulse 2s infinite ease-in-out;
+    }
+
+    .marker-ring {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background-color: #FFFFFF;
+      border: 2.5px solid var(--primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: var(--shadow-sm);
+      z-index: 2;
+    }
+
+    .marker-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background-color: var(--primary);
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(0.6); opacity: 0.8; }
+      100% { transform: scale(1.6); opacity: 0; }
+    }
+
+    /* Pinc FAB Button */
+    .pinc-fab-container {
+      position: absolute;
+      bottom: 24px;
+      left: 0;
+      right: 0;
+      display: flex;
+      justify-content: center;
+      z-index: 99;
+    }
+
+    .pinc-fab {
+      background-color: var(--primary);
+      color: #FFFFFF;
+      border: none;
+      padding: 14px 24px;
+      border-radius: 30px;
+      font-family: 'Outfit', sans-serif;
+      font-weight: 700;
+      font-size: 14px;
+      letter-spacing: 1.5px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      box-shadow: var(--shadow-lg);
+      border: 2px solid #FFFFFF;
+      transition: all 0.2s ease-in-out;
+    }
+
+    .pinc-fab:hover {
+      transform: scale(1.05);
+      background-color: var(--primary-dark);
+    }
+
+    .pinc-fab:active {
+      transform: scale(0.95);
+    }
+
+    /* Live Reality Check Bottom Sheet */
+    .bottom-sheet {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 62%;
+      background-color: var(--bg);
+      border-top-left-radius: 24px;
+      border-top-right-radius: 24px;
+      box-shadow: var(--shadow-lg);
+      z-index: 100;
+      transform: translateY(105%);
+      transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .bottom-sheet.active {
+      transform: translateY(0);
+    }
+
+    .sheet-header {
+      padding: 12px 16px 8px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+      position: relative;
+    }
+
+    .drag-handle {
+      width: 36px;
+      height: 4px;
+      background-color: var(--divider);
+      border-radius: 2px;
+      margin-bottom: 8px;
+    }
+
+    .close-sheet {
+      position: absolute;
+      right: 16px;
+      top: 10px;
+      background: none;
+      border: none;
+      font-size: 18px;
+      color: var(--text-sub);
+      cursor: pointer;
+      padding: 4px;
+    }
+
+    .venue-title-row {
+      width: 100%;
+      padding: 8px 16px 4px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .venue-name {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--text-main);
+      max-width: 75%;
+    }
+
+    .rating-badge {
+      background-color: var(--primary-light);
+      color: var(--primary);
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-weight: 700;
+      font-size: 0.8rem;
+    }
+
+    .venue-meta-row {
+      width: 100%;
+      padding: 0 16px 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .venue-category {
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: var(--text-sub);
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+    }
+
+    .bullet {
+      width: 4px;
+      height: 4px;
+      background-color: var(--text-muted);
+      border-radius: 50%;
+    }
+
+    .crowd-status-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 8px;
+      border-radius: 12px;
+      font-size: 0.7rem;
+      font-weight: 700;
+    }
+
+    .status-green { background-color: var(--green-light); color: var(--green); }
+    .status-yellow { background-color: var(--yellow-light); color: var(--yellow); }
+    .status-red { background-color: var(--red-light); color: var(--red); }
+
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+    }
+    .status-green .status-dot { background-color: var(--green); }
+    .status-yellow .status-dot { background-color: var(--yellow); }
+    .status-red .status-dot { background-color: var(--red); }
+
+    /* Custom Navigation Tabs */
+    .sheet-tabs {
+      display: flex;
+      background-color: var(--card);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .tab-btn {
+      flex: 1;
+      background: none;
+      border: none;
+      padding: 12px 6px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      cursor: pointer;
+      position: relative;
+      transition: all 0.2s;
+    }
+
+    .tab-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-sub);
+    }
+
+    .tab-subtitle {
+      font-size: 9px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .tab-btn.active .tab-title {
+      color: var(--primary);
+    }
+
+    .tab-indicator {
+      position: absolute;
+      bottom: 0;
+      width: 40%;
+      height: 3px;
+      background-color: var(--primary);
+      border-top-left-radius: 2px;
+      border-top-right-radius: 2px;
+      display: none;
+    }
+
+    .tab-btn.active .tab-indicator {
+      display: block;
+    }
+
+    .sheet-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+      background-color: var(--bg);
+    }
+
+    /* Grid for Instagram Vibe */
+    .aesthetic-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .grid-item {
+      aspect-ratio: 1;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .grid-item img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    /* X Chronological Feed List */
+    .reality-feed {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .feed-card {
+      background-color: var(--card);
+      border-radius: 16px;
+      padding: 14px;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-sm);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .feed-profile {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .feed-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      object-fit: cover;
+    }
+
+    .feed-user-meta {
+      flex: 1;
+    }
+
+    .feed-username {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .feed-time {
+      font-size: 9px;
+      color: var(--text-muted);
+      margin-top: 1px;
+    }
+
+    .live-badge {
+      background-color: rgba(46, 125, 50, 0.1);
+      border: 1px solid var(--green);
+      color: var(--green);
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 8px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+
+    .feed-text {
+      font-size: 12.5px;
+      color: var(--text-main);
+      line-height: 1.45;
+    }
+
+    .feed-img {
+      width: 100%;
+      height: 160px;
+      object-fit: cover;
+      border-radius: 10px;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 40px 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+    }
+
+    .empty-icon {
+      font-size: 32px;
+      margin-bottom: 8px;
+    }
+
+    .empty-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-bottom: 6px;
+    }
+
+    .empty-subtitle {
+      font-size: 11px;
+      color: var(--text-sub);
+      line-height: 1.5;
+    }
+
+    /* Pinc Creator Modal Overlay */
+    .composer-modal {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: var(--bg);
+      z-index: 200;
+      transform: translateY(105%);
+      transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .composer-modal.active {
+      transform: translateY(0);
+    }
+
+    .composer-header {
+      padding: 14px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background-color: var(--card);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .close-composer {
+      background: none;
+      border: none;
+      font-size: 14px;
+      color: var(--text-sub);
+      cursor: pointer;
+    }
+
+    .composer-title {
+      font-family: 'Outfit', sans-serif;
+      font-weight: 700;
+      font-size: 15px;
+    }
+
+    .post-submit-btn {
+      background-color: var(--primary);
+      color: #FFFFFF;
+      border: none;
+      padding: 6px 16px;
+      border-radius: 20px;
+      font-weight: 700;
+      font-size: 12px;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    .post-submit-btn:disabled {
+      background-color: var(--divider);
+      cursor: not-allowed;
+    }
+
+    .composer-body {
+      flex: 1;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow-y: auto;
+    }
+
+    .nearest-venue-banner {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background-color: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px;
+    }
+
+    .banner-icon { font-size: 18px; }
+    .banner-meta { display: flex; flex-direction: column; gap: 2px; }
+    .banner-name { font-family: 'Outfit', sans-serif; font-size: 13px; font-weight: 700; }
+    .banner-distance { font-size: 10px; color: var(--text-sub); }
+    .banner-distance span { font-weight: 700; color: var(--green); }
+
+    .image-composer-frame {
+      width: 100%;
+      height: 180px;
+      border-radius: 12px;
+      overflow: hidden;
+      position: relative;
+      border: 1px solid var(--border);
+    }
+
+    .composer-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .image-reality-tag {
+      position: absolute;
+      bottom: 8px;
+      right: 8px;
+      background-color: rgba(26, 26, 26, 0.75);
+      color: #FFFFFF;
+      font-size: 8px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      padding: 3px 8px;
+      border-radius: 4px;
+    }
+
+    .text-composer {
+      flex: 1;
+      border: none;
+      background: none;
+      font-family: inherit;
+      font-size: 14px;
+      resize: none;
+      outline: none;
+      color: var(--text-main);
+      line-height: 1.5;
+    }
+
+    .char-counter {
+      align-self: flex-end;
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
+    .notification {
+      position: absolute;
+      top: 60px;
+      left: 16px;
+      right: 16px;
+      background-color: #1A1A1AEF;
+      color: #FFFFFF;
+      padding: 12px 16px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 500;
+      z-index: 1000;
+      text-align: center;
+      box-shadow: var(--shadow-md);
+      opacity: 0;
+      transform: translateY(-20px);
+      transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      pointer-events: none;
+    }
+
+    .notification.active {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* Sponsored Pins Web CSS */
+    .sponsored-marker {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+    
+    .sponsored-icon-ring {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      border: 2.5px solid var(--primary);
+      background-color: #FFFFFF;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: var(--shadow-md);
+      z-index: 5;
+    }
+    
+    .sponsored-icon-ring.gold-ring {
+      border-color: #FFD700;
+    }
+    
+    .sponsored-icon-img {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      object-fit: cover;
+    }
+    
+    .radar-pulse-web {
+      position: absolute;
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      border: 3px solid var(--primary);
+      background-color: rgba(255, 75, 114, 0.25);
+      animation: pulse-web 1.8s infinite ease-in-out;
+      z-index: 1;
+    }
+    
+    @keyframes pulse-web {
+      0% { transform: scale(0.9); opacity: 0.8; }
+      100% { transform: scale(2.2); opacity: 0; }
+    }
+
+    /* Search Bar Web CSS */
+    .search-bar-web-container {
+      position: absolute;
+      top: 50px;
+      left: 16px;
+      right: 16px;
+      z-index: 999;
+      display: flex;
+      flex-direction: column;
+    }
+    .search-bar-web {
+      display: flex;
+      align-items: center;
+      background-color: rgba(253, 251, 247, 0.95);
+      border: 1.5px solid var(--border);
+      border-radius: 24px;
+      padding: 0 16px;
+      height: 44px;
+      box-shadow: var(--shadow-md);
+    }
+    .search-bar-web:focus-within {
+      border-color: var(--primary);
+      background-color: #FFFFFF;
+    }
+    .search-icon-web {
+      font-size: 14px;
+      color: var(--text-sub);
+      margin-right: 8px;
+    }
+    #search-input-web {
+      flex: 1;
+      border: none;
+      background: none;
+      font-size: 13px;
+      outline: none;
+      color: var(--text-main);
+    }
+    #search-clear-web {
+      background: none;
+      border: none;
+      font-size: 13px;
+      color: var(--text-sub);
+      cursor: pointer;
+      padding: 4px;
+    }
+    .search-dropdown-web {
+      background-color: #FFFFFF;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      margin-top: 8px;
+      max-height: 200px;
+      overflow-y: auto;
+      box-shadow: var(--shadow-lg);
+      padding: 6px 0;
+    }
+    .result-item-web {
+      display: flex;
+      align-items: center;
+      padding: 10px 16px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    .result-item-web:hover {
+      background-color: rgba(255, 75, 114, 0.03);
+    }
+    .result-item-web.sponsored-item {
+      background-color: rgba(255, 75, 114, 0.02);
+    }
+    .result-item-web img {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      border: 1.5px solid var(--primary);
+      margin-right: 10px;
+    }
+    .result-item-web .item-info {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    .result-item-web .item-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+    .result-item-web .item-cat {
+      font-size: 9px;
+      font-weight: 700;
+      color: var(--text-sub);
+      text-transform: uppercase;
+      margin-top: 2px;
+    }
+    .sponsored-badge-web {
+      background-color: rgba(255, 75, 114, 0.1);
+      border: 1px solid var(--primary);
+      color: var(--primary);
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-size: 7px;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="project-header">
+    <h1>Pinc <span>Social Mapping</span></h1>
+    <p>Live Proximity Reality Check (ตรงปกไหม?) • Interactive Simulator</p>
+  </div>
+
+  <!-- Simulated Phone Shell Container -->
+  <div class="device-shell">
+    <!-- Camera/Speaker Notch -->
+    <div class="device-notch"></div>
+    
+    <div class="device-screen">
+      <!-- Popup Notification banner -->
+      <div id="toast" class="notification">Reality Check posted successfully! ✨</div>
+
+      <!-- Floating prioritized Search Bar -->
+      <div class="search-bar-web-container">
+        <div class="search-bar-web">
+          <span class="search-icon-web">🔍</span>
+          <input type="text" id="search-input-web" placeholder="Search cafes or categories..." />
+          <button id="search-clear-web" style="display: none;">✕</button>
+        </div>
+        <div id="search-dropdown-web" class="search-dropdown-web" style="display: none;"></div>
+      </div>
+
+      <!-- Real Map Frame (Leaflet.js) -->
+      <div id="map-container"></div>
+
+      <!-- Center-Bottom FAB Pinc Button -->
+      <div class="pinc-fab-container">
+        <button id="pinc-trigger" class="pinc-fab">
+          <span>📷</span> PINC
+        </button>
+      </div>
+
+      <!-- Reality Check sliding Bottom Sheet -->
+      <div id="sheet" class="bottom-sheet">
+        <div class="sheet-header">
+          <div class="drag-handle"></div>
+          <button id="close-sheet-btn" class="close-sheet">✕</button>
+        </div>
+        
+        <div class="venue-title-row">
+          <div id="sheet-title" class="venue-name">Loading Spot...</div>
+          <div id="sheet-rating" class="rating-badge">★ 4.8</div>
+        </div>
+
+        <div class="venue-meta-row">
+          <span id="sheet-category" class="venue-category">CAFÉ</span>
+          <span class="bullet"></span>
+          <div id="sheet-crowd-badge" class="crowd-status-badge">
+            <span class="status-dot"></span>
+            <span id="sheet-crowd-text">Empty / Chill</span>
+          </div>
+        </div>
+
+        <!-- Custom Column Navigation Tabs -->
+        <div class="sheet-tabs">
+          <button id="tab-aesthetic" class="tab-btn active">
+            <span class="tab-title">✨ The Aesthetic</span>
+            <span class="tab-subtitle">IG Vibe (Curated)</span>
+            <span class="tab-indicator"></span>
+          </button>
+          
+          <button id="tab-reality" class="tab-btn">
+            <span class="tab-title">⚡ The Reality</span>
+            <span class="tab-subtitle">X Speed (Live Check)</span>
+            <span class="tab-indicator"></span>
+          </button>
+        </div>
+
+        <!-- Tab Content Viewport -->
+        <div id="sheet-viewport" class="sheet-content">
+          <!-- Dynamically populated -->
+        </div>
+      </div>
+
+      <!-- Post Creation Overlay Screen -->
+      <div id="composer" class="composer-modal">
+        <div class="composer-header">
+          <button id="close-composer-btn" class="close-composer">Cancel</button>
+          <div class="composer-title">New Reality Check</div>
+          <button id="submit-post-btn" class="post-submit-btn" disabled>Post</button>
+        </div>
+
+        <div class="composer-body">
+          <!-- Nearest Venue Geotag Badge -->
+          <div class="nearest-venue-banner">
+            <span class="banner-icon">📍</span>
+            <div class="banner-meta">
+              <span id="geotag-venue-name" class="banner-name">Nearest Venue</span>
+              <span id="geotag-status" class="banner-distance">Calculating distance...</span>
+            </div>
+          </div>
+
+          <!-- Camera Simulated Frame -->
+          <div class="image-composer-frame">
+            <img id="composer-img-preview" class="composer-img" src="" alt="Reality Capture">
+            <div class="image-reality-tag">RAW IMAGE • UNEDITED</div>
+          </div>
+
+          <!-- Description Text input -->
+          <textarea id="composer-text" class="text-composer" placeholder="What's the crowd density or wait time? Highlight real conditions (Max 280 chars)..." maxlength="280"></textarea>
+          
+          <span id="char-count" class="char-counter">0 / 280</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Leaflet Map Library JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  
+  <script>
+    // ==========================================
+    // SEED DATABASE (Local State)
+    // ==========================================
+    const VENUES = [
+      {
+        id: "ven_fika",
+        name: "Fika & Co. Minimalist Cafe",
+        lat: 13.736717,
+        lng: 100.560481,
+        category: "café",
+        rating: 4.8,
+        crowd_status: "Yellow",
+        cover_image: "https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=600&q=80",
+        is_sponsored: true,
+        sponsor_tier: 2,
+        custom_icon_url: "https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?auto=format&fit=crop&w=150&q=80",
+        campaign_start_date: new Date(Date.now() - 7 * 24 * 3600 * 1000),
+        campaign_end_date: new Date(Date.now() + 30 * 24 * 3600 * 1000),
+        aesthetics: [
+          "https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=600&q=80",
+          "https://images.unsplash.com/photo-1498804103079-a6351b050096?auto=format&fit=crop&w=600&q=80",
+          "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=600&q=80"
+        ]
+      },
+      {
+        id: "ven_hands",
+        name: "Hands and Heart Roastery",
+        lat: 13.738102,
+        lng: 100.558914,
+        category: "café",
+        rating: 4.7,
+        crowd_status: "Green",
+        cover_image: "https://images.unsplash.com/photo-1521017432531-fbd92d768814?auto=format&fit=crop&w=600&q=80",
+        aesthetics: [
+          "https://images.unsplash.com/photo-1521017432531-fbd92d768814?auto=format&fit=crop&w=600&q=80",
+          "https://images.unsplash.com/photo-1559925393-8be0ec4767c8?auto=format&fit=crop&w=600&q=80",
+          "https://images.unsplash.com/photo-1507133750040-4a8f57021571?auto=format&fit=crop&w=600&q=80"
+        ]
+      },
+      {
+        id: "ven_patch",
+        name: "The Patchwork Green Garden",
+        lat: 13.735102,
+        lng: 100.562145,
+        category: "tourist_attraction",
+        rating: 4.9,
+        crowd_status: "Red",
+        cover_image: "https://images.unsplash.com/photo-1513836279014-a89f7a76ae86?auto=format&fit=crop&w=600&q=80",
+        aesthetics: [
+          "https://images.unsplash.com/photo-1513836279014-a89f7a76ae86?auto=format&fit=crop&w=600&q=80",
+          "https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=600&q=80",
+          "https://images.unsplash.com/photo-1473448912268-2022ce9509d8?auto=format&fit=crop&w=600&q=80"
+        ]
+      }
+    ];
+
+    const PINS = [
+      {
+        pinId: "pin_1",
+        venueId: "ven_fika",
+        username: "matchalove_bkk",
+        avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80",
+        text_content: "Queue is about 15 minutes today. Not too bad! Matcha latte is rich and creamy as always.",
+        image_url: "https://images.unsplash.com/photo-1507133750040-4a8f57021571?auto=format&fit=crop&w=600&q=80",
+        timestamp: new Date(Date.now() - 25 * 60 * 1000), // 25 min ago
+        is_live: true
+      },
+      {
+        pinId: "pin_2",
+        venueId: "ven_patch",
+        username: "traveler_dan",
+        avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=100&q=80",
+        text_content: "Incredibly crowded today! The wait list for an outdoor table is 45 minutes. Beautiful gardens, but prepare to wait.",
+        image_url: "https://images.unsplash.com/photo-1461023058943-07fcbe16d735?auto=format&fit=crop&w=600&q=80",
+        timestamp: new Date(Date.now() - 5 * 60 * 1000), // 5 min ago
+        is_live: true
+      }
+    ];
+
+    // Mock images list for simulated camera capture
+    const MOCK_PHOTOS = [
+      "https://images.unsplash.com/photo-1507133750040-4a8f57021571?auto=format&fit=crop&w=600&q=80",
+      "https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?auto=format&fit=crop&w=600&q=80",
+      "https://images.unsplash.com/photo-1461023058943-07fcbe16d735?auto=format&fit=crop&w=600&q=80"
+    ];
+
+    // User State Mock
+    const USER_LOCATION = { lat: 13.736735, lng: 100.560492 }; // Staggered slightly from Fika (within 50 meters)
+    let selectedVenue = null;
+    let selectedTab = "aesthetic";
+    let activePins = [...PINS];
+
+    // ==========================================
+    // INITIALIZE INTERACTIVE MAP (LEAFLET)
+    // ==========================================
+    const map = L.map('map-container', {
+      center: [USER_LOCATION.lat, USER_LOCATION.lng],
+      zoom: 16,
+      zoomControl: false,
+      attributionControl: false
+    });
+
+    // Custom Minimal sand tiles style (Stamen Toner Lite / CartoDB Positron style)
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png', {
+      maxZoom: 19
+    }).addTo(map);
+
+    // Render User Blue Dot GPS Marker
+    L.circleMarker([USER_LOCATION.lat, USER_LOCATION.lng], {
+      color: '#FFFFFF',
+      fillColor: '#FF4B72',
+      fillOpacity: 1,
+      radius: 7,
+      weight: 3,
+      shadowColor: '#FF4B72',
+      shadowBlur: 10
+    }).addTo(map);
+
+    // ==========================================
+    // INTERACTIVE MAP MARKERS GENERATION
+    // ==========================================
+    const markerGroup = L.layerGroup().addTo(map);
+
+    function isCampaignActive(venue) {
+      if (!venue.is_sponsored) return false;
+      if (!venue.campaign_start_date || !venue.campaign_end_date) return false;
+      const now = new Date();
+      return now >= new Date(venue.campaign_start_date) && now <= new Date(venue.campaign_end_date);
+    }
+
+    function renderVenueMarkers() {
+      markerGroup.clearLayers();
+      
+      VENUES.forEach(venue => {
+        const sponsored = isCampaignActive(venue);
+        let customIcon;
+
+        if (sponsored) {
+          const isTier2 = venue.sponsor_tier === 2;
+          customIcon = L.divIcon({
+            html: `
+              <div class="custom-marker sponsored-marker">
+                ${isTier2 ? '<div class="radar-pulse-web"></div>' : ''}
+                <div class="sponsored-icon-ring ${isTier2 ? 'gold-ring' : ''}">
+                  <img src="${venue.custom_icon_url}" class="sponsored-icon-img" />
+                </div>
+              </div>
+            `,
+            className: 'leaflet-custom-marker',
+            iconSize: [40, 40],
+            iconAnchor: [20, 20]
+          });
+        } else {
+          let statusColor = "var(--green)";
+          if (venue.crowd_status === "Yellow") statusColor = "var(--yellow)";
+          if (venue.crowd_status === "Red") statusColor = "var(--red)";
+
+          customIcon = L.divIcon({
+            html: `
+              <div class="custom-marker">
+                <div class="marker-aura" style="background-color: ${statusColor}33"></div>
+                <div class="marker-ring" style="border-color: ${statusColor}">
+                  <div class="marker-dot" style="background-color: ${statusColor}"></div>
+                </div>
+              </div>
+            `,
+            className: 'leaflet-custom-marker',
+            iconSize: [32, 32],
+            iconAnchor: [16, 16]
+          });
+        }
+
+        const marker = L.marker([venue.lat, venue.lng], { icon: customIcon }).addTo(markerGroup);
+        marker.on('click', () => {
+          openBottomSheet(venue);
+        });
+      });
+    }
+
+    // ==========================================
+    // BOTTOM SHEET LOGIC
+    // ==========================================
+    const sheet = document.getElementById("sheet");
+    const sheetTitle = document.getElementById("sheet-title");
+    const sheetRating = document.getElementById("sheet-rating");
+    const sheetCategory = document.getElementById("sheet-category");
+    const sheetCrowdBadge = document.getElementById("sheet-crowd-badge");
+    const sheetCrowdText = document.getElementById("sheet-crowd-text");
+    const sheetViewport = document.getElementById("sheet-viewport");
+    
+    const tabAesthetic = document.getElementById("tab-aesthetic");
+    const tabReality = document.getElementById("tab-reality");
+
+    function openBottomSheet(venue) {
+      selectedVenue = venue;
+      sheetTitle.innerText = venue.name;
+      sheetRating.innerText = `★ ${venue.rating.toFixed(1)}`;
+      sheetCategory.innerText = venue.category.replace("_", " ");
+      
+      // Update dynamic crowd badge style
+      sheetCrowdBadge.className = "crowd-status-badge";
+      if (venue.crowd_status === "Green") {
+        sheetCrowdBadge.classList.add("status-green");
+        sheetCrowdText.innerText = "Empty / Chill";
+      } else if (venue.crowd_status === "Yellow") {
+        sheetCrowdBadge.classList.add("status-yellow");
+        sheetCrowdText.innerText = "Moderate Queue";
+      } else {
+        sheetCrowdBadge.classList.add("status-red");
+        sheetCrowdText.innerText = "Crowded / Long Line";
+      }
+
+      sheet.classList.add("active");
+      renderTabContent();
+    }
+
+    function renderTabContent() {
+      if (!selectedVenue) return;
+      sheetViewport.innerHTML = "";
+
+      if (selectedTab === "aesthetic") {
+        const grid = document.createElement("div");
+        grid.className = "aesthetic-grid";
+        selectedVenue.aesthetics.forEach(src => {
+          grid.innerHTML += `
+            <div class="grid-item">
+              <img src="${src}" alt="Curated Instagram Spot">
+            </div>
+          `;
+        });
+        sheetViewport.appendChild(grid);
+      } else {
+        // Filter pins matching this venue
+        const venuePins = activePins.filter(pin => pin.venueId === selectedVenue.id);
+        
+        if (venuePins.length === 0) {
+          sheetViewport.innerHTML = `
+            <div class="empty-state">
+              <span class="empty-icon">☕</span>
+              <span class="empty-title">No live checks today</span>
+              <span class="empty-subtitle">Be the first to post a raw reality check for this venue using the Pinc Button below!</span>
+            </div>
+          `;
+          return;
+        }
+
+        const feed = document.createElement("div");
+        feed.className = "reality-feed";
+        
+        venuePins.sort((a, b) => b.timestamp - a.timestamp).forEach(pin => {
+          const timeString = pin.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          const liveBadgeHtml = pin.is_live ? `<span class="live-badge">✓ VERIFIED LIVE</span>` : "";
+
+          feed.innerHTML += `
+            <div class="feed-card">
+              <div class="feed-profile">
+                <img class="feed-avatar" src="${pin.avatar}" alt="${pin.username}">
+                <div class="feed-user-meta">
+                  <div class="feed-username">@${pin.username}</div>
+                  <div class="feed-time">Today at ${timeString}</div>
+                </div>
+                ${liveBadgeHtml}
+              </div>
+              <div class="feed-text">${pin.text_content}</div>
+              <img class="feed-img" src="${pin.image_url}" alt="Raw Reality">
+            </div>
+          `;
+        });
+        sheetViewport.appendChild(feed);
+      }
+    }
+
+    // Tab Switches Listeners
+    tabAesthetic.addEventListener("click", () => {
+      selectedTab = "aesthetic";
+      tabAesthetic.classList.add("active");
+      tabReality.classList.remove("active");
+      renderTabContent();
+    });
+
+    tabReality.addEventListener("click", () => {
+      selectedTab = "reality";
+      tabReality.classList.add("active");
+      tabAesthetic.classList.remove("active");
+      renderTabContent();
+    });
+
+    document.getElementById("close-sheet-btn").addEventListener("click", () => {
+      sheet.classList.remove("active");
+      selectedVenue = null;
+    });
+
+    // ==========================================
+    // PINC POST CREATION LOGIC (COMPOSER)
+    // ==========================================
+    const composer = document.getElementById("composer");
+    const closeComposerBtn = document.getElementById("close-composer-btn");
+    const pincTrigger = document.getElementById("pinc-trigger");
+    const previewImg = document.getElementById("composer-img-preview");
+    const geotagVenueName = document.getElementById("geotag-venue-name");
+    const geotagStatus = document.getElementById("geotag-status");
+    const composerText = document.getElementById("composer-text");
+    const charCount = document.getElementById("char-count");
+    const submitPostBtn = document.getElementById("submit-post-btn");
+
+    pincTrigger.addEventListener("click", () => {
+      // 1. Simulate Camera capture - pick a mock unedited photo
+      const mockUri = MOCK_PHOTOS[Math.floor(Math.random() * MOCK_PHOTOS.length)];
+      previewImg.src = mockUri;
+
+      // 2. Find nearest venue using GPS
+      let nearestVenue = null;
+      let minDistance = Infinity;
+
+      VENUES.forEach(venue => {
+        // Haversine formula calculation
+        const R = 6371000; // meters
+        const phi1 = USER_LOCATION.lat * Math.PI / 180;
+        const phi2 = venue.lat * Math.PI / 180;
+        const deltaPhi = (venue.lat - USER_LOCATION.lat) * Math.PI / 180;
+        const deltaLambda = (venue.lng - USER_LOCATION.lng) * Math.PI / 180;
+
+        const a = Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
+                  Math.cos(phi1) * Math.cos(phi2) *
+                  Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        const distance = R * c;
+
+        if (distance < minDistance) {
+          minDistance = distance;
+          nearestVenue = venue;
+        }
+      });
+
+      // 3. Update composer Geotag panel
+      if (nearestVenue) {
+        geotagVenueName.innerText = nearestVenue.name;
+        const isLive = minDistance <= 50;
+        
+        geotagStatus.innerHTML = `${Math.round(minDistance)}m away • ` + 
+          (isLive 
+            ? `<span>Verified Live (Within 50m) ✓</span>` 
+            : `<span style="color:var(--yellow)">Linked (Not at location)</span>`);
+            
+        // Store temporary target venue ref
+        composer.dataset.targetVenueId = nearestVenue.id;
+        composer.dataset.targetVenueDistance = minDistance;
+      } else {
+        geotagVenueName.innerText = "GPS Error";
+        geotagStatus.innerText = "No nearby spots found.";
+      }
+
+      // Open Composer Window
+      composer.classList.add("active");
+    });
+
+    closeComposerBtn.addEventListener("click", () => {
+      composer.classList.remove("active");
+      composerText.value = "";
+      charCount.innerText = "0 / 280";
+      submitPostBtn.disabled = true;
+    });
+
+    composerText.addEventListener("input", (e) => {
+      const length = e.target.value.length;
+      charCount.innerText = `${length} / 280`;
+      
+      if (length >= 260) {
+        charCount.style.color = "var(--red)";
+        charCount.style.fontWeight = "bold";
+      } else {
+        charCount.style.color = "var(--text-muted)";
+        charCount.style.fontWeight = "normal";
+      }
+
+      // Enable submit button if text is input
+      submitPostBtn.disabled = length === 0;
+    });
+
+    submitPostBtn.addEventListener("click", () => {
+      const text = composerText.value;
+      const targetVenueId = composer.dataset.targetVenueId;
+      const distance = parseFloat(composer.dataset.targetVenueDistance);
+      const isLive = distance <= 50;
+
+      // 1. Construct new Pin Object
+      const newPin = {
+        pinId: `pin_${Date.now()}`,
+        venueId: targetVenueId,
+        username: "cafe_hopper_99",
+        avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80",
+        text_content: text,
+        image_url: previewImg.src,
+        timestamp: new Date(),
+        is_live: isLive
+      };
+
+      // 2. Push to local database
+      activePins.push(newPin);
+
+      // 3. Dynamically update venue crowd status!
+      // If a venue receives an upload, we simulate updating its crowd status inside our mock database:
+      const targetVenue = VENUES.find(v => v.id === targetVenueId);
+      if (targetVenue) {
+        // Aggregate pins for this venue in the last 2 hours (here simply calculate count)
+        const recentPinsCount = activePins.filter(pin => pin.venueId === targetVenueId).length;
+        if (recentPinsCount >= 4) {
+          targetVenue.crowd_status = "Red";
+        } else if (recentPinsCount >= 2) {
+          targetVenue.crowd_status = "Yellow";
+        } else {
+          targetVenue.crowd_status = "Green";
+        }
+        
+        // Re-render markers and refresh sheet details
+        renderVenueMarkers();
+        if (selectedVenue && selectedVenue.id === targetVenueId) {
+          openBottomSheet(targetVenue);
+        }
+      }
+
+      // Show gorgeous toast notification
+      const toast = document.getElementById("toast");
+      toast.classList.add("active");
+      setTimeout(() => {
+        toast.classList.remove("active");
+      }, 3000);
+
+      // Reset composer & close
+      composer.classList.remove("active");
+      composerText.value = "";
+      charCount.innerText = "0 / 280";
+      submitPostBtn.disabled = true;
+    });
+
+    // ==========================================
+    // PRIORITIZED SPONSORED SEARCH & SORTING LOGIC
+    // ==========================================
+    const searchInput = document.getElementById("search-input-web");
+    const searchClear = document.getElementById("search-clear-web");
+    const searchDropdown = document.getElementById("search-dropdown-web");
+
+    searchInput.addEventListener("input", (e) => {
+      const queryStr = e.target.value.toLowerCase().trim();
+      
+      if (!queryStr) {
+        searchClear.style.display = "none";
+        searchDropdown.style.display = "none";
+        searchDropdown.innerHTML = "";
+        return;
+      }
+
+      searchClear.style.display = "block";
+
+      // Filter matched venues
+      const matched = VENUES.filter(venue => 
+        venue.name.toLowerCase().includes(queryStr) || 
+        venue.category.toLowerCase().includes(queryStr)
+      );
+
+      // Sort matched venues prioritizing active sponsored venues first, then sorting by rating
+      matched.sort((a, b) => {
+        const sponsoredA = isCampaignActive(a) ? 1 : 0;
+        const sponsoredB = isCampaignActive(b) ? 1 : 0;
+        if (sponsoredA !== sponsoredB) {
+          return sponsoredB - sponsoredA; // Sponsored (1) comes before Non-sponsored (0)
+        }
+        return b.rating - a.rating; // Secondary sort by rating
+      });
+
+      if (matched.length === 0) {
+        searchDropdown.innerHTML = `
+          <div class="empty-state" style="padding: 16px;">
+            <span class="empty-title" style="font-size: 13px;">No local spots found</span>
+          </div>
+        `;
+      } else {
+        searchDropdown.innerHTML = "";
+        matched.forEach(venue => {
+          const sponsored = isCampaignActive(venue);
+          const itemImg = sponsored ? venue.custom_icon_url : venue.cover_image;
+          
+          const resultItem = document.createElement("div");
+          resultItem.className = `result-item-web ${sponsored ? 'sponsored-item' : ''}`;
+          resultItem.innerHTML = `
+            <img src="${itemImg}" alt="${venue.name}" />
+            <div class="item-info">
+              <div class="item-name">${venue.name}</div>
+              <div class="item-cat">${venue.category.replace("_", " ")}</div>
+            </div>
+            ${sponsored ? '<span class="sponsored-badge-web">SPONSORED</span>' : ''}
+          `;
+
+          resultItem.addEventListener("click", () => {
+            searchInput.value = venue.name;
+            searchDropdown.style.display = "none";
+            
+            // Map Pan & Zoom to coordinates
+            map.setView([venue.lat, venue.lng], 17);
+            
+            // Open the Bottom Sheet with details
+            openBottomSheet(venue);
+          });
+
+          searchDropdown.appendChild(resultItem);
+        });
+      }
+
+      searchDropdown.style.display = "block";
+    });
+
+    searchClear.addEventListener("click", () => {
+      searchInput.value = "";
+      searchClear.style.display = "none";
+      searchDropdown.style.display = "none";
+      searchDropdown.innerHTML = "";
+    });
+
+    // Close dropdown when clicking outside
+    document.addEventListener("click", (e) => {
+      if (!searchInput.contains(e.target) && !searchDropdown.contains(e.target) && !searchClear.contains(e.target)) {
+        searchDropdown.style.display = "none";
+      }
+    });
+
+    // ==========================================
+    // INITIAL SETUP EXECUTION
+    // ==========================================
+    renderVenueMarkers();
+
+    // Auto-select first venue (Fika & Co.) on startup for visual preview
+    setTimeout(() => {
+      openBottomSheet(VENUES[0]);
+    }, 800);
+
+  </script>
+</body>
+</html>
