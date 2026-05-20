@@ -72,7 +72,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onAuthSuccess }) => {
       <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
         {/* Editorial Heading Panel */}
         <View style={styles.headerPanel}>
-          <Text style={styles.logo}>Pinc</Text>
+          <Text style={styles.logo}>pinc</Text>
           <Text style={styles.tagline}>Live reality check in the café scene.</Text>
         </View>
 
@@ -169,7 +169,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onAuthSuccess }) => {
             {isSignUp ? (
               <>Already have an account? <Text style={styles.linkText}>Log in</Text></>
             ) : (
-              <>New to Pinc? <Text style={styles.linkText}>Create an account</Text></>
+              <>New to pinc? <Text style={styles.linkText}>Create an account</Text></>
             )}
           </Text>
         </TouchableOpacity>

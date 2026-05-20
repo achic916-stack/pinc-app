@@ -9,10 +9,13 @@ import {
   Switch,
   TouchableOpacity,
   Alert,
-  SafeAreaView
+  SafeAreaView,
+  ScrollView,
+  Image
 } from "react-native";
 import { MapScreen } from "./screens/MapScreen";
 import { VenueDetailsSheet } from "./components/VenueDetailsSheet";
+import { UserProfileModal } from "./components/UserProfileModal";
 import { PincButton } from "./components/PincButton";
 import { LoginScreen } from "./screens/LoginScreen";
 import { PincTheme } from "./styles/theme";
@@ -21,13 +24,20 @@ import {
   Pin, 
   UserProfile,
   auth,
+  db,
   fetchUserProfile,
   subscribeToVenues, 
   subscribeToVenuePins,
+  subscribeToAllPins,
   seedInitialVenues,
   signOutUser,
-  deleteUserAccount
+  deleteUserAccount,
+  withTimeout,
+  subscribeToFollowingIds,
+  getFollowingList,
+  unfollowUser
 } from "./services/firebase";
+import { doc, setDoc, query, collection, where, onSnapshot } from "firebase/firestore";
 import { t } from "./services/localization";
 
 export default function App() {
@@ -40,10 +50,17 @@ export default function App() {
   const [locationTrackingEnabled, setLocationTrackingEnabled] = useState(true);
   const [settingsModalVisible, setSettingsModalVisible] = useState(false);
 
+  // Social Follow & Filter States
+  const [followingIds, setFollowingIds] = useState<string[]>([]);
+  const [followingList, setFollowingList] = useState<UserProfile[]>([]);
+  const [followingVenueIds, setFollowingVenueIds] = useState<Set<string>>(new Set());
+  const [selectedUserProfileId, setSelectedUserProfileId] = useState<string | null>(null);
+
   // Map & DB States
   const [venues, setVenues] = useState<Venue[]>([]);
   const [selectedVenue, setSelectedVenue] = useState<Venue | null>(null);
   const [activePins, setActivePins] = useState<Pin[]>([]);
+  const [allPins, setAllPins] = useState<Pin[]>([]);
   
   const [isLoadingVenues, setIsLoadingVenues] = useState(true);
   const [isLoadingPins, setIsLoadingPins] = useState(false);
@@ -66,10 +83,59 @@ export default function App() {
       setIsAuthChecking(true);
       if (user) {
         try {
-          const profile = await fetchUserProfile(user.uid);
+          let profile: UserProfile | null = null;
+          try {
+            profile = await fetchUserProfile(user.uid);
+          } catch (fetchErr) {
+            console.warn("Failed to fetch Firestore user profile, proceeding to resilient fallback.", fetchErr);
+            profile = null;
+          }
+          
+          if (!profile) {
+            // RESILIENT FALLBACK: If Auth exists but Firestore user document is missing
+            const fallbackUsername = user.email ? user.email.split("@")[0].toLowerCase().trim() : "cafe_hopper";
+            const fallbackProfile: UserProfile = {
+              userId: user.uid,
+              username: fallbackUsername,
+              bio: "Cafe hopper & travel enthusiast ☕✨",
+              profile_pic: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80",
+              created_at: new Date()
+            };
+            
+            try {
+              // Try to write to Firestore
+              await withTimeout(
+                setDoc(doc(db, "users", user.uid), {
+                  userId: user.uid,
+                  username: fallbackUsername,
+                  bio: fallbackProfile.bio,
+                  profile_pic: fallbackProfile.profile_pic,
+                  created_at: new Date()
+                }),
+                3000,
+                "Firestore database write timed out during fallback profile generation."
+              );
+              profile = fallbackProfile;
+            } catch (dbErr: any) {
+              console.warn("Firestore database write failed. Check if Firestore is enabled in Firebase Console.", dbErr);
+              
+              // If it fails because Firestore is not created in the Firebase console, alert the user!
+              Alert.alert(
+                "Database Setup Required",
+                "Your account is registered in Firebase Auth, but Firestore Database has not been initialized yet.\n\n" +
+                "Please go to your Firebase Console -> Firestore Database and click 'Create database' to enable it.",
+                [{ text: "OK" }]
+              );
+              
+              // We still set a temporary memory profile so they don't get stuck on a blank screen
+              profile = fallbackProfile;
+            }
+          }
+          
           setCurrentUser(profile);
-        } catch (err) {
+        } catch (err: any) {
           console.error("Failed to load user profile.", err);
+          Alert.alert("Database Error", "Failed to load database. Ensure Firestore is created in your Firebase Console.");
         }
       } else {
         setCurrentUser(null);
@@ -94,10 +160,15 @@ export default function App() {
     if (!currentUser) return;
 
     setIsLoadingVenues(true);
-    const unsubscribe = subscribeToVenues((updatedVenues) => {
-      setVenues(updatedVenues);
-      setIsLoadingVenues(false);
-    });
+    const unsubscribe = subscribeToVenues(
+      (updatedVenues) => {
+        setVenues(updatedVenues);
+        setIsLoadingVenues(false);
+      },
+      (error) => {
+        setIsLoadingVenues(false);
+      }
+    );
 
     return () => unsubscribe();
   }, [currentUser]);
@@ -110,13 +181,121 @@ export default function App() {
     }
 
     setIsLoadingPins(true);
-    const unsubscribe = subscribeToVenuePins(selectedVenue.venueId, (updatedPins) => {
-      setActivePins(updatedPins);
-      setIsLoadingPins(false);
-    });
+    const unsubscribe = subscribeToVenuePins(
+      selectedVenue.venueId,
+      (updatedPins) => {
+        setActivePins(updatedPins);
+        setIsLoadingPins(false);
+      },
+      (error) => {
+        setIsLoadingPins(false);
+      }
+    );
 
     return () => unsubscribe();
   }, [selectedVenue]);
+
+  // 5. Subscribe to real-time Following user IDs
+  useEffect(() => {
+    if (!currentUser) {
+      setFollowingIds([]);
+      setFollowingList([]);
+      return;
+    }
+
+    const unsubscribe = subscribeToFollowingIds(
+      currentUser.userId,
+      (ids) => {
+        setFollowingIds(ids);
+      },
+      (error) => {
+        console.warn("Real-time follow subscription failed:", error);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [currentUser]);
+
+  // 6. Load full following list profiles when followingIds change
+  useEffect(() => {
+    if (!currentUser || followingIds.length === 0) {
+      setFollowingList([]);
+      return;
+    }
+
+    const fetchProfiles = async () => {
+      try {
+        const profiles = await getFollowingList(currentUser.userId);
+        setFollowingList(profiles);
+      } catch (err) {
+        console.warn("Failed to fetch full following profiles:", err);
+      }
+    };
+    fetchProfiles();
+  }, [currentUser, followingIds]);
+
+  // 7. Subscribe to all pins of followed users to identify follow-related venues
+  useEffect(() => {
+    if (!currentUser || followingIds.length === 0) {
+      setFollowingVenueIds(new Set());
+      return;
+    }
+
+    // Comply with Firestore "in" array capped at 30 items
+    const targetIds = followingIds.slice(0, 30);
+
+    // Query pins posted by followed users
+    const q = query(
+      collection(db, "pins"),
+      where("userId", "in", targetIds)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const venueIds = new Set<string>();
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        if (data.venueId) {
+          venueIds.add(data.venueId);
+        }
+      });
+      setFollowingVenueIds(venueIds);
+    }, (error) => {
+      console.warn("Realtime pins from following users fetch failed:", error);
+    });
+
+    return () => unsubscribe();
+  }, [currentUser, followingIds]);
+
+  // 8. Subscribe to all pins in real-time to extract latest reality photo thumbnails
+  useEffect(() => {
+    if (!currentUser) {
+      setAllPins([]);
+      return;
+    }
+
+    const unsubscribe = subscribeToAllPins(
+      (pins) => {
+        setAllPins(pins);
+      },
+      (error) => {
+        console.warn("Real-time pins subscription failed:", error);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [currentUser]);
+
+  const handleUnfollowUser = async (userId: string) => {
+    if (!currentUser) return;
+    try {
+      await unfollowUser(currentUser.userId, userId);
+      // Immediately filter local state for instant feedback
+      setFollowingIds(prev => prev.filter(id => id !== userId));
+      setFollowingList(prev => prev.filter(p => p.userId !== userId));
+    } catch (err) {
+      console.warn("Failed to unfollow user from settings list:", err);
+    }
+  };
 
   const handleSelectVenue = (venue: Venue) => {
     setSelectedVenue(venue);
@@ -173,17 +352,14 @@ export default function App() {
       ]
     );
   };
-
-  // Auth Loading Overlay Screen
+  // Auth Loading Overlay Screen (Mimics Native Splash Screen for seamless transition)
   if (isAuthChecking) {
     return (
       <View style={styles.loaderContainer}>
-        <ActivityIndicator size="large" color={PincTheme.colors.primary} />
-        <Text style={styles.loaderText}>Syncing session...</Text>
+        <Image source={require("./assets/splash.png")} style={{ width: "100%", height: "100%" }} resizeMode="contain" />
       </View>
     );
   }
-
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={PincTheme.colors.background} />
@@ -197,10 +373,13 @@ export default function App() {
           {/* Main Fullscreen Styled Map */}
           <MapScreen
             venues={venues}
+            allPins={allPins}
             userLocation={userLocation}
             isLoadingVenues={isLoadingVenues}
             onSelectVenue={handleSelectVenue}
             onOpenSettings={() => setSettingsModalVisible(true)}
+            followingVenueIds={followingVenueIds}
+            locale={locale}
           />
 
           {/* Floating Action Button "The Pinc Button" */}
@@ -221,9 +400,23 @@ export default function App() {
                 isLoadingPins={isLoadingPins}
                 onClose={handleCloseBottomSheet}
                 locale={locale}
+                followingIds={followingIds}
+                onOpenUserProfile={(userId) => {
+                  setSelectedUserProfileId(userId);
+                }}
+                currentUser={currentUser}
               />
             </View>
           )}
+
+          {/* User Profile Modal */}
+          <UserProfileModal
+            visible={selectedUserProfileId !== null}
+            userId={selectedUserProfileId}
+            currentUserId={currentUser.userId}
+            onClose={() => setSelectedUserProfileId(null)}
+            locale={locale}
+          />
 
           {/* GDPR & Settings Modal */}
           <Modal
@@ -245,7 +438,52 @@ export default function App() {
                   </TouchableOpacity>
                 </View>
 
-                <View style={styles.modalBody}>
+                <ScrollView 
+                  style={styles.modalScrollView} 
+                  contentContainerStyle={styles.modalScrollContent}
+                  showsVerticalScrollIndicator={false}
+                >
+                  {/* Current User Profile Summary */}
+                  <View style={styles.profileHeaderSection}>
+                    <Image source={{ uri: currentUser.profile_pic }} style={styles.profileAvatar} />
+                    <View style={styles.profileMeta}>
+                      <Text style={styles.profileUsername}>@{currentUser.username}</Text>
+                      <Text style={styles.profileBio}>{currentUser.bio}</Text>
+                    </View>
+                  </View>
+
+                  {/* Social Following List */}
+                  <View style={styles.settingSection}>
+                    <Text style={styles.settingHeading}>{t(locale, "followingListTitle")} ({followingList.length})</Text>
+                    {followingList.length === 0 ? (
+                      <Text style={styles.noFollowingText}>{t(locale, "followingNoUsers")}</Text>
+                    ) : (
+                      <View style={styles.followingList}>
+                        {followingList.map((friend) => (
+                          <View key={friend.userId} style={styles.friendRow}>
+                            <TouchableOpacity 
+                              style={{ flexDirection: "row", alignItems: "center", flex: 1 }}
+                              onPress={() => {
+                                setSettingsModalVisible(false);
+                                setSelectedUserProfileId(friend.userId);
+                              }}
+                              activeOpacity={0.7}
+                            >
+                              <Image source={{ uri: friend.profile_pic }} style={styles.friendAvatar} />
+                              <Text style={styles.friendUsername}>@{friend.username}</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={styles.unfollowBtn}
+                              onPress={() => handleUnfollowUser(friend.userId)}
+                            >
+                              <Text style={styles.unfollowBtnText}>{t(locale, "unfollow")}</Text>
+                            </TouchableOpacity>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+
                   {/* Language Section */}
                   <View style={styles.settingSection}>
                     <Text style={styles.settingHeading}>{t(locale, "languageLabel")}</Text>
@@ -293,7 +531,7 @@ export default function App() {
                       <Text style={styles.deleteBtnText}>{t(locale, "deleteAccountBtn")}</Text>
                     </TouchableOpacity>
                   </View>
-                </View>
+                </ScrollView>
               </SafeAreaView>
             </View>
           </Modal>
@@ -363,9 +601,13 @@ const styles = StyleSheet.create({
     color: PincTheme.colors.textSecondary,
     fontWeight: "bold"
   },
-  modalBody: {
-    padding: 20,
-    flex: 1
+  modalScrollView: {
+    maxHeight: "100%"
+  },
+  modalScrollContent: {
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 48 // Give extra bottom padding to clear the Android bottom navigation bar
   },
   settingSection: {
     marginBottom: 24,
@@ -469,5 +711,86 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: PincTheme.colors.primary,
     letterSpacing: 0.5
+  },
+  profileHeaderSection: {
+    alignItems: "center",
+    backgroundColor: PincTheme.colors.card,
+    borderRadius: PincTheme.borderRadius.md,
+    padding: 20,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: PincTheme.colors.border,
+    ...PincTheme.shadows.sm
+  },
+  profileAvatar: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    borderWidth: 2,
+    borderColor: PincTheme.colors.divider,
+    backgroundColor: PincTheme.colors.border
+  },
+  profileMeta: {
+    alignItems: "center",
+    marginTop: 10
+  },
+  profileUsername: {
+    fontSize: 16,
+    fontFamily: PincTheme.fonts.heading,
+    fontWeight: "700",
+    color: PincTheme.colors.textPrimary
+  },
+  profileBio: {
+    fontSize: 12,
+    fontFamily: PincTheme.fonts.body,
+    color: PincTheme.colors.textSecondary,
+    textAlign: "center",
+    marginTop: 6,
+    lineHeight: 16
+  },
+  noFollowingText: {
+    fontSize: 12,
+    fontFamily: PincTheme.fonts.body,
+    color: PincTheme.colors.textTertiary,
+    textAlign: "center",
+    paddingVertical: 12
+  },
+  followingList: {
+    marginTop: 6
+  },
+  friendRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 10,
+    borderBottomWidth: 0.5,
+    borderBottomColor: PincTheme.colors.border
+  },
+  friendAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: PincTheme.colors.border
+  },
+  friendUsername: {
+    fontSize: 13,
+    fontFamily: PincTheme.fonts.body,
+    fontWeight: "600",
+    color: PincTheme.colors.textPrimary,
+    marginLeft: 10
+  },
+  unfollowBtn: {
+    backgroundColor: PincTheme.colors.primaryLight,
+    borderWidth: 1,
+    borderColor: PincTheme.colors.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6
+  },
+  unfollowBtnText: {
+    fontSize: 11,
+    fontFamily: PincTheme.fonts.heading,
+    fontWeight: "700",
+    color: PincTheme.colors.primary
   }
 });

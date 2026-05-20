@@ -13,6 +13,8 @@ import {
 } from "react-native";
 import * as Location from "expo-location";
 import * as ImagePicker from "expo-image-picker";
+import { LinearGradient } from "expo-linear-gradient";
+import { Feather } from "@expo/vector-icons";
 import { PincTheme } from "../styles/theme";
 import { Venue, createPin, calculateDistance } from "../services/firebase";
 
@@ -185,12 +187,15 @@ export const PincButton: React.FC<PincButtonProps> = ({
           disabled={isSensorsLoading}
         >
           {isSensorsLoading ? (
-            <ActivityIndicator size="small" color="#FFF" />
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="small" color="#FFF" />
+            </View>
           ) : (
-            <>
-              <Text style={styles.fabIcon}>📷</Text>
-              <Text style={styles.fabLabel}>PINC</Text>
-            </>
+            <Image 
+              source={require("../assets/logo.png")} 
+              style={styles.fabImage} 
+              resizeMode="contain" 
+            />
           )}
         </TouchableOpacity>
       </View>
@@ -366,28 +371,27 @@ const styles = StyleSheet.create({
     zIndex: 99
   },
   fab: {
-    backgroundColor: PincTheme.colors.primary,
-    flexDirection: "row",
+    backgroundColor: "transparent",
     alignItems: "center",
-    paddingHorizontal: 24,
-    paddingVertical: 14,
-    borderRadius: PincTheme.borderRadius.round,
-    ...PincTheme.shadows.lg,
-    borderWidth: 2,
-    borderColor: "#FFF",
-    minWidth: 100,
+    justifyContent: "center",
+    // Premium soft narrow 3D drop shadow
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.16,
+    shadowRadius: 6,
+    elevation: 5,
+  },
+  fabImage: {
+    width: 120,
+    height: 52,
+  },
+  loadingContainer: {
+    width: 120,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: "#E4007F", // matches the pink background of the button logo
+    alignItems: "center",
     justifyContent: "center"
-  },
-  fabIcon: {
-    fontSize: 18,
-    marginRight: 6
-  },
-  fabLabel: {
-    color: "#FFF",
-    fontFamily: PincTheme.fonts.heading,
-    fontWeight: "bold",
-    letterSpacing: 1.5,
-    fontSize: 14
   },
   modalContainer: {
     flex: 1,

@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Pinc",
+    "name": "pinc",
     "slug": "pinc",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -18,17 +18,17 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.achic.pinc",
       "config": {
-        "googleMapsApiKey": "YOUR_IOS_GOOGLE_MAPS_API_KEY_HERE"
+        "googleMapsApiKey": "AIzaSyCNz0jI3_1nKLiUxQzsTpELei-BKTNzIWM"
       },
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "Pinc uses your GPS location to verify if you are within 50 meters of the venue for the Live Reality Check."
+        "NSLocationWhenInUseUsageDescription": "pinc uses your GPS location to verify if you are within 50 meters of the venue for the Live Reality Check."
       }
     },
     "android": {
       "package": "com.achic.pinc",
       "config": {
         "googleMaps": {
-          "apiKey": "YOUR_ANDROID_GOOGLE_MAPS_API_KEY_HERE"
+          "apiKey": "AIzaSyCNz0jI3_1nKLiUxQzsTpELei-BKTNzIWM"
         }
       },
       "adaptiveIcon": {
@@ -41,6 +41,33 @@
         "CAMERA"
       ]
     },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow pinc to use your location."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow pinc to access your photos to set a profile picture.",
+          "cameraPermission": "Allow pinc to access your camera to take reality check photos."
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "kotlinVersion": "1.8.10",
+            "compileSdkVersion": 34,
+            "targetSdkVersion": 34,
+            "buildToolsVersion": "34.0.0",
+            "jvmArgs": ["-Xmx3G"]
+          }
+        }
+      ]
+    ],
     "web": {
       "favicon": "./assets/favicon.png"
     },

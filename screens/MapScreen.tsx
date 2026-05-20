@@ -14,14 +14,18 @@ import {
 } from "react-native";
 import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import { PincTheme } from "../styles/theme";
-import { Venue, isCampaignActive } from "../services/firebase";
+import { Venue, Pin, isCampaignActive } from "../services/firebase";
+import { t } from "../services/localization";
 
 interface MapScreenProps {
   venues: Venue[];
+  allPins: Pin[];
   userLocation: { latitude: number; longitude: number } | null;
   onSelectVenue: (venue: Venue) => void;
   isLoadingVenues: boolean;
   onOpenSettings?: () => void;
+  followingVenueIds?: Set<string>;
+  locale?: "en" | "th";
 }
 
 // Minimal/Light Lifestyle Map Styling for Google Maps
@@ -115,14 +119,35 @@ const RadarPulse: React.FC = () => {
 
 export const MapScreen: React.FC<MapScreenProps> = ({
   venues,
+  allPins = [],
   userLocation,
   onSelectVenue,
   isLoadingVenues,
-  onOpenSettings
+  onOpenSettings,
+  followingVenueIds = new Set<string>(),
+  locale = "en"
 }) => {
   const mapRef = useRef<MapView | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [isFilterFriends, setIsFilterFriends] = useState(false);
+  
+  // Dynamic zoom scale and region delta tracking
+  const [zoomScale, setZoomScale] = useState(1.0);
+  const [regionDelta, setRegionDelta] = useState({ latitudeDelta: 0.015, longitudeDelta: 0.015 });
+
+  const handleRegionChangeComplete = (region: { latitude: number; longitude: number; latitudeDelta: number; longitudeDelta: number }) => {
+    const delta = region.longitudeDelta || 0.015;
+    const baseDelta = 0.015;
+    const rawScale = Math.sqrt(baseDelta / delta);
+    // Cap scale between 0.5 and 2.0
+    const computedScale = Math.max(0.5, Math.min(2.0, rawScale));
+    setZoomScale(computedScale);
+    setRegionDelta({
+      latitudeDelta: region.latitudeDelta || 0.015,
+      longitudeDelta: region.longitudeDelta || 0.015
+    });
+  };
 
   // Default Center coordinates if GPS is loading (Bangkok central café district as default)
   const defaultRegion = {
@@ -140,12 +165,81 @@ export const MapScreen: React.FC<MapScreenProps> = ({
       }
     : defaultRegion;
 
+  // Filter venues based on isFilterFriends state
+  const displayedVenues = useMemo(() => {
+    if (!isFilterFriends) return venues;
+    return venues.filter((venue) => followingVenueIds.has(venue.venueId));
+  }, [venues, isFilterFriends, followingVenueIds]);
+
+  // Dynamic Greedy Clustering algorithm based on map deltas
+  const clusteredVenues = useMemo(() => {
+    // Overlap threshold: 8% of screen height/width
+    const thresholdLat = regionDelta.latitudeDelta * 0.08;
+    const thresholdLng = regionDelta.longitudeDelta * 0.08;
+
+    interface ClusterGroup {
+      representative: Venue;
+      venues: Venue[];
+      latestPhotoUrl: string;
+      latestPinTimestamp: number;
+    }
+
+    // Helper to find latest photo for a venue
+    const getVenueLatestPhoto = (v: Venue) => {
+      const venuePins = allPins.filter(pin => pin.venueId === v.venueId && pin.image_url);
+      const photoUrl = venuePins.length > 0 ? venuePins[0].image_url : v.cover_image;
+      const timestamp = venuePins.length > 0 ? new Date(venuePins[0].timestamp).getTime() : 0;
+      return { photoUrl, timestamp };
+    };
+
+    // Pre-sort displayedVenues:
+    // 1. By latest pin timestamp (descending) so the newest photo is always on top.
+    // 2. Secondary: by active campaign/sponsored status.
+    const sortedVenues = [...displayedVenues].map(venue => {
+      const { photoUrl, timestamp } = getVenueLatestPhoto(venue);
+      return { venue, photoUrl, timestamp };
+    }).sort((a, b) => {
+      if (b.timestamp !== a.timestamp) {
+        return b.timestamp - a.timestamp;
+      }
+      const sponsoredA = isCampaignActive(a.venue) ? 1 : 0;
+      const sponsoredB = isCampaignActive(b.venue) ? 1 : 0;
+      return sponsoredB - sponsoredA;
+    });
+
+    const groups: ClusterGroup[] = [];
+
+    sortedVenues.forEach(({ venue, photoUrl, timestamp }) => {
+      // Find an existing cluster group whose representative is visually "too close"
+      const matchingGroup = groups.find((g) => {
+        const rep = g.representative;
+        return (
+          Math.abs(rep.latitude - venue.latitude) < thresholdLat &&
+          Math.abs(rep.longitude - venue.longitude) < thresholdLng
+        );
+      });
+
+      if (matchingGroup) {
+        matchingGroup.venues.push(venue);
+      } else {
+        groups.push({
+          representative: venue,
+          venues: [venue],
+          latestPhotoUrl: photoUrl,
+          latestPinTimestamp: timestamp
+        });
+      }
+    });
+
+    return groups;
+  }, [displayedVenues, allPins, regionDelta]);
+
   // Search filter and prioritize sponsored sorting logic
   const searchResults = useMemo(() => {
     if (!searchQuery.trim()) return [];
     const queryStr = searchQuery.toLowerCase().trim();
     
-    const matched = venues.filter((venue) => 
+    const matched = displayedVenues.filter((venue) => 
       venue.name.toLowerCase().includes(queryStr) || 
       venue.category.toLowerCase().includes(queryStr)
     );
@@ -156,7 +250,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
       const isSponsoredB = isCampaignActive(b) ? 1 : 0;
       return isSponsoredB - isSponsoredA; // Sponsored (1) comes before Non-sponsored (0)
     });
-  }, [searchQuery, venues]);
+  }, [searchQuery, displayedVenues]);
 
   const handleSelectSearchResult = (venue: Venue) => {
     setSearchQuery("");
@@ -196,6 +290,19 @@ export const MapScreen: React.FC<MapScreenProps> = ({
           )}
           <TouchableOpacity onPress={onOpenSettings} style={styles.settingsButton} activeOpacity={0.7}>
             <Text style={styles.settingsIcon}>⚙️</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Floating Toggle Pills Row */}
+        <View style={styles.togglesRow}>
+          <TouchableOpacity
+            style={[styles.togglePill, isFilterFriends && styles.togglePillActive]}
+            onPress={() => setIsFilterFriends(prev => !prev)}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.toggleText, isFilterFriends && styles.toggleTextActive]}>
+              👥 {t(locale, "friendsOnly")}
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -262,59 +369,103 @@ export const MapScreen: React.FC<MapScreenProps> = ({
         customMapStyle={minimalMapStyle}
         showsUserLocation
         showsMyLocationButton
+        onRegionChangeComplete={handleRegionChangeComplete}
       >
-        {venues.map((venue) => {
+        {clusteredVenues.map((group) => {
+          const venue = group.representative;
           const sponsored = isCampaignActive(venue);
+
+          // Get latest photos for the top 3 venues in this cluster stack
+          const getLatestPhotoUrl = (v: Venue) => {
+            const venuePins = allPins.filter(pin => pin.venueId === v.venueId && pin.image_url);
+            return venuePins.length > 0 ? venuePins[0].image_url : v.cover_image;
+          };
+
+          const stackVenues = group.venues.map(v => ({
+            venue: v,
+            photoUrl: getLatestPhotoUrl(v)
+          }));
+
+          // Build stack label: "⭐️ Venue (+N)" or "Venue (+N)"
+          const labelText = group.venues.length > 1
+            ? `${venue.name} (+${group.venues.length - 1})`
+            : venue.name;
 
           return (
             <Marker
               key={venue.venueId}
               coordinate={{ latitude: venue.latitude, longitude: venue.longitude }}
               onPress={() => onSelectVenue(venue)}
-              title={venue.name}
+              title={labelText}
             >
               {sponsored ? (
                 /* OVERRIDE: Render Sponsored Pin UI Overrides */
-                <View style={styles.customMarkerContainer}>
+                <View style={[styles.customMarkerContainer, { transform: [{ scale: zoomScale }] }]}>
                   {/* Glowing Radar Pulse Effect for Tier 2 Sponsorship */}
                   {venue.sponsor_tier === 2 && <RadarPulse />}
+                  
+                  {/* Stack Background Ring Effect for Clustered Sponsored Pin with peeking logo */}
+                  {stackVenues.length > 1 && (
+                    <View style={[styles.sponsoredIconRing, styles.sponsoredStackBack, { transform: [{ rotate: "8deg" }] }]}>
+                      {stackVenues[1].venue.custom_icon_url ? (
+                        <Image source={{ uri: stackVenues[1].venue.custom_icon_url }} style={styles.sponsoredIconLogo} />
+                      ) : null}
+                    </View>
+                  )}
                   
                   {/* Outer premium gold/pink ring with store logo */}
                   <View style={[styles.sponsoredIconRing, venue.sponsor_tier === 2 && styles.tier2GoldRing]}>
                     <Image source={{ uri: venue.custom_icon_url }} style={styles.sponsoredIconLogo} />
+                    {group.venues.length > 1 && (
+                      <View style={styles.stackBadge}>
+                        <Text style={styles.stackBadgeText}>+{group.venues.length - 1}</Text>
+                      </View>
+                    )}
                   </View>
 
                   <View style={[styles.markerLabelContainer, styles.sponsoredLabel]}>
                     <Text numberOfLines={1} style={styles.markerLabelText}>
-                      ⭐️ {venue.name}
+                      ⭐️ {labelText}
                     </Text>
                   </View>
                 </View>
               ) : (
-                /* STANDARD: Render status color dot */
-                (() => {
-                  let markerColor = PincTheme.colors.crowdGreen;
-                  const status = (venue.crowd_status || "").toLowerCase();
-                  if (status === "yellow") {
-                    markerColor = PincTheme.colors.crowdYellow;
-                  } else if (status === "red") {
-                    markerColor = PincTheme.colors.crowdRed;
-                  }
-
-                  return (
-                    <View style={styles.customMarkerContainer}>
-                      <View style={[styles.markerAura, { backgroundColor: markerColor + "22" }]} />
-                      <View style={[styles.markerOuterRing, { borderColor: markerColor }]}>
-                        <View style={[styles.markerInnerDot, { backgroundColor: markerColor }]} />
-                      </View>
-                      <View style={styles.markerLabelContainer}>
-                        <Text numberOfLines={1} style={styles.markerLabelText}>
-                          {venue.name}
-                        </Text>
-                      </View>
+                /* STANDARD: Render Custom white-bordered Photo Pin */
+                <View style={[styles.customMarkerContainer, { transform: [{ scale: zoomScale }] }]}>
+                  {/* Stack Background Card 2 (Bottom-most) - shows 3rd newest photo */}
+                  {stackVenues.length > 2 && (
+                    <View style={[styles.photoPinCard, styles.stackCardBack, { transform: [{ rotate: "-6deg" }] }]}>
+                      <Image source={{ uri: stackVenues[2].photoUrl }} style={styles.photoPinImage} resizeMode="cover" />
                     </View>
-                  );
-                })()
+                  )}
+
+                  {/* Stack Background Card 1 (Middle) - shows 2nd newest photo */}
+                  {stackVenues.length > 1 && (
+                    <View style={[styles.photoPinCard, styles.stackCardMiddle, { transform: [{ rotate: "6deg" }] }]}>
+                      <Image source={{ uri: stackVenues[1].photoUrl }} style={styles.photoPinImage} resizeMode="cover" />
+                    </View>
+                  )}
+
+                  {/* White Rounded Photo Card (Front-most) - shows newest photo */}
+                  <View style={styles.photoPinCard}>
+                    <Image source={{ uri: stackVenues[0].photoUrl }} style={styles.photoPinImage} resizeMode="cover" />
+                    {group.venues.length > 1 && (
+                      <View style={styles.stackBadge}>
+                        <Text style={styles.stackBadgeText}>+{group.venues.length - 1}</Text>
+                      </View>
+                    )}
+                  </View>
+                  
+                  {/* Triangular Marker Pointer */}
+                  <View style={styles.photoPinPointer} />
+                  
+                  {/* Venue Name Label below */}
+                  <View style={styles.markerLabelContainer}>
+                    <Text numberOfLines={1} style={styles.markerLabelText}>
+                      {labelText}
+                    </Text>
+                  </View>
+                </View>
               )}
             </Marker>
           );
@@ -480,7 +631,96 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     width: 120,
-    height: 60
+    height: 90
+  },
+  photoPinCard: {
+    width: 70,
+    height: 48,
+    borderRadius: 8,
+    backgroundColor: "#FFFFFF",
+    padding: 3,
+    borderWidth: 1.5,
+    borderColor: "#FFFFFF",
+    // soft, narrow faded shadow
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    elevation: 3,
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 10
+  },
+  photoPinImage: {
+    width: 64,
+    height: 42,
+    borderRadius: 6
+  },
+  photoPinPointer: {
+    width: 0,
+    height: 0,
+    backgroundColor: "transparent",
+    borderStyle: "solid",
+    borderLeftWidth: 6,
+    borderRightWidth: 6,
+    borderTopWidth: 8,
+    borderLeftColor: "transparent",
+    borderRightColor: "transparent",
+    borderTopColor: "#FFFFFF",
+    alignSelf: "center",
+    marginTop: -1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 1,
+    elevation: 2,
+    zIndex: 9
+  },
+  stackCardBack: {
+    position: "absolute",
+    top: 4,
+    left: 21, // centered horizontal offset shift (120w - 70w) / 2 = 25. Back card is shifted left by 4, so 21.
+    backgroundColor: "#F5F2EB",
+    borderColor: "#EAE5D8",
+    zIndex: -2,
+    opacity: 0.8
+  },
+  stackCardMiddle: {
+    position: "absolute",
+    top: 2,
+    left: 27, // 25 + 2 shift = 27.
+    backgroundColor: "#FAF7F0",
+    borderColor: "#F0EAE0",
+    zIndex: -1,
+    opacity: 0.95
+  },
+  stackBadge: {
+    position: "absolute",
+    top: -6,
+    right: -6,
+    backgroundColor: PincTheme.colors.primary,
+    borderRadius: 9,
+    width: 18,
+    height: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: "#FFF",
+    ...PincTheme.shadows.sm,
+    zIndex: 20
+  },
+  stackBadgeText: {
+    color: "#FFF",
+    fontSize: 9,
+    fontWeight: "800",
+    fontFamily: PincTheme.fonts.heading
+  },
+  sponsoredStackBack: {
+    position: "absolute",
+    borderColor: "#EAE5D8",
+    backgroundColor: "#FAF6EF",
+    zIndex: -1,
+    opacity: 0.8
   },
   markerAura: {
     position: "absolute",
@@ -534,25 +774,26 @@ const styles = StyleSheet.create({
     zIndex: 1
   },
   markerLabelContainer: {
-    backgroundColor: "#1A1A1AF5",
+    backgroundColor: "transparent",
     paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 4,
+    paddingVertical: 2,
     marginTop: 4,
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.15)",
-    maxWidth: 100
+    maxWidth: 110
   },
   sponsoredLabel: {
-    borderColor: "#FF4B7255",
-    backgroundColor: "#111111FA"
+    backgroundColor: "transparent",
+    borderWidth: 0
   },
   markerLabelText: {
-    color: "#FFF",
-    fontSize: 9,
-    fontWeight: "600",
-    fontFamily: PincTheme.fonts.body,
-    textAlign: "center"
+    color: PincTheme.colors.textPrimary,
+    fontSize: 10,
+    fontWeight: "700",
+    fontFamily: PincTheme.fonts.heading,
+    textAlign: "center",
+    // Elegant text shadow glow for superior readability on light map styles
+    textShadowColor: "#FFFFFF",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3
   },
   settingsButton: {
     padding: 6,
@@ -561,5 +802,34 @@ const styles = StyleSheet.create({
   settingsIcon: {
     fontSize: 18,
     color: PincTheme.colors.textSecondary
+  },
+  togglesRow: {
+    flexDirection: "row",
+    marginTop: 10,
+    gap: 8
+  },
+  togglePill: {
+    backgroundColor: "#FDFBF7EF",
+    borderWidth: 1.5,
+    borderColor: PincTheme.colors.border,
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    height: 36,
+    justifyContent: "center",
+    alignItems: "center",
+    ...PincTheme.shadows.sm
+  },
+  togglePillActive: {
+    backgroundColor: PincTheme.colors.primaryLight,
+    borderColor: PincTheme.colors.primary
+  },
+  toggleText: {
+    fontFamily: PincTheme.fonts.heading,
+    fontSize: 12,
+    fontWeight: "700",
+    color: PincTheme.colors.textSecondary
+  },
+  toggleTextActive: {
+    color: PincTheme.colors.primary
   }
 });

@@ -1,0 +1,22 @@
+node_modules/
+.expo/
+dist/
+npm-debug.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+veda
+web-build/
+
+# macOS
+.DS_Store
+
+# Expo
+.expo-shared/
+
+# Bare native directories
+ios/
+android/

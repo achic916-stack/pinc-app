@@ -13,34 +13,47 @@ import {
   onSnapshot,
   Timestamp,
   serverTimestamp,
-  deleteDoc
+  deleteDoc,
+  runTransaction,
+  arrayUnion,
+  arrayRemove,
+  getCountFromServer,
+  updateDoc
 } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { 
-  getAuth, 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, 
+  // @ts-ignore
+  initializeAuth,
+  // @ts-ignore
+  getReactNativePersistence,
+  getAuth,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
   signOut,
   User,
   deleteUser
 } from "firebase/auth";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // ==========================================
 // FIREBASE CLIENT CONFIGURATION
 // ==========================================
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY_HERE",
-  authDomain: "pinc-app-12345.firebaseapp.com",
-  projectId: "pinc-app-12345",
-  storageBucket: "pinc-app-12345.appspot.com",
-  messagingSenderId: "1234567890",
-  appId: "1:1234567890:web:abcdef123456789"
+  apiKey: "AIzaSyCVlaNuAkdkojlTH0-ubpuJaWXPylpd6IA",
+  authDomain: "pinc-app-d2501.firebaseapp.com",
+  projectId: "pinc-app-d2501",
+  storageBucket: "pinc-app-d2501.firebasestorage.app",
+  messagingSenderId: "929703082491",
+  appId: "1:929703082491:web:cb4af54197a7b85f3f5335e",
+  measurementId: "G-9FJVD6RCDH"
 };
 
 // Initialize Firebase
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 export const db = getFirestore(app);
-export const auth = getAuth(app);
+export const auth = initializeAuth(app, {
+  persistence: getReactNativePersistence(AsyncStorage)
+});
 export const storage = getStorage(app);
 
 // ==========================================
@@ -113,6 +126,45 @@ export interface Pin {
   report_type: "aesthetic" | "live_status";
   live_crowd_vote?: "chill" | "moderate" | "packed";
   user_aesthetic_rating?: number; // Optional user aesthetic rating review
+  likes?: string[]; // Array of userIds who liked this pin
+}
+
+export interface Comment {
+  commentId?: string;
+  pinId: string;
+  userId: string;
+  username: string;
+  user_profile_pic: string;
+  text: string;
+  timestamp: Date;
+}
+
+
+// ==========================================
+// PROMISE TIMEOUT UTILITY
+// ==========================================
+
+/**
+ * Wraps a promise with a timeout. If the promise does not resolve within the specified timeout,
+ * it rejects with a timeout error. Useful for preventing Firestore queries from hanging indefinitely
+ * on offline or uninitialized databases.
+ */
+export function withTimeout<T>(promise: Promise<T>, timeoutMs: number = 3000, errorMsg: string = "Request timed out"): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(errorMsg));
+    }, timeoutMs);
+    
+    promise
+      .then((res) => {
+        clearTimeout(timer);
+        resolve(res);
+      })
+      .catch((err) => {
+        clearTimeout(timer);
+        reject(err);
+      });
+  });
 }
 
 // ==========================================
@@ -155,7 +207,7 @@ export async function signUpUser(params: {
     created_at: serverTimestamp()
   };
 
-  await setDoc(doc(db, "users", user.uid), profileData);
+  await withTimeout(setDoc(doc(db, "users", user.uid), profileData), 5000, "Firestore database write timed out during registration.");
 
   return {
     userId: user.uid,
@@ -182,23 +234,50 @@ export async function signOutUser(): Promise<void> {
 }
 
 /**
- * Fetches user profile details from Firestore.
+ * Fetches user profile from Firestore.
  */
 export async function fetchUserProfile(userId: string): Promise<UserProfile | null> {
   const docRef = doc(db, "users", userId);
-  const docSnap = await getDoc(docRef);
-
+  const docSnap = await withTimeout(getDoc(docRef), 3000, "Firestore database profile fetch timed out.");
   if (docSnap.exists()) {
     const data = docSnap.data();
     return {
-      userId: docSnap.id,
+      userId: data.userId,
       username: data.username,
-      profile_pic: data.profile_pic,
       bio: data.bio,
+      profile_pic: data.profile_pic,
       created_at: (data.created_at as Timestamp)?.toDate() || new Date()
-    };
+    } as UserProfile;
   }
   return null;
+}
+
+/**
+ * Updates a user profile in Firestore.
+ */
+export async function updateUserProfile(userId: string, data: Partial<UserProfile>): Promise<void> {
+  const docRef = doc(db, "users", userId);
+  await withTimeout(updateDoc(docRef, data), 5000, "Updating profile timed out.");
+}
+
+/**
+ * Retrieves the followers and following counts for a user.
+ */
+export async function getUserStats(userId: string): Promise<{ followersCount: number; followingCount: number }> {
+  try {
+    const followsColl = collection(db, "follows");
+    const [followersSnap, followingSnap] = await Promise.all([
+      getCountFromServer(query(followsColl, where("followingId", "==", userId))),
+      getCountFromServer(query(followsColl, where("followerId", "==", userId)))
+    ]);
+    return {
+      followersCount: followersSnap.data().count,
+      followingCount: followingSnap.data().count
+    };
+  } catch (err) {
+    console.warn("Failed to get user stats:", err);
+    return { followersCount: 0, followingCount: 0 };
+  }
 }
 
 /**
@@ -211,7 +290,7 @@ export async function deleteUserAccount(userId: string): Promise<void> {
 
   // 1. Delete user profile document from Firestore
   const docRef = doc(db, "users", userId);
-  await deleteDoc(docRef);
+  await withTimeout(deleteDoc(docRef), 3000, "Firestore profile erasure timed out.");
 
   // 2. Delete the actual Firebase Authentication user profile
   await deleteUser(currentUser);
@@ -282,7 +361,7 @@ export function calculateDistance(lat1: number, lon1: number, lat2: number, lon2
   return R * c;
 }
 
-export function subscribeToVenues(onUpdate: (venues: Venue[]) => void) {
+export function subscribeToVenues(onUpdate: (venues: Venue[]) => void, onError?: (error: any) => void) {
   const q = query(collection(db, "venues"));
   return onSnapshot(q, (snapshot) => {
     const venues: Venue[] = [];
@@ -296,13 +375,18 @@ export function subscribeToVenues(onUpdate: (venues: Venue[]) => void) {
       } as Venue);
     });
     onUpdate(venues);
+  }, (error) => {
+    console.warn("Firestore subscribeToVenues failed:", error);
+    if (onError) {
+      onError(error);
+    }
   });
 }
 
 /**
  * Subscribes to pins for a specific venue, ordered by timestamp (newest first).
  */
-export function subscribeToVenuePins(venueId: string, onUpdate: (pins: Pin[]) => void) {
+export function subscribeToVenuePins(venueId: string, onUpdate: (pins: Pin[]) => void, onError?: (error: any) => void) {
   const q = query(
     collection(db, "pins"),
     where("venueId", "==", venueId),
@@ -319,6 +403,11 @@ export function subscribeToVenuePins(venueId: string, onUpdate: (pins: Pin[]) =>
       } as Pin);
     });
     onUpdate(pins);
+  }, (error) => {
+    console.warn("Firestore subscribeToVenuePins failed:", error);
+    if (onError) {
+      onError(error);
+    }
   });
 }
 
@@ -357,7 +446,7 @@ export async function createPin(params: {
   user_profile_pic: string;
   venueId: string;
   venueCoords: { latitude: number; longitude: number };
-  imageUri: string;
+  imageUri?: string | null;
   textContent: string;
   userCoords: { latitude: number; longitude: number };
   aestheticRating?: number; // Optional user aesthetic rating
@@ -378,8 +467,16 @@ export async function createPin(params: {
     liveCrowdVote
   } = params;
 
-  // 1. Upload photo
-  const imageUrl = await uploadPinImage(imageUri, userId);
+  // 1. Upload photo with resilient fallback if Firebase Storage fails or quota is exceeded
+  let imageUrl = "";
+  if (imageUri) {
+    try {
+      imageUrl = await uploadPinImage(imageUri, userId);
+    } catch (uploadErr) {
+      console.warn("Firebase Storage upload failed (possibly due to quota limits), proceeding without image:", uploadErr);
+      imageUrl = "";
+    }
+  }
 
   // 2. Determine "Live Reality Check" proximity verification (<= 50 meters)
   const distance = calculateDistance(
@@ -415,8 +512,237 @@ export async function createPin(params: {
   }
 
   // 4. Save to Firestore
-  const docRef = await addDoc(collection(db, "pins"), pinData);
+  const docRef = await withTimeout(addDoc(collection(db, "pins"), pinData), 5000, "Firestore connection timed out while creating pin.");
   return docRef.id;
+}
+
+// ==========================================
+// SOCIAL FOLLOW SERVICES
+// ==========================================
+
+/**
+ * Follows a user in Firestore.
+ */
+export async function followUser(followerId: string, followingId: string): Promise<void> {
+  const followDocId = `${followerId}_${followingId}`;
+  await withTimeout(
+    setDoc(doc(db, "follows", followDocId), {
+      followerId,
+      followingId,
+      timestamp: serverTimestamp()
+    }),
+    3000,
+    "Following user operation timed out."
+  );
+}
+
+/**
+ * Unfollows a user in Firestore.
+ */
+export async function unfollowUser(followerId: string, followingId: string): Promise<void> {
+  const followDocId = `${followerId}_${followingId}`;
+  await withTimeout(
+    deleteDoc(doc(db, "follows", followDocId)),
+    3000,
+    "Unfollowing user operation timed out."
+  );
+}
+
+/**
+ * Checks if a follower is actively following a user.
+ */
+export async function checkIsFollowing(followerId: string, followingId: string): Promise<boolean> {
+  const followDocId = `${followerId}_${followingId}`;
+  const docSnap = await withTimeout(
+    getDoc(doc(db, "follows", followDocId)),
+    3000,
+    "Checking follow status timed out."
+  );
+  return docSnap.exists();
+}
+
+/**
+ * Toggles follow status for a user using the followerId_followingId composite document ID pattern.
+ * If following, it unfollows; if not following, it follows.
+ * Returns true if now following, false if unfollowed.
+ */
+export async function toggleFollow(followerId: string, followingId: string): Promise<boolean> {
+  const isFollowing = await checkIsFollowing(followerId, followingId);
+  if (isFollowing) {
+    await unfollowUser(followerId, followingId);
+    return false;
+  } else {
+    await followUser(followerId, followingId);
+    return true;
+  }
+}
+
+/**
+ * Retrieves the profiles list of users followerId is following.
+ */
+export async function getFollowingList(followerId: string): Promise<UserProfile[]> {
+  const q = query(collection(db, "follows"), where("followerId", "==", followerId));
+  const querySnapshot = await withTimeout(getDocs(q), 3000, "Fetching following IDs list timed out.");
+  const followingIds: string[] = [];
+  querySnapshot.forEach((doc) => {
+    followingIds.push(doc.data().followingId);
+  });
+  
+  if (followingIds.length === 0) return [];
+  
+  // Fetch profiles in parallel
+  const fetchPromises = followingIds.map(id => fetchUserProfile(id));
+  const fetchedProfiles = await Promise.all(fetchPromises);
+  return fetchedProfiles.filter((p): p is UserProfile => p !== null);
+}
+
+/**
+ * Subscribes to the list of user IDs that followerId is following in real-time.
+ */
+export function subscribeToFollowingIds(followerId: string, onUpdate: (ids: string[]) => void, onError?: (error: any) => void) {
+  const q = query(collection(db, "follows"), where("followerId", "==", followerId));
+  return onSnapshot(q, (snapshot) => {
+    const followingIds: string[] = [];
+    snapshot.forEach((doc) => {
+      followingIds.push(doc.data().followingId);
+    });
+    onUpdate(followingIds);
+  }, (error) => {
+    console.warn("Firestore subscribeToFollowingIds failed:", error);
+    if (onError) onError(error);
+  });
+}
+
+/**
+ * Subscribes to the chronological pins posted by a specific user.
+ */
+export function subscribeToUserPins(userId: string, onUpdate: (pins: Pin[]) => void, onError?: (error: any) => void) {
+  const q = query(
+    collection(db, "pins"),
+    where("userId", "==", userId),
+    orderBy("timestamp", "desc")
+  );
+  return onSnapshot(q, (snapshot) => {
+    const pins: Pin[] = [];
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      pins.push({
+        pinId: doc.id,
+        ...data,
+        timestamp: (data.timestamp as Timestamp)?.toDate() || new Date()
+      } as Pin);
+    });
+    onUpdate(pins);
+  }, (error) => {
+    console.warn("Firestore subscribeToUserPins failed:", error);
+    if (onError) onError(error);
+  });
+}
+
+/**
+ * Subscribes to all pins in the database in real-time, ordered by timestamp desc.
+ */
+export function subscribeToAllPins(onUpdate: (pins: Pin[]) => void, onError?: (error: any) => void) {
+  const q = query(
+    collection(db, "pins"),
+    orderBy("timestamp", "desc")
+  );
+  return onSnapshot(q, (snapshot) => {
+    const pins: Pin[] = [];
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      pins.push({
+        pinId: doc.id,
+        ...data,
+        timestamp: (data.timestamp as Timestamp)?.toDate() || new Date()
+      } as Pin);
+    });
+    onUpdate(pins);
+  }, (error) => {
+    console.warn("Firestore subscribeToAllPins failed:", error);
+    if (onError) onError(error);
+  });
+}
+
+/**
+ * Toggles like status for a pin. Stores likes inside the pin document's 'likes' array field.
+ * Returns true if the pin is now liked by the user, false if unliked.
+ */
+export async function toggleLikePin(pinId: string, userId: string): Promise<boolean> {
+  const pinRef = doc(db, "pins", pinId);
+  let isLikedNow = false;
+
+  await withTimeout(
+    runTransaction(db, async (transaction) => {
+      const pinDoc = await transaction.get(pinRef);
+      if (!pinDoc.exists()) {
+        throw new Error("Pin does not exist");
+      }
+
+      const likesArray = pinDoc.data().likes || [];
+      if (likesArray.includes(userId)) {
+        transaction.update(pinRef, {
+          likes: arrayRemove(userId)
+        });
+        isLikedNow = false;
+      } else {
+        transaction.update(pinRef, {
+          likes: arrayUnion(userId)
+        });
+        isLikedNow = true;
+      }
+    }),
+    5000,
+    "Toggling like operation timed out."
+  );
+
+  return isLikedNow;
+}
+
+/**
+ * Adds a new comment document to the sub-collection 'comments' under the target pin.
+ * Returns the comment's new document ID.
+ */
+export async function addComment(pinId: string, comment: Omit<Comment, "commentId" | "timestamp">): Promise<string> {
+  const commentsCollectionRef = collection(db, "pins", pinId, "comments");
+  const docRef = await withTimeout(
+    addDoc(commentsCollectionRef, {
+      ...comment,
+      timestamp: serverTimestamp()
+    }),
+    5000,
+    "Adding comment operation timed out."
+  );
+  return docRef.id;
+}
+
+/**
+ * Subscribes to the comments of a specific pin in ascending chronological order.
+ */
+export function subscribeToComments(pinId: string, onUpdate: (comments: Comment[]) => void, onError?: (error: any) => void) {
+  const q = query(
+    collection(db, "pins", pinId, "comments"),
+    orderBy("timestamp", "asc")
+  );
+  return onSnapshot(q, (snapshot) => {
+    const comments: Comment[] = [];
+    snapshot.forEach((docSnap) => {
+      const data = docSnap.data();
+      comments.push({
+        commentId: docSnap.id,
+        pinId: data.pinId || pinId,
+        userId: data.userId,
+        username: data.username,
+        user_profile_pic: data.user_profile_pic,
+        text: data.text,
+        timestamp: (data.timestamp as Timestamp)?.toDate() || new Date()
+      } as Comment);
+    });
+    onUpdate(comments);
+  }, (error) => {
+    console.warn(`Firestore subscribeToComments for pin ${pinId} failed:`, error);
+    if (onError) onError(error);
+  });
 }
 
 // ==========================================
@@ -428,7 +754,7 @@ export async function createPin(params: {
  */
 export async function seedInitialVenues(): Promise<void> {
   const venuesRef = collection(db, "venues");
-  const querySnapshot = await getDocs(venuesRef);
+  const querySnapshot = await withTimeout(getDocs(venuesRef), 3000, "Firestore database seeding check timed out.");
 
   // If already seeded, skip!
   if (querySnapshot.size > 0) return;

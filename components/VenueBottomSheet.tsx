@@ -155,7 +155,7 @@ export const VenueBottomSheet: React.FC<VenueBottomSheetProps> = ({
               <View style={styles.emptyContainer}>
                 <Text style={styles.emptyTitle}>No live checks today ☕</Text>
                 <Text style={styles.emptySubtitle}>
-                  Be the first to post a raw reality check for this venue using the Pinc Button below!
+                  Be the first to post a raw reality check for this venue using the pinc button below!
                 </Text>
               </View>
             ) : (

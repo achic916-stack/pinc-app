@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -10,8 +10,9 @@ import {
   ActivityIndicator
 } from "react-native";
 import { PincTheme } from "../styles/theme";
-import { Venue, Pin } from "../services/firebase";
+import { Venue, Pin, UserProfile, toggleLikePin, subscribeToComments } from "../services/firebase";
 import { t } from "../services/localization";
+import { CommentsDrawer } from "./CommentsDrawer";
 
 interface VenueDetailsSheetProps {
   venue: Venue | null;
@@ -19,6 +20,9 @@ interface VenueDetailsSheetProps {
   isLoadingPins: boolean;
   onClose: () => void;
   locale?: "en" | "th";
+  followingIds?: string[];
+  onOpenUserProfile?: (userId: string) => void;
+  currentUser: UserProfile;
 }
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -28,9 +32,71 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
   pins,
   isLoadingPins,
   onClose,
-  locale = "en"
+  locale = "en",
+  followingIds = [],
+  onOpenUserProfile,
+  currentUser
 }) => {
   const [activeTab, setActiveTab] = useState<"aesthetic" | "reality">("aesthetic");
+  const [localLikes, setLocalLikes] = useState<{ [pinId: string]: { liked: boolean; count: number } }>({});
+  const [activeCommentsPinId, setActiveCommentsPinId] = useState<string | null>(null);
+  const [commentsCounts, setCommentsCounts] = useState<{ [pinId: string]: number }>({});
+
+  // Subscribe to comments count for each pin reactively
+  useEffect(() => {
+    const cleanups: (() => void)[] = [];
+    pins.forEach((pin) => {
+      if (pin.pinId) {
+        const cleanup = subscribeToComments(pin.pinId, (commentsList) => {
+          setCommentsCounts(prev => ({
+            ...prev,
+            [pin.pinId!]: commentsList.length
+          }));
+        });
+        cleanups.push(cleanup);
+      }
+    });
+    return () => {
+      cleanups.forEach(c => c());
+    };
+  }, [pins]);
+
+  const getPinLikeState = (pin: Pin) => {
+    const pinId = pin.pinId || "";
+    if (localLikes[pinId] !== undefined) {
+      return localLikes[pinId];
+    }
+    const likesArray = pin.likes || [];
+    const liked = likesArray.includes(currentUser.userId);
+    const count = likesArray.length;
+    return { liked, count };
+  };
+
+  const handleLikeToggle = async (pin: Pin) => {
+    const pinId = pin.pinId;
+    if (!pinId) return;
+
+    const currentState = getPinLikeState(pin);
+    const nextLiked = !currentState.liked;
+    const nextCount = currentState.count + (nextLiked ? 1 : -1);
+
+    // Optimistic update
+    setLocalLikes(prev => ({
+      ...prev,
+      [pinId]: { liked: nextLiked, count: nextCount }
+    }));
+
+    try {
+      await toggleLikePin(pinId, currentUser.userId);
+    } catch (err) {
+      console.warn("Failed to toggle like on Firestore:", err);
+      // Revert on error
+      setLocalLikes(prev => ({
+        ...prev,
+        [pinId]: currentState
+      }));
+    }
+  };
 
   if (!venue) return null;
 
@@ -224,7 +290,13 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
             {aestheticPins.length > 0 ? (
               aestheticPins.map((pin) => (
                 <View key={pin.pinId} style={styles.gridImageWrapper}>
-                  <Image source={{ uri: pin.image_url }} style={styles.gridImage} resizeMode="cover" />
+                  {pin.image_url ? (
+                    <Image source={{ uri: pin.image_url }} style={styles.gridImage} resizeMode="cover" />
+                  ) : (
+                    <View style={[styles.gridImage, { backgroundColor: PincTheme.colors.border, justifyContent: "center", alignItems: "center" }]}>
+                      <Text style={{ fontSize: 24 }}>☕</Text>
+                    </View>
+                  )}
                   <View style={styles.gridOverlay}>
                     <Text style={styles.gridRatingText}>★ {pin.user_aesthetic_rating || 5}</Text>
                   </View>
@@ -277,30 +349,66 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                   const pinDate = pin.timestamp instanceof Date ? pin.timestamp : new Date(pin.timestamp);
                   const isPostToday = isToday(pinDate);
                   const isPostYesterday = isYesterday(pinDate);
+                  const isFriend = followingIds.includes(pin.userId);
+                  
+                  // Interaction activity cue checks
+                  const isOwnPost = pin.userId === currentUser.userId;
+                  const likeState = getPinLikeState(pin);
+                  const commentCount = commentsCounts[pin.pinId || ""] || 0;
+                  const hasInteractions = likeState.count > 0 || commentCount > 0;
+                  const showActivityCue = isOwnPost && hasInteractions;
+
                   return (
-                    <View key={pin.pinId} style={styles.feedCard}>
+                    <View 
+                      key={pin.pinId} 
+                      style={[
+                        styles.feedCard, 
+                        isFriend && styles.feedCardFriend,
+                        showActivityCue && styles.feedCardOwnActive
+                      ]}
+                    >
                       <View style={styles.feedHeader}>
-                        <Image source={{ uri: pin.user_profile_pic }} style={styles.avatar} />
-                        <View style={styles.userMeta}>
-                          <Text style={styles.username}>@{pin.username}</Text>
-                          <Text style={styles.timestamp}>
-                            {isPostToday 
-                              ? t(locale, "today") 
-                              : isPostYesterday 
-                                ? t(locale, "yesterday") 
-                                : pinDate.toLocaleDateString()
-                            } {" "}
-                            {t(locale, "at")} {" "}
-                            {pinDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                          </Text>
-                        </View>
-                        
-                        {/* Live Location verification Badge */}
-                        {pin.is_live_verified && (
-                          <View style={styles.liveBadge}>
-                            <Text style={styles.liveBadgeText}>{t(locale, "verifiedLive")}</Text>
+                        <TouchableOpacity
+                          style={{ flexDirection: "row", alignItems: "center", flex: 1 }}
+                          onPress={() => onOpenUserProfile && onOpenUserProfile(pin.userId)}
+                          activeOpacity={0.7}
+                        >
+                          <Image source={{ uri: pin.user_profile_pic }} style={styles.avatar} />
+                          <View style={styles.userMeta}>
+                            <Text style={styles.username}>@{pin.username}</Text>
+                            <Text style={styles.timestamp}>
+                              {isPostToday 
+                                ? t(locale, "today") 
+                                : isPostYesterday 
+                                  ? t(locale, "yesterday") 
+                                  : pinDate.toLocaleDateString()
+                              } {" "}
+                              {t(locale, "at")} {" "}
+                              {pinDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                            </Text>
                           </View>
-                        )}
+                        </TouchableOpacity>
+                        
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                          {showActivityCue && (
+                            <View style={styles.activityBadge}>
+                              <Text style={styles.activityBadgeText}>✨ {t(locale, "ownPostActivity")}</Text>
+                            </View>
+                          )}
+
+                          {isFriend && !showActivityCue && (
+                            <View style={styles.friendBadge}>
+                              <Text style={styles.friendBadgeText}>{t(locale, "friendPost")}</Text>
+                            </View>
+                          )}
+                          
+                          {/* Live Location verification Badge */}
+                          {pin.is_live_verified && (
+                            <View style={styles.liveBadge}>
+                              <Text style={styles.liveBadgeText}>{t(locale, "verifiedLive")}</Text>
+                            </View>
+                          )}
+                        </View>
                       </View>
                       
                       <Text style={styles.feedText}>{pin.text_content}</Text>
@@ -308,6 +416,35 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                       {pin.image_url && (
                         <Image source={{ uri: pin.image_url }} style={styles.feedImage} resizeMode="cover" />
                       )}
+
+                      {/* Social Action Row */}
+                      <View style={styles.socialActionRow}>
+                        {/* Like Button */}
+                        <TouchableOpacity 
+                          style={styles.actionButton} 
+                          onPress={() => handleLikeToggle(pin)}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={[styles.actionIcon, likeState.liked && styles.actionIconLiked]}>
+                            {likeState.liked ? "❤️" : "🤍"}
+                          </Text>
+                          <Text style={[styles.actionCount, likeState.liked && styles.actionCountLiked]}>
+                            {likeState.count}
+                          </Text>
+                        </TouchableOpacity>
+
+                        {/* Comment Button */}
+                        <TouchableOpacity 
+                          style={styles.actionButton} 
+                          onPress={() => setActiveCommentsPinId(pin.pinId || null)}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={styles.actionIcon}>💬</Text>
+                          <Text style={styles.actionCount}>
+                            {commentCount}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
                     </View>
                   );
                 })}
@@ -316,13 +453,23 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
           </View>
         )}
       </View>
+
+      {/* Comments Drawer Modal */}
+      <CommentsDrawer
+        visible={activeCommentsPinId !== null}
+        pinId={activeCommentsPinId}
+        currentUser={currentUser}
+        onClose={() => setActiveCommentsPinId(null)}
+        locale={locale}
+        onOpenUserProfile={onOpenUserProfile}
+      />
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   sheetContainer: {
-    height: SCREEN_HEIGHT * 0.6,
+    height: SCREEN_HEIGHT * 0.78,
     backgroundColor: PincTheme.colors.background,
     borderTopLeftRadius: PincTheme.borderRadius.lg,
     borderTopRightRadius: PincTheme.borderRadius.lg,
@@ -645,5 +792,83 @@ const styles = StyleSheet.create({
     height: 180,
     borderRadius: PincTheme.borderRadius.sm,
     overflow: "hidden"
+  },
+  feedCardFriend: {
+    borderColor: "#FFD70088", // Soft gold border for friend discovery highlight
+    backgroundColor: "#FFFDF9", // Extremely soft warm cream background
+    borderWidth: 1.5
+  },
+  feedCardOwnActive: {
+    borderColor: PincTheme.colors.primary,
+    borderWidth: 1.5,
+    backgroundColor: "#FFF9FA", // Soft glowing peach/rose tint
+    shadowColor: PincTheme.colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4
+  },
+  activityBadge: {
+    backgroundColor: "#FFEBF0",
+    borderColor: "#FF4B72",
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 4
+  },
+  activityBadgeText: {
+    fontSize: 9,
+    fontFamily: PincTheme.fonts.body,
+    fontWeight: "bold",
+    color: "#FF4B72"
+  },
+  friendBadge: {
+    backgroundColor: "rgba(255, 75, 114, 0.1)",
+    borderColor: PincTheme.colors.primary,
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 4
+  },
+  friendBadgeText: {
+    fontSize: 9,
+    fontFamily: PincTheme.fonts.body,
+    fontWeight: "bold",
+    color: PincTheme.colors.primary
+  },
+  socialActionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: PincTheme.colors.border,
+    paddingTop: 10,
+    gap: 20
+  },
+  actionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 4,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: "#FAF9F5",
+    borderWidth: 1,
+    borderColor: PincTheme.colors.border
+  },
+  actionIcon: {
+    fontSize: 14,
+    color: PincTheme.colors.textSecondary
+  },
+  actionIconLiked: {
+    transform: [{ scale: 1.1 }]
+  },
+  actionCount: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: PincTheme.colors.textSecondary,
+    marginLeft: 6
+  },
+  actionCountLiked: {
+    color: "#FF4B72"
   }
 });

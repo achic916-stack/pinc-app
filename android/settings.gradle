@@ -1,4 +1,4 @@
-rootProject.name = 'Pinc'
+rootProject.name = 'pinc'
 
 dependencyResolutionManagement {
   versionCatalogs {
