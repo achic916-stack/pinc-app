@@ -16,6 +16,7 @@ import {
 } from "react-native";
 import * as Location from "expo-location";
 import * as ImagePicker from "expo-image-picker";
+import * as VideoThumbnails from 'expo-video-thumbnails';
 import { LinearGradient } from "expo-linear-gradient";
 import { Feather, Ionicons } from "@expo/vector-icons";
 const Audio = { Sound: { createAsync: async () => ({ sound: { playAsync: async () => {}, stopAsync: async () => {}, unloadAsync: async () => {} } }) }, setAudioModeAsync: async () => {} }; const Video = () => null; const ResizeMode = { COVER: 'cover', CONTAIN: 'contain' };
@@ -274,6 +275,18 @@ export const PincButton: React.FC<PincButtonProps> = ({
 
       const loc = currentGPSLocation || userLocation || { latitude: 0, longitude: 0 };
       
+      let thumbnailUri = null;
+      if (capturedMediaType === "video" && capturedPhoto) {
+        try {
+          const { uri } = await VideoThumbnails.getThumbnailAsync(capturedPhoto, {
+            time: 1000, // 1 second in
+          });
+          thumbnailUri = uri;
+        } catch (e) {
+          console.warn("Could not generate video thumbnail", e);
+        }
+      }
+      
       // Save Pin to Firebase Firestore & Storage
       await createPin({
         userId: currentUser.userId,
@@ -290,7 +303,8 @@ export const PincButton: React.FC<PincButtonProps> = ({
         situationDetails: postType === "live_news" ? text : "",
         mediaType: capturedMediaType,
         musicTitle: selectedTrack.id !== "original" ? selectedTrack.title : "",
-        musicUrl: selectedTrack.id !== "original" ? selectedTrack.url : ""
+        musicUrl: selectedTrack.id !== "original" ? selectedTrack.url : "",
+        thumbnailUri: thumbnailUri
       });
 
       await closeMusicPicker();

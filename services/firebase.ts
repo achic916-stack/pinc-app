@@ -137,6 +137,7 @@ export interface Pin {
   music_title?: string;
   music_url?: string;
   post_duration?: "permanent" | "24h";
+  thumbnail_url?: string;
 }
 
 export interface Comment {
@@ -638,6 +639,7 @@ export async function createPin(params: {
   musicTitle?: string;
   musicUrl?: string;
   postDuration?: "permanent" | "24h";
+  thumbnailUri?: string | null;
 }): Promise<string> {
   const { 
     userId, 
@@ -656,7 +658,8 @@ export async function createPin(params: {
     mediaType = "image",
     musicTitle = "",
     musicUrl = "",
-    postDuration = "permanent"
+    postDuration = "permanent",
+    thumbnailUri
   } = params;
 
   // 1. Upload media to Firebase Storage
@@ -669,6 +672,16 @@ export async function createPin(params: {
       throw new Error(
         `Failed to upload media to Firebase Storage. Please verify that your Storage bucket is initialized in your Firebase Console.\n\nDetail: ${uploadErr.message || uploadErr}`
       );
+    }
+  }
+
+  // 1.5 Upload thumbnail if provided
+  let thumbnailUrl = "";
+  if (thumbnailUri) {
+    try {
+      thumbnailUrl = await uploadPinImage(thumbnailUri, userId);
+    } catch (err) {
+      console.warn("Failed to upload thumbnail:", err);
     }
   }
 
@@ -706,7 +719,8 @@ export async function createPin(params: {
     likesCount: 0,
     commentsCount: 0,
     music_title: musicTitle,
-    music_url: musicUrl
+    music_url: musicUrl,
+    thumbnail_url: thumbnailUrl || null
   };
 
   if (typeof aestheticRating === "number") {

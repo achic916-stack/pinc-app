@@ -220,7 +220,10 @@ export const MapScreen: React.FC<MapScreenProps> = ({
   // Lifted helper: find latest pin + photo URL for a venue
   const getVenueLatestPhoto = React.useCallback((v: Venue) => {
     const venuePins = validPins.filter(pin => pin.venueId === v.venueId);
-    const photoUrl = venuePins.length > 0 && venuePins[0].image_url ? venuePins[0].image_url : v.cover_image;
+    let photoUrl = v.cover_image;
+    if (venuePins.length > 0) {
+      photoUrl = venuePins[0].thumbnail_url || venuePins[0].image_url;
+    }
     const timestamp = venuePins.length > 0 ? new Date(venuePins[0].timestamp).getTime() : 0;
     return { photoUrl, timestamp, latestPin: venuePins[0] };
   }, [validPins]);
@@ -539,8 +542,15 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                     <View style={styles.livePhotoPinCard}>
                       <View style={styles.liveImageWrapper}>
                         {latestPin?.media_type === "video" || isVideoUrl(photoUrl) ? (
-                          <View style={[styles.photoPinImage, { width: 62, height: 62, borderRadius: 31, backgroundColor: PincTheme.colors.card, justifyContent: 'center', alignItems: 'center' }]}>
-                            <Ionicons name="videocam" size={28} color={PincTheme.colors.primary} />
+                          <View style={{ width: 62, height: 62, borderRadius: 31, overflow: 'hidden' }}>
+                            {photoUrl && !isVideoUrl(photoUrl) ? (
+                              <Image source={{ uri: photoUrl }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                            ) : (
+                              <View style={{ width: '100%', height: '100%', backgroundColor: PincTheme.colors.card }} />
+                            )}
+                            <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)' }}>
+                              <Ionicons name="play" size={24} color="#FFF" />
+                            </View>
                           </View>
                         ) : (
                           <Image 
@@ -594,8 +604,15 @@ export const MapScreen: React.FC<MapScreenProps> = ({
 
                             <View style={styles.imageWrapper}>
                               {latestPin?.media_type === "video" || isVideoUrl(photoUrl) ? (
-                                <View style={[styles.photoPinImage, { width: 68, height: 68, borderRadius: 4, backgroundColor: PincTheme.colors.card, justifyContent: 'center', alignItems: 'center' }]}>
-                                  <Ionicons name="videocam" size={32} color={PincTheme.colors.primary} />
+                                <View style={{ width: 68, height: 68, borderRadius: 4, overflow: 'hidden' }}>
+                                  {photoUrl && !isVideoUrl(photoUrl) ? (
+                                    <Image source={{ uri: photoUrl }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                                  ) : (
+                                    <View style={{ width: '100%', height: '100%', backgroundColor: PincTheme.colors.card }} />
+                                  )}
+                                  <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)' }}>
+                                    <Ionicons name="play" size={28} color="#FFF" />
+                                  </View>
                                 </View>
                               ) : (
                                 <Image 

@@ -117,10 +117,16 @@ const FeedItem = ({
       {/* Media Background */}
       {item.media_type === "video" ? (
         <View style={[styles.media, { backgroundColor: '#111', justifyContent: 'center', alignItems: 'center' }]}>
-          <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(255,255,255,0.1)', justifyContent: 'center', alignItems: 'center' }}>
-            <Ionicons name="videocam" size={40} color="#FFF" />
+          {item.thumbnail_url ? (
+            <Image
+              source={{ uri: item.thumbnail_url }}
+              style={[styles.media, { position: 'absolute' }]}
+              resizeMode="contain"
+            />
+          ) : null}
+          <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', zIndex: 2 }}>
+            <Ionicons name="play" size={40} color="#FFF" style={{ marginLeft: 6 }} />
           </View>
-          <Text style={{ color: '#FFF', marginTop: 16, fontFamily: PincTheme.fonts.heading, fontSize: 16 }}>Video Post</Text>
         </View>
       ) : (
         <Image
