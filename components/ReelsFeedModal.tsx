@@ -120,7 +120,7 @@ const FeedItem = ({
           <Image
             source={{ uri: item.image_url }}
             style={styles.media}
-            resizeMode="cover"
+            resizeMode="contain"
           />
           {/* Play icon overlay */}
           <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center' }}>
@@ -133,7 +133,7 @@ const FeedItem = ({
         <Image
           source={{ uri: item.image_url }}
           style={styles.media}
-          resizeMode="cover"
+          resizeMode="contain"
         />
       )}
 
