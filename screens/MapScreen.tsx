@@ -222,11 +222,16 @@ export const MapScreen: React.FC<MapScreenProps> = ({
   const getVenueLatestPhoto = React.useCallback((v: Venue) => {
     const venuePins = validPins.filter(pin => pin.venueId === v.venueId);
     let photoUrl = v.cover_image;
-    if (venuePins.length > 0) {
-      photoUrl = venuePins[0].thumbnail_url || venuePins[0].image_url;
+    let latestPin = venuePins.length > 0 ? venuePins[0] : null;
+
+    if (latestPin) {
+      photoUrl = (latestPin.media_type === "video" && latestPin.thumbnail_url) 
+        ? latestPin.thumbnail_url 
+        : latestPin.image_url;
     }
-    const timestamp = venuePins.length > 0 ? new Date(venuePins[0].timestamp).getTime() : 0;
-    return { photoUrl, timestamp, latestPin: venuePins[0] };
+
+    const timestamp = latestPin ? new Date(latestPin.timestamp).getTime() : 0;
+    return { photoUrl, timestamp, latestPin };
   }, [validPins]);
   
   // Dynamic zoom scale and region delta tracking
@@ -473,7 +478,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                     {venue.sponsor_tier === 3 && <RadarPulse />}
 
                     {(() => {
-                      const cardPaddingBottom = 17; // Always show name for sponsored venues
+                      const cardPaddingTop = 17; // Always show name for sponsored venues
                       const tier = venue.sponsor_tier || 1;
                       
                       let borderColor = "#A6A6A6"; // Tier 1: Silver
@@ -483,39 +488,16 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                       return (
                         <>
                           {/* Concentric shadows */}
-                          <View style={[styles.photoPinCard, styles.concentricShadow1, { paddingBottom: cardPaddingBottom, paddingTop: 3, borderColor: borderColor }]} />
-                          <View style={[styles.photoPinCard, styles.concentricShadow2, { paddingBottom: cardPaddingBottom, paddingTop: 3, borderColor: borderColor }]} />
+                          <View style={[styles.photoPinCard, styles.concentricShadow1, { paddingTop: cardPaddingTop, borderColor: borderColor }]} />
+                          <View style={[styles.photoPinCard, styles.concentricShadow2, { paddingTop: cardPaddingTop, borderColor: borderColor }]} />
 
                           {/* Front Card */}
-                          <View style={[styles.photoPinCard, { paddingBottom: cardPaddingBottom, paddingTop: 3, justifyContent: "flex-start", borderColor: borderColor, borderWidth: tier >= 2 ? 2.5 : 1.5 }]}>
-                            <View style={styles.imageWrapper}>
-                              {latestPin?.media_type === "video" || isVideoUrl(photoUrl) ? (
-                                <View style={{ width: 45, height: 80, borderRadius: 4, overflow: 'hidden' }}>
-                                  {photoUrl && !isVideoUrl(photoUrl) ? (
-                                    <Image source={{ uri: photoUrl }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
-                                  ) : (
-                                    <View style={{ width: '100%', height: '100%', backgroundColor: PincTheme.colors.card }} />
-                                  )}
-                                  <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)' }}>
-                                    <Ionicons name="videocam" size={18} color="#FFF" />
-                                  </View>
-                                </View>
-                              ) : (
-                                <Image 
-                                  key={venue.custom_icon_url || photoUrl || venue.cover_image}
-                                  source={{ uri: venue.custom_icon_url || photoUrl || venue.cover_image }} 
-                                  style={[styles.photoPinImage, { width: 45, height: 80, borderRadius: 4 }]} 
-                                  resizeMode="cover" 
-                                  onLoadEnd={() => setMarkerTracksViewChanges(prev => ({ ...prev, [venue.venueId]: false }))} 
-                                />
-                              )}
-                            </View>
-
-                            {/* Name inside the bottom part of the card */}
-                            <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: cardPaddingBottom, justifyContent: "center", alignItems: "center" }}>
+                          <View style={[styles.photoPinCard, { paddingTop: cardPaddingTop, paddingBottom: 3, justifyContent: "flex-end", borderColor: borderColor, borderWidth: tier >= 2 ? 2.5 : 1.5 }]}>
+                            {/* Name inside the top part of the card */}
+                            <View style={{ position: "absolute", top: 0, left: 0, right: 0, height: cardPaddingTop, justifyContent: "center", alignItems: "center" }}>
                               <Text 
                                 style={{ 
-                                  fontSize: 10, 
+                                  fontSize: 11, 
                                   fontWeight: "800", 
                                   color: PincTheme.colors.textPrimary, 
                                   width: "95%", 
@@ -526,6 +508,29 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                               >
                                 {venue.name}
                               </Text>
+                            </View>
+
+                            <View style={styles.imageWrapper}>
+                              {latestPin?.media_type === "video" || isVideoUrl(photoUrl) ? (
+                                <View style={{ width: 68, height: 68, borderRadius: 4, overflow: 'hidden' }}>
+                                  {photoUrl && !isVideoUrl(photoUrl) ? (
+                                    <Image source={{ uri: photoUrl }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                                  ) : (
+                                    <View style={{ width: '100%', height: '100%', backgroundColor: PincTheme.colors.card }} />
+                                  )}
+                                  <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)' }}>
+                                    <Ionicons name="videocam" size={24} color="#FFF" />
+                                  </View>
+                                </View>
+                              ) : (
+                                <Image 
+                                  key={venue.custom_icon_url || photoUrl || venue.cover_image}
+                                  source={{ uri: venue.custom_icon_url || photoUrl || venue.cover_image }} 
+                                  style={[styles.photoPinImage, { width: 68, height: 68, borderRadius: 4 }]} 
+                                  resizeMode="cover" 
+                                  onLoadEnd={() => setMarkerTracksViewChanges(prev => ({ ...prev, [venue.venueId]: false }))} 
+                                />
+                              )}
                             </View>
                           </View>
                         </>
@@ -587,45 +592,22 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                     {(() => {
                       const showName = latestPin?.username || !venue.name.includes("Current Location");
                       const displayName = latestPin?.username || venue.name;
-                      const cardPaddingBottom = showName ? 17 : 3;
+                      const cardPaddingTop = showName ? 17 : 3;
 
                       return (
                         <>
                           {/* Concentric shadows for Android blur effect */}
-                          <View style={[styles.photoPinCard, styles.concentricShadow1, { paddingBottom: cardPaddingBottom, paddingTop: 3 }]} />
-                          <View style={[styles.photoPinCard, styles.concentricShadow2, { paddingBottom: cardPaddingBottom, paddingTop: 3 }]} />
+                          <View style={[styles.photoPinCard, styles.concentricShadow1, { paddingTop: cardPaddingTop }]} />
+                          <View style={[styles.photoPinCard, styles.concentricShadow2, { paddingTop: cardPaddingTop }]} />
 
                           {/* Front Card */}
-                          <View style={[styles.photoPinCard, { paddingBottom: cardPaddingBottom, paddingTop: 3, justifyContent: "flex-start" }]}>
-                            <View style={styles.imageWrapper}>
-                              {latestPin?.media_type === "video" || isVideoUrl(photoUrl) ? (
-                                <View style={{ width: 45, height: 80, borderRadius: 4, overflow: 'hidden' }}>
-                                  {photoUrl && !isVideoUrl(photoUrl) ? (
-                                    <Image source={{ uri: photoUrl }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
-                                  ) : (
-                                    <View style={{ width: '100%', height: '100%', backgroundColor: PincTheme.colors.card }} />
-                                  )}
-                                  <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)' }}>
-                                    <Ionicons name="videocam" size={18} color="#FFF" />
-                                  </View>
-                                </View>
-                              ) : (
-                                <Image 
-                                  key={photoUrl}
-                                  source={{ uri: photoUrl }} 
-                                  style={[styles.photoPinImage, { width: 45, height: 80, borderRadius: 4 }]} 
-                                  resizeMode="cover" 
-                                  onLoadEnd={() => setMarkerTracksViewChanges(prev => ({ ...prev, [venue.venueId]: false }))} 
-                                />
-                              )}
-                            </View>
-
-                            {/* Name inside the bottom part of the card */}
+                          <View style={[styles.photoPinCard, { paddingTop: cardPaddingTop, paddingBottom: 3, justifyContent: "flex-end" }]}>
+                            {/* Name inside the top part of the card */}
                             {showName && (
-                              <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: cardPaddingBottom, justifyContent: "center", alignItems: "center" }}>
+                              <View style={{ position: "absolute", top: 0, left: 0, right: 0, height: cardPaddingTop, justifyContent: "center", alignItems: "center" }}>
                                 <Text 
                                   style={{ 
-                                    fontSize: 10, 
+                                    fontSize: 11, 
                                     fontWeight: "800", 
                                     color: PincTheme.colors.textPrimary, 
                                     width: "95%", 
@@ -638,6 +620,29 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                                 </Text>
                               </View>
                             )}
+
+                            <View style={styles.imageWrapper}>
+                              {latestPin?.media_type === "video" || isVideoUrl(photoUrl) ? (
+                                <View style={{ width: 68, height: 68, borderRadius: 4, overflow: 'hidden' }}>
+                                  {photoUrl && !isVideoUrl(photoUrl) ? (
+                                    <Image source={{ uri: photoUrl }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                                  ) : (
+                                    <View style={{ width: '100%', height: '100%', backgroundColor: PincTheme.colors.card }} />
+                                  )}
+                                  <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)' }}>
+                                    <Ionicons name="videocam" size={24} color="#FFF" />
+                                  </View>
+                                </View>
+                              ) : (
+                                <Image 
+                                  key={photoUrl}
+                                  source={{ uri: photoUrl }} 
+                                  style={[styles.photoPinImage, { width: 68, height: 68, borderRadius: 4 }]} 
+                                  resizeMode="cover" 
+                                  onLoadEnd={() => setMarkerTracksViewChanges(prev => ({ ...prev, [venue.venueId]: false }))} 
+                                />
+                              )}
+                            </View>
                           </View>
                         </>
                       );
@@ -898,8 +903,8 @@ const styles = StyleSheet.create({
     zIndex: 20
   },
   photoPinCard: {
-    width: 51,
-    minHeight: 86,
+    width: 76,
+    minHeight: 76,
     borderRadius: 8,
     backgroundColor: "#FFFFFF",
     padding: 3,
