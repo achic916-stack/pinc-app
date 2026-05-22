@@ -19,7 +19,7 @@ import * as ImagePicker from "expo-image-picker";
 import * as VideoThumbnails from 'expo-video-thumbnails';
 import { LinearGradient } from "expo-linear-gradient";
 import { Feather, Ionicons } from "@expo/vector-icons";
-const Audio = { Sound: { createAsync: async () => ({ sound: { playAsync: async () => {}, stopAsync: async () => {}, unloadAsync: async () => {} } }) }, setAudioModeAsync: async () => {} }; const Video = () => null; const ResizeMode = { COVER: 'cover', CONTAIN: 'contain' };
+import { Audio, Video, ResizeMode } from "expo-av";
 
 import { PincTheme } from "../styles/theme";
 import { Venue, createPin, calculateDistance, db } from "../services/firebase";
