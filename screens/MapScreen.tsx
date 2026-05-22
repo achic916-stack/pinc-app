@@ -489,13 +489,26 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                           {/* Front Card */}
                           <View style={[styles.photoPinCard, { paddingBottom: cardPaddingBottom, paddingTop: 3, justifyContent: "flex-start", borderColor: borderColor, borderWidth: tier >= 2 ? 2.5 : 1.5 }]}>
                             <View style={styles.imageWrapper}>
-                              <Image 
-                                key={venue.custom_icon_url || photoUrl || venue.cover_image}
-                                source={{ uri: venue.custom_icon_url || photoUrl || venue.cover_image }} 
-                                style={[styles.photoPinImage, { width: 45, height: 80, borderRadius: 4 }]} 
-                                resizeMode="cover" 
-                                onLoadEnd={() => setMarkerTracksViewChanges(prev => ({ ...prev, [venue.venueId]: false }))} 
-                              />
+                              {latestPin?.media_type === "video" || isVideoUrl(photoUrl) ? (
+                                <View style={{ width: 45, height: 80, borderRadius: 4, overflow: 'hidden' }}>
+                                  {photoUrl && !isVideoUrl(photoUrl) ? (
+                                    <Image source={{ uri: photoUrl }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                                  ) : (
+                                    <View style={{ width: '100%', height: '100%', backgroundColor: PincTheme.colors.card }} />
+                                  )}
+                                  <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)' }}>
+                                    <Ionicons name="videocam" size={18} color="#FFF" />
+                                  </View>
+                                </View>
+                              ) : (
+                                <Image 
+                                  key={venue.custom_icon_url || photoUrl || venue.cover_image}
+                                  source={{ uri: venue.custom_icon_url || photoUrl || venue.cover_image }} 
+                                  style={[styles.photoPinImage, { width: 45, height: 80, borderRadius: 4 }]} 
+                                  resizeMode="cover" 
+                                  onLoadEnd={() => setMarkerTracksViewChanges(prev => ({ ...prev, [venue.venueId]: false }))} 
+                                />
+                              )}
                             </View>
 
                             {/* Name inside the bottom part of the card */}
@@ -550,7 +563,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                               <View style={{ width: '100%', height: '100%', backgroundColor: PincTheme.colors.card }} />
                             )}
                             <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)' }}>
-                              <Ionicons name="play" size={24} color="#FFF" />
+                              <Ionicons name="videocam" size={18} color="#FFF" />
                             </View>
                           </View>
                         ) : (
@@ -593,7 +606,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                                     <View style={{ width: '100%', height: '100%', backgroundColor: PincTheme.colors.card }} />
                                   )}
                                   <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)' }}>
-                                    <Ionicons name="play" size={24} color="#FFF" />
+                                    <Ionicons name="videocam" size={18} color="#FFF" />
                                   </View>
                                 </View>
                               ) : (
