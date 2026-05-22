@@ -11,7 +11,7 @@ import {
   Platform,
   Share
 } from "react-native";
-const Audio = { Sound: { createAsync: async () => ({ sound: { playAsync: async () => {}, stopAsync: async () => {}, unloadAsync: async () => {} } }) }, setAudioModeAsync: async () => {} }; const Video = () => null; const ResizeMode = { COVER: 'cover', CONTAIN: 'contain' };
+import { Audio, Video, ResizeMode } from "expo-av";
 
 import { CachedVideo } from "./CachedVideo";
 import { Feather, Ionicons } from "@expo/vector-icons";
@@ -116,17 +116,30 @@ const FeedItem = ({
     <View style={styles.itemContainer}>
       {/* Media Background */}
       {item.media_type === "video" ? (
-        <View style={[styles.media, { backgroundColor: '#111', justifyContent: 'center', alignItems: 'center' }]}>
-          {item.thumbnail_url ? (
-            <Image
-              source={{ uri: item.thumbnail_url }}
+        <View style={[styles.media, { backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' }]}>
+          {isVisible ? (
+            <Video
+              source={{ uri: item.image_url }}
               style={[styles.media, { position: 'absolute' }]}
-              resizeMode="contain"
+              resizeMode={ResizeMode.CONTAIN}
+              shouldPlay={isVisible}
+              isLooping
+              useNativeControls={false}
             />
-          ) : null}
-          <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', zIndex: 2 }}>
-            <Ionicons name="play" size={40} color="#FFF" style={{ marginLeft: 6 }} />
-          </View>
+          ) : (
+            <>
+              {item.thumbnail_url ? (
+                <Image
+                  source={{ uri: item.thumbnail_url }}
+                  style={[styles.media, { position: 'absolute' }]}
+                  resizeMode="contain"
+                />
+              ) : null}
+              <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', zIndex: 2 }}>
+                <Ionicons name="play" size={40} color="#FFF" style={{ marginLeft: 6 }} />
+              </View>
+            </>
+          )}
         </View>
       ) : (
         <Image
