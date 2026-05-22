@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   StyleSheet,
   View,
@@ -9,8 +9,10 @@ import {
   Platform,
   ScrollView,
   ActivityIndicator,
-  Alert
+  Alert,
+  Image
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { PincTheme } from "../styles/theme";
 import { signInUser, signUpUser } from "../services/firebase";
 
@@ -27,6 +29,20 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onAuthSuccess }) => {
   
   const [isLoading, setIsLoading] = useState(false);
 
+  useEffect(() => {
+    const loadSavedEmail = async () => {
+      try {
+        const savedEmail = await AsyncStorage.getItem("@last_logged_in_email");
+        if (savedEmail) {
+          setEmail(savedEmail);
+        }
+      } catch (err) {
+        console.warn("Failed to load saved email:", err);
+      }
+    };
+    loadSavedEmail();
+  }, []);
+
   const handleAuth = async () => {
     if (!email || !password) {
       Alert.alert("Missing Fields", "Please enter both Email and Password.");
@@ -41,19 +57,22 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onAuthSuccess }) => {
     setIsLoading(true);
 
     try {
+      const formattedEmail = email.trim().toLowerCase();
       if (isSignUp) {
         // Register and create profile document in database
         const profile = await signUpUser({
-          email,
+          email: formattedEmail,
           password,
           username,
           bio
         });
+        await AsyncStorage.setItem("@last_logged_in_email", formattedEmail);
         Alert.alert("Welcome!", `Account @${profile.username} registered successfully! ✨`);
         onAuthSuccess(profile);
       } else {
         // Log in
-        const user = await signInUser(email, password);
+        const user = await signInUser(formattedEmail, password);
+        await AsyncStorage.setItem("@last_logged_in_email", formattedEmail);
         // Success listener in App.tsx will load the profile automatically
       }
     } catch (error: any) {
@@ -72,7 +91,15 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onAuthSuccess }) => {
       <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
         {/* Editorial Heading Panel */}
         <View style={styles.headerPanel}>
-          <Text style={styles.logo}>pinc</Text>
+          <View style={styles.logoWrapper}>
+            <View style={styles.logoContainer}>
+              <Image 
+                source={require("../assets/logo.png")} 
+                style={styles.logoImage} 
+                resizeMode="contain" 
+              />
+            </View>
+          </View>
           <Text style={styles.tagline}>Live reality check in the café scene.</Text>
         </View>
 
@@ -193,12 +220,26 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 40
   },
-  logo: {
-    fontFamily: PincTheme.fonts.heading,
-    fontSize: 56,
-    fontWeight: "900",
-    color: PincTheme.colors.primary,
-    letterSpacing: -1.5
+  logoWrapper: {
+    // Premium soft narrow 3D drop shadow
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.16,
+    shadowRadius: 6,
+    elevation: 5,
+    marginBottom: 8
+  },
+  logoContainer: {
+    width: 120,
+    height: 52,
+    backgroundColor: PincTheme.colors.primary,
+    borderRadius: 26,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  logoImage: {
+    width: 80,
+    height: 32
   },
   tagline: {
     fontFamily: PincTheme.fonts.body,

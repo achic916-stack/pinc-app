@@ -27,6 +27,7 @@ import {
 } from "../services/firebase";
 import { t } from "../services/localization";
 import * as ImagePicker from "expo-image-picker";
+import { BusinessPackagesModal } from "./BusinessPackagesModal";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -52,12 +53,14 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const [isFollowedBy, setIsFollowedBy] = useState(false);
   const [isTogglingFollow, setIsTogglingFollow] = useState(false);
   
-  // New States
+  // States
   const [stats, setStats] = useState({ followersCount: 0, followingCount: 0 });
-  const [isEditing, setIsEditing] = useState(false);
-  const [editUsername, setEditUsername] = useState("");
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editDisplayName, setEditDisplayName] = useState("");
   const [editBio, setEditBio] = useState("");
+  const [editPreviewPic, setEditPreviewPic] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [showBusinessPackages, setShowBusinessPackages] = useState(false);
 
   useEffect(() => {
     if (!visible || !userId) {
@@ -65,7 +68,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       setPins([]);
       setIsFollowing(false);
       setIsFollowedBy(false);
-      setIsEditing(false);
+      setShowEditModal(false);
       return;
     }
 
@@ -138,50 +141,82 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     }
   };
 
+  const handleOpenEditModal = () => {
+    if (!profile) return;
+    setEditDisplayName(profile.username);
+    setEditBio(profile.bio || "");
+    setEditPreviewPic(null);
+    setShowEditModal(true);
+  };
+
   const handleSaveProfile = async () => {
     if (!userId || !profile) return;
     setIsSaving(true);
     try {
-      await updateUserProfile(userId, {
-        username: editUsername,
-        bio: editBio
-      });
-      setProfile(prev => prev ? { ...prev, username: editUsername, bio: editBio } : null);
-      setIsEditing(false);
+      const updates: Partial<UserProfile> = {
+        username: editDisplayName.trim(),
+        bio: editBio.trim()
+      };
+      // If user selected a new photo, upload it first
+      if (editPreviewPic) {
+        const newUrl = await uploadProfileImage(editPreviewPic, userId);
+        updates.profile_pic = newUrl;
+      }
+      await updateUserProfile(userId, updates);
+      setProfile(prev => prev ? { ...prev, ...updates } : null);
+      setShowEditModal(false);
     } catch (err) {
-      Alert.alert("Error", "Failed to save profile.");
+      Alert.alert("Error", "Failed to save profile. Please try again.");
     } finally {
       setIsSaving(false);
     }
   };
 
-  const handlePickImage = async () => {
-    if (!isEditing || !userId) return;
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission Denied', 'Sorry, we need camera roll permissions to make this work!');
-      return;
-    }
-
-    let result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
-
-    if (!result.canceled && result.assets && result.assets.length > 0) {
-      setIsSaving(true);
-      try {
-        const newUrl = await uploadProfileImage(result.assets[0].uri, userId);
-        await updateUserProfile(userId, { profile_pic: newUrl });
-        setProfile(prev => prev ? { ...prev, profile_pic: newUrl } : null);
-      } catch (err) {
-        Alert.alert("Error", "Failed to update profile picture.");
-      } finally {
-        setIsSaving(false);
-      }
-    }
+  const handlePickImage = () => {
+    Alert.alert(
+      "Change Profile Photo",
+      "Choose a source",
+      [
+        {
+          text: "📷 Take Photo",
+          onPress: async () => {
+            const { status } = await ImagePicker.requestCameraPermissionsAsync();
+            if (status !== "granted") {
+              Alert.alert("Permission Denied", "Camera access is required.");
+              return;
+            }
+            const result = await ImagePicker.launchCameraAsync({
+              allowsEditing: true,
+              aspect: [1, 1],
+              quality: 0.85
+            });
+            if (!result.canceled && result.assets?.length > 0) {
+              setEditPreviewPic(result.assets[0].uri);
+            }
+          }
+        },
+        {
+          text: "🖼️ Choose from Library",
+          onPress: async () => {
+            const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (status !== "granted") {
+              Alert.alert("Permission Denied", "Photo library access is required.");
+              return;
+            }
+            const result = await ImagePicker.launchImageLibraryAsync({
+              mediaTypes: ImagePicker.MediaTypeOptions.Images,
+              allowsEditing: true,
+              aspect: [1, 1],
+              quality: 0.85
+            });
+            if (!result.canceled && result.assets?.length > 0) {
+              setEditPreviewPic(result.assets[0].uri);
+            }
+          }
+        },
+        { text: "Cancel", style: "cancel" }
+      ]
+    );
   };
 
   if (!visible || !userId) return null;
@@ -218,78 +253,64 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               contentContainerStyle={{ paddingBottom: 20 }}
               ListHeaderComponent={
                 <View style={styles.profileHeaderContainer}>
-                  <TouchableOpacity 
-                    style={styles.avatarContainer}
-                    onPress={handlePickImage}
-                    disabled={!isEditing}
-                    activeOpacity={0.8}
-                  >
-                    <Image source={{ uri: profile.profile_pic }} style={styles.avatarLarge} />
-                    {isEditing && (
-                      <View style={styles.avatarEditOverlay}>
-                        <Text style={styles.avatarEditText}>📸</Text>
-                      </View>
+                  <View style={styles.avatarContainer}>
+                    <Image
+                      source={{ uri: profile.profile_pic }}
+                      style={styles.avatarLarge}
+                    />
+                    {userId === currentUserId && (
+                      <TouchableOpacity
+                        style={styles.avatarCameraBtn}
+                        onPress={() => {
+                          handleOpenEditModal();
+                          // small delay so modal opens first, then trigger pick
+                        }}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={styles.avatarCameraBtnText}>✏️</Text>
+                      </TouchableOpacity>
                     )}
-                  </TouchableOpacity>
+                  </View>
 
-                  {isEditing ? (
-                    <View style={styles.editForm}>
-                      <TextInput 
-                        style={styles.editInput} 
-                        value={editUsername} 
-                        onChangeText={setEditUsername} 
-                        placeholder="Username" 
-                        placeholderTextColor={PincTheme.colors.textTertiary}
-                      />
-                      <TextInput 
-                        style={[styles.editInput, { height: 60, textAlignVertical: 'top' }]} 
-                        value={editBio} 
-                        onChangeText={setEditBio} 
-                        placeholder="Bio" 
-                        multiline 
-                        placeholderTextColor={PincTheme.colors.textTertiary}
-                      />
-                      <View style={styles.editActions}>
-                        <TouchableOpacity style={styles.cancelBtn} onPress={() => setIsEditing(false)}>
-                          <Text style={styles.cancelBtnText}>Cancel</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.saveBtn} onPress={handleSaveProfile} disabled={isSaving}>
-                          {isSaving ? <ActivityIndicator size="small" color="#FFF" /> : <Text style={styles.saveBtnText}>Save</Text>}
-                        </TouchableOpacity>
-                      </View>
+                  <Text style={styles.username}>@{profile.username}</Text>
+                  {profile.bio ? <Text style={styles.bio}>{profile.bio}</Text> : null}
+
+                  <View style={styles.statsRow}>
+                    <View style={styles.statItem}>
+                      <Text style={styles.statNumber}>{pins.length}</Text>
+                      <Text style={styles.statLabel}>Posts</Text>
+                    </View>
+                    <View style={styles.statItem}>
+                      <Text style={styles.statNumber}>{stats.followersCount}</Text>
+                      <Text style={styles.statLabel}>Followers</Text>
+                    </View>
+                    <View style={styles.statItem}>
+                      <Text style={styles.statNumber}>{stats.followingCount}</Text>
+                      <Text style={styles.statLabel}>Following</Text>
+                    </View>
+                  </View>
+
+                  {userId === currentUserId ? (
+                    <View style={{ alignItems: "center" }}>
+                      <TouchableOpacity
+                        style={styles.editProfileBtn}
+                        onPress={handleOpenEditModal}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={styles.editProfileBtnText}>✏️  Edit Profile</Text>
+                      </TouchableOpacity>
+
+                      {/* Hiding business package for v1.0 to comply with Play Store policies
+                      <TouchableOpacity
+                        style={[styles.editProfileBtn, { backgroundColor: "#FFF0F4", borderColor: "#FF4B72", marginTop: 10 }]}
+                        onPress={() => setShowBusinessPackages(true)}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={[styles.editProfileBtnText, { color: "#FF4B72" }]}>🏪 สำหรับร้านค้า</Text>
+                      </TouchableOpacity>
+                      */}
                     </View>
                   ) : (
-                    <>
-                      <Text style={styles.username}>@{profile.username}</Text>
-                      <Text style={styles.bio}>{profile.bio}</Text>
-
-                      <View style={styles.statsRow}>
-                        <View style={styles.statItem}>
-                          <Text style={styles.statNumber}>{pins.length}</Text>
-                          <Text style={styles.statLabel}>Posts</Text>
-                        </View>
-                        <View style={styles.statItem}>
-                          <Text style={styles.statNumber}>{stats.followersCount}</Text>
-                          <Text style={styles.statLabel}>Followers</Text>
-                        </View>
-                        <View style={styles.statItem}>
-                          <Text style={styles.statNumber}>{stats.followingCount}</Text>
-                          <Text style={styles.statLabel}>Following</Text>
-                        </View>
-                      </View>
-
-                      {userId === currentUserId ? (
-                        <TouchableOpacity 
-                          style={styles.editProfileBtn} 
-                          onPress={() => {
-                            setEditUsername(profile.username);
-                            setEditBio(profile.bio);
-                            setIsEditing(true);
-                          }}
-                        >
-                          <Text style={styles.editProfileBtnText}>Edit Profile</Text>
-                        </TouchableOpacity>
-                      ) : (
                         <TouchableOpacity
                           style={[
                             styles.followBtn,
@@ -317,9 +338,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                             </Text>
                           )}
                         </TouchableOpacity>
-                      )}
-                    </>
-                  )}
+                    )}
                   
                   <View style={styles.gridHeader}>
                     <Text style={styles.gridHeaderTitle}>
@@ -348,6 +367,86 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           )}
         </SafeAreaView>
       </View>
+
+      {/* ── Edit Profile Modal ── */}
+      <Modal
+        visible={showEditModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowEditModal(false)}
+      >
+        <View style={styles.editModalOverlay}>
+          <View style={styles.editModalSheet}>
+            {/* Handle bar */}
+            <View style={styles.editModalHandle} />
+
+            <Text style={styles.editModalTitle}>Edit Profile</Text>
+
+            {/* Avatar picker */}
+            <TouchableOpacity style={styles.editAvatarWrapper} onPress={handlePickImage} activeOpacity={0.85}>
+              <Image
+                source={{ uri: editPreviewPic || profile?.profile_pic }}
+                style={styles.editAvatar}
+              />
+              <View style={styles.editAvatarOverlay}>
+                <Text style={styles.editAvatarOverlayText}>📸{"\n"}Change Photo</Text>
+              </View>
+            </TouchableOpacity>
+
+            {/* Display name */}
+            <Text style={styles.editFieldLabel}>Display Name</Text>
+            <TextInput
+              style={styles.editFieldInput}
+              value={editDisplayName}
+              onChangeText={setEditDisplayName}
+              placeholder="Your name"
+              placeholderTextColor={PincTheme.colors.textTertiary}
+              maxLength={30}
+              autoCapitalize="none"
+            />
+
+            {/* Bio */}
+            <Text style={styles.editFieldLabel}>Bio</Text>
+            <TextInput
+              style={[styles.editFieldInput, styles.editFieldInputMulti]}
+              value={editBio}
+              onChangeText={setEditBio}
+              placeholder="Tell people about yourself..."
+              placeholderTextColor={PincTheme.colors.textTertiary}
+              multiline
+              maxLength={100}
+              textAlignVertical="top"
+            />
+
+            {/* Actions */}
+            <View style={styles.editModalActions}>
+              <TouchableOpacity
+                style={styles.editCancelBtn}
+                onPress={() => setShowEditModal(false)}
+                disabled={isSaving}
+              >
+                <Text style={styles.editCancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.editSaveBtn, isSaving && { opacity: 0.6 }]}
+                onPress={handleSaveProfile}
+                disabled={isSaving}
+              >
+                {isSaving
+                  ? <ActivityIndicator size="small" color="#FFF" />
+                  : <Text style={styles.editSaveBtnText}>Save Changes</Text>
+                }
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Business Packages Modal */}
+      <BusinessPackagesModal 
+        visible={showBusinessPackages} 
+        onClose={() => setShowBusinessPackages(false)} 
+      />
     </Modal>
   );
 };
@@ -408,7 +507,8 @@ const styles = StyleSheet.create({
   },
   avatarContainer: {
     position: "relative",
-    marginBottom: 12
+    marginBottom: 12,
+    marginTop: 8
   },
   avatarLarge: {
     width: 90,
@@ -423,20 +523,167 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 5
   },
-  avatarEditOverlay: {
+  avatarCameraBtn: {
     position: "absolute",
     bottom: 0,
     right: 0,
     backgroundColor: PincTheme.colors.primary,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 2,
-    borderColor: "#FFF"
+    borderWidth: 2.5,
+    borderColor: "#FFF",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 4
   },
-  avatarEditText: {
+  avatarCameraBtnText: {
+    fontSize: 13,
+    lineHeight: 16
+  },
+  editProfileBtn: {
+    backgroundColor: PincTheme.colors.background,
+    borderWidth: 1.5,
+    borderColor: PincTheme.colors.border,
+    paddingHorizontal: 28,
+    paddingVertical: 9,
+    borderRadius: PincTheme.borderRadius.md,
+    marginTop: 16,
+    ...PincTheme.shadows.sm,
+    minWidth: 150,
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center"
+  },
+  editProfileBtnText: {
+    color: PincTheme.colors.textPrimary,
+    fontFamily: PincTheme.fonts.heading,
+    fontWeight: "700",
+    fontSize: 13
+  },
+  // Edit Profile Modal styles
+  editModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end"
+  },
+  editModalSheet: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 24,
+    paddingBottom: 40,
+    paddingTop: 16
+  },
+  editModalHandle: {
+    width: 44,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: PincTheme.colors.border,
+    alignSelf: "center",
+    marginBottom: 20
+  },
+  editModalTitle: {
+    fontSize: 20,
+    fontFamily: PincTheme.fonts.heading,
+    fontWeight: "800",
+    color: PincTheme.colors.textPrimary,
+    textAlign: "center",
+    marginBottom: 24
+  },
+  editAvatarWrapper: {
+    alignSelf: "center",
+    marginBottom: 24,
+    borderRadius: 60,
+    overflow: "hidden",
+    position: "relative"
+  },
+  editAvatar: {
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    borderWidth: 3,
+    borderColor: PincTheme.colors.primary
+  },
+  editAvatarOverlay: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    paddingVertical: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    borderBottomLeftRadius: 55,
+    borderBottomRightRadius: 55
+  },
+  editAvatarOverlayText: {
+    color: "#FFF",
+    fontSize: 10,
+    fontWeight: "700",
+    textAlign: "center",
+    lineHeight: 16
+  },
+  editFieldLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: PincTheme.colors.textSecondary,
+    fontFamily: PincTheme.fonts.body,
+    letterSpacing: 0.5,
+    marginBottom: 8,
+    marginTop: 4
+  },
+  editFieldInput: {
+    backgroundColor: PincTheme.colors.background,
+    borderWidth: 1.5,
+    borderColor: PincTheme.colors.border,
+    borderRadius: PincTheme.borderRadius.md,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+    fontFamily: PincTheme.fonts.body,
+    color: PincTheme.colors.textPrimary,
+    marginBottom: 16
+  },
+  editFieldInputMulti: {
+    height: 80,
+    textAlignVertical: "top"
+  },
+  editModalActions: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 8
+  },
+  editCancelBtn: {
+    flex: 1,
+    borderWidth: 1.5,
+    borderColor: PincTheme.colors.border,
+    paddingVertical: 14,
+    borderRadius: PincTheme.borderRadius.md,
+    alignItems: "center"
+  },
+  editCancelBtnText: {
+    color: PincTheme.colors.textSecondary,
+    fontFamily: PincTheme.fonts.heading,
+    fontWeight: "700",
+    fontSize: 14
+  },
+  editSaveBtn: {
+    flex: 2,
+    backgroundColor: PincTheme.colors.primary,
+    paddingVertical: 14,
+    borderRadius: PincTheme.borderRadius.md,
+    alignItems: "center",
+    ...PincTheme.shadows.md
+  },
+  editSaveBtnText: {
+    color: "#FFF",
+    fontFamily: PincTheme.fonts.heading,
+    fontWeight: "800",
     fontSize: 14
   },
   username: {
@@ -480,24 +727,7 @@ const styles = StyleSheet.create({
     color: PincTheme.colors.textTertiary,
     marginTop: 2
   },
-  editProfileBtn: {
-    backgroundColor: PincTheme.colors.background,
-    borderWidth: 1,
-    borderColor: PincTheme.colors.border,
-    paddingHorizontal: 32,
-    paddingVertical: 8,
-    borderRadius: PincTheme.borderRadius.md,
-    marginTop: 16,
-    ...PincTheme.shadows.sm,
-    minWidth: 140,
-    alignItems: "center"
-  },
-  editProfileBtnText: {
-    color: PincTheme.colors.textPrimary,
-    fontFamily: PincTheme.fonts.heading,
-    fontWeight: "700",
-    fontSize: 12
-  },
+
   editForm: {
     width: "100%",
     marginTop: 12

@@ -5,14 +5,39 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Image,
   Dimensions,
-  ActivityIndicator
+  ActivityIndicator,
+  Alert
 } from "react-native";
+import { Image } from "expo-image";
 import { PincTheme } from "../styles/theme";
-import { Venue, Pin, UserProfile, toggleLikePin, subscribeToComments } from "../services/firebase";
+import { Venue, Pin, UserProfile, toggleLikePin, subscribeToComments, deletePin } from "../services/firebase";
 import { t } from "../services/localization";
+import { Ionicons } from "@expo/vector-icons";
 import { CommentsDrawer } from "./CommentsDrawer";
+import { CachedVideo } from "./CachedVideo";
+const Audio = { Sound: { createAsync: async () => ({ sound: { playAsync: async () => {}, stopAsync: async () => {}, unloadAsync: async () => {} } }) }, setAudioModeAsync: async () => {} }; const Video = () => null; const ResizeMode = { COVER: 'cover', CONTAIN: 'contain' };
+
+
+const getSafeVideoUrl = (url: string | null | undefined) => {
+  if (!url) return undefined;
+  if (url.toLowerCase().includes('.mp4') || url.toLowerCase().includes('.mov')) return url;
+  return `${url}#.mp4`;
+};
+
+const isVideoUrl = (url: string | null | undefined): boolean => {
+  if (!url) return false;
+  const urlLower = url.toLowerCase();
+  if (urlLower.includes('.mp4') || urlLower.includes('.mov') || urlLower.includes('.webm')) return true;
+  return false;
+};
+
+const isActuallyVideo = (pin: Pin) => {
+  if (!pin.image_url) return false;
+  const urlLower = pin.image_url.toLowerCase();
+  if (urlLower.includes('.jpg') || urlLower.includes('.jpeg') || urlLower.includes('.png')) return false;
+  return pin.media_type === "video" || isVideoUrl(pin.image_url);
+};
 
 interface VenueDetailsSheetProps {
   venue: Venue | null;
@@ -41,6 +66,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
   const [localLikes, setLocalLikes] = useState<{ [pinId: string]: { liked: boolean; count: number } }>({});
   const [activeCommentsPinId, setActiveCommentsPinId] = useState<string | null>(null);
   const [commentsCounts, setCommentsCounts] = useState<{ [pinId: string]: number }>({});
+  const [activeVideoId, setActiveVideoId] = useState<string | null>(null);
 
   // Subscribe to comments count for each pin reactively
   useEffect(() => {
@@ -96,6 +122,30 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
         [pinId]: currentState
       }));
     }
+  };
+
+  const handleDeletePin = (pinId: string | undefined) => {
+    if (!pinId) return;
+    Alert.alert(
+      t(locale, "deletePost") || "ลบโพสต์",
+      t(locale, "confirmDeletePost") || "คุณแน่ใจหรือไม่ที่จะลบโพสต์นี้?",
+      [
+        { text: t(locale, "cancel") || "ยกเลิก", style: "cancel" },
+        { 
+          text: t(locale, "delete") || "ลบ", 
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deletePin(pinId);
+              Alert.alert(t(locale, "success") || "สำเร็จ", "ลบโพสต์เรียบร้อยแล้ว");
+            } catch (error) {
+              console.error("Delete pin failed:", error);
+              Alert.alert(t(locale, "error") || "ข้อผิดพลาด", "ไม่สามารถลบโพสต์ได้");
+            }
+          }
+        }
+      ]
+    );
   };
 
   if (!venue) return null;
@@ -291,7 +341,30 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
               aestheticPins.map((pin) => (
                 <View key={pin.pinId} style={styles.gridImageWrapper}>
                   {pin.image_url ? (
-                    <Image source={{ uri: pin.image_url }} style={styles.gridImage} resizeMode="cover" />
+                    isActuallyVideo(pin) ? (
+                      activeVideoId === pin.pinId ? (
+                        <CachedVideo 
+                          source={{ uri: pin.image_url }} 
+                          style={styles.gridImage} 
+                          resizeMode={ResizeMode.COVER} 
+                          shouldPlay 
+                          useNativeControls
+                        />
+                      ) : (
+                        <TouchableOpacity 
+                          style={{ width: '100%', height: '100%' }} 
+                          onPress={() => setActiveVideoId(pin.pinId || null)}
+                          activeOpacity={0.8}
+                        >
+                          <Image source={{ uri: getSafeVideoUrl(pin.image_url) }} style={styles.gridImage} contentFit="cover" />
+                          <View style={[StyleSheet.absoluteFill, { justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)' }]}>
+                            <Text style={{ fontSize: 32 }}>▶️</Text>
+                          </View>
+                        </TouchableOpacity>
+                      )
+                    ) : (
+                      <Image source={{ uri: pin.image_url }} style={styles.gridImage} contentFit="cover" />
+                    )
                   ) : (
                     <View style={[styles.gridImage, { backgroundColor: PincTheme.colors.border, justifyContent: "center", alignItems: "center" }]}>
                       <Text style={{ fontSize: 24 }}>☕</Text>
@@ -414,7 +487,30 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                       <Text style={styles.feedText}>{pin.text_content}</Text>
                       
                       {pin.image_url && (
-                        <Image source={{ uri: pin.image_url }} style={styles.feedImage} resizeMode="cover" />
+                        isActuallyVideo(pin) ? (
+                          activeVideoId === pin.pinId ? (
+                            <CachedVideo 
+                              source={{ uri: pin.image_url }} 
+                              style={styles.feedImage} 
+                              resizeMode={ResizeMode.COVER} 
+                              shouldPlay 
+                              useNativeControls
+                            />
+                          ) : (
+                            <TouchableOpacity 
+                              style={{ width: '100%', height: 250, borderRadius: 12, overflow: 'hidden', marginTop: 12 }} 
+                              onPress={() => setActiveVideoId(pin.pinId || null)}
+                              activeOpacity={0.8}
+                            >
+                              <Image source={{ uri: getSafeVideoUrl(pin.image_url) }} style={styles.feedImage} contentFit="cover" />
+                              <View style={[StyleSheet.absoluteFill, { justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)' }]}>
+                                <Text style={{ fontSize: 48 }}>▶️</Text>
+                              </View>
+                            </TouchableOpacity>
+                          )
+                        ) : (
+                          <Image source={{ uri: pin.image_url }} style={styles.feedImage} contentFit="cover" />
+                        )
                       )}
 
                       {/* Social Action Row */}
@@ -444,6 +540,17 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                             {commentCount}
                           </Text>
                         </TouchableOpacity>
+                        
+                        {/* Delete Button (Only for own posts) */}
+                        {pin.userId === currentUser.userId && (
+                          <TouchableOpacity 
+                            style={[styles.actionButton, { marginLeft: "auto" }]} 
+                            onPress={() => handleDeletePin(pin.pinId)}
+                            activeOpacity={0.7}
+                          >
+                            <Text style={styles.actionIcon}>🗑️</Text>
+                          </TouchableOpacity>
+                        )}
                       </View>
                     </View>
                   );
@@ -475,7 +582,8 @@ const styles = StyleSheet.create({
     borderTopRightRadius: PincTheme.borderRadius.lg,
     ...PincTheme.shadows.lg,
     display: "flex",
-    flexDirection: "column"
+    flexDirection: "column",
+    elevation: 100
   },
   header: {
     alignItems: "center",

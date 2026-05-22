@@ -138,6 +138,8 @@
       align-items: center;
       justify-content: center;
       position: relative;
+      transform: scale(var(--map-zoom-scale, 1.0));
+      transition: transform 0.15s ease-out;
     }
 
     .marker-aura {
@@ -1465,6 +1467,16 @@
     // INITIAL SETUP EXECUTION
     // ==========================================
     renderVenueMarkers();
+
+    // Dynamic zoom scale listener for leaflet markers
+    map.on('zoomend', () => {
+      const zoom = map.getZoom();
+      // base zoom is 16. Calculate scale factor using an exponential scale
+      const scale = Math.max(0.4, Math.min(1.8, Math.pow(1.15, zoom - 16)));
+      document.documentElement.style.setProperty('--map-zoom-scale', scale);
+    });
+    // Trigger initial scale
+    map.fire('zoomend');
 
     // Auto-select first venue (Fika & Co.) on startup for visual preview
     setTimeout(() => {

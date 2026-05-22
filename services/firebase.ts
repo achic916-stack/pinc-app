@@ -18,9 +18,11 @@ import {
   arrayUnion,
   arrayRemove,
   getCountFromServer,
-  updateDoc
+  updateDoc,
+  writeBatch
 } from "firebase/firestore";
-import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { getStorage, ref, uploadBytes, getDownloadURL, uploadString } from "firebase/storage";
+import * as FileSystem from 'expo-file-system';
 import { 
   // @ts-ignore
   initializeAuth,
@@ -121,12 +123,20 @@ export interface Pin {
   latitude: number;
   longitude: number;
   geohash: string;
+  post_type: "standard" | "live_news";
+  situation_details?: string;
   is_live: boolean;
   is_live_verified: boolean;
   report_type: "aesthetic" | "live_status";
   live_crowd_vote?: "chill" | "moderate" | "packed";
   user_aesthetic_rating?: number; // Optional user aesthetic rating review
   likes?: string[]; // Array of userIds who liked this pin
+  media_type?: "image" | "video";
+  likesCount?: number;
+  commentsCount?: number;
+  music_title?: string;
+  music_url?: string;
+  post_duration?: "permanent" | "24h";
 }
 
 export interface Comment {
@@ -193,8 +203,11 @@ export async function signUpUser(params: {
   if (profilePicUri) {
     try {
       profilePicUrl = await uploadProfileImage(profilePicUri, user.uid);
-    } catch (err) {
-      console.warn("Failed to upload custom avatar, falling back to default.", err);
+    } catch (err: any) {
+      console.error("Avatar upload failed:", err);
+      throw new Error(
+        `Failed to upload profile picture. Please verify that your Storage bucket is initialized.\n\nDetail: ${err.message || err}`
+      );
     }
   }
 
@@ -254,10 +267,29 @@ export async function fetchUserProfile(userId: string): Promise<UserProfile | nu
 
 /**
  * Updates a user profile in Firestore.
+ * Also synchronizes the username across all pins created by this user.
  */
 export async function updateUserProfile(userId: string, data: Partial<UserProfile>): Promise<void> {
   const docRef = doc(db, "users", userId);
   await withTimeout(updateDoc(docRef, data), 5000, "Updating profile timed out.");
+
+  // If username is changed, update it in all their pins
+  if (data.username) {
+    try {
+      const pinsQuery = query(collection(db, "pins"), where("userId", "==", userId));
+      const pinsSnapshot = await getDocs(pinsQuery);
+      
+      if (!pinsSnapshot.empty) {
+        const batch = writeBatch(db);
+        pinsSnapshot.docs.forEach((pinDoc) => {
+          batch.update(pinDoc.ref, { username: data.username });
+        });
+        await batch.commit();
+      }
+    } catch (err) {
+      console.warn("Failed to synchronize username in pins:", err);
+    }
+  }
 }
 
 /**
@@ -396,10 +428,18 @@ export function subscribeToVenuePins(venueId: string, onUpdate: (pins: Pin[]) =>
     const pins: Pin[] = [];
     snapshot.forEach((doc) => {
       const data = doc.data();
+      const timestamp = (data.timestamp as Timestamp)?.toDate() || new Date();
+
+      // Filter out 24h posts that have expired
+      if (data.post_duration === "24h") {
+        const diffHours = (new Date().getTime() - timestamp.getTime()) / (1000 * 60 * 60);
+        if (diffHours > 24) return;
+      }
+
       pins.push({
         pinId: doc.id,
         ...data,
-        timestamp: (data.timestamp as Timestamp)?.toDate() || new Date()
+        timestamp
       } as Pin);
     });
     onUpdate(pins);
@@ -412,28 +452,168 @@ export function subscribeToVenuePins(venueId: string, onUpdate: (pins: Pin[]) =>
 }
 
 /**
- * Uploads a profile picture to Storage and returns download URL.
+ * Converts a local URI to a Blob using fetch or XMLHttpRequest as a fallback.
  */
-export async function uploadProfileImage(uri: string, userId: string): Promise<string> {
-  const response = await fetch(uri);
-  const blob = await response.blob();
-  const storageRef = ref(storage, `users/${userId}/avatar.jpg`);
-  await uploadBytes(storageRef, blob);
-  return getDownloadURL(storageRef);
+export async function uriToBlob(uri: string): Promise<Blob> {
+  try {
+    const response = await fetch(uri);
+    return await response.blob();
+  } catch (err) {
+    console.warn("fetch uriToBlob failed, falling back to XMLHttpRequest:", err);
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.onload = function () {
+        resolve(xhr.response);
+      };
+      xhr.onerror = function (e) {
+        console.error("XMLHttpRequest uriToBlob failed for uri:", uri, e);
+        reject(new TypeError("Network request failed"));
+      };
+      xhr.responseType = "blob";
+      xhr.open("GET", uri, true);
+      xhr.send(null);
+    });
+  }
 }
 
 /**
- * Uploads a raw photo to Firebase Storage and returns the download URL.
+ * Uploads a profile picture to Storage and returns download URL.
+ */
+export async function uploadProfileImage(uri: string, userId: string): Promise<string> {
+  const auth = getAuth();
+  const token = await auth.currentUser?.getIdToken();
+  const filePath = `users/${userId}/avatar.jpg`;
+  
+  const url = `https://firebasestorage.googleapis.com/v0/b/pinc-app-d2501.firebasestorage.app/o?name=${encodeURIComponent(filePath)}`;
+  
+  const uploadResult = await FileSystem.uploadAsync(url, uri, {
+    httpMethod: 'POST',
+    uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'image/jpeg',
+    }
+  });
+
+  if (uploadResult.status !== 200) {
+    throw new Error(`Profile upload failed: ${uploadResult.body}`);
+  }
+
+  const responseObj = JSON.parse(uploadResult.body);
+  const downloadToken = responseObj.downloadTokens;
+  return `https://firebasestorage.googleapis.com/v0/b/pinc-app-d2501.firebasestorage.app/o/${encodeURIComponent(filePath)}?alt=media&token=${downloadToken}`;
+}
+
+/**
+ * Uploads a raw media (photo or video) to Firebase Storage and returns the download URL.
  */
 export async function uploadPinImage(uri: string, userId: string): Promise<string> {
-  const response = await fetch(uri);
-  const blob = await response.blob();
+  const auth = getAuth();
+  const token = await auth.currentUser?.getIdToken();
   
-  const filename = `${userId}_${Date.now()}.jpg`;
-  const storageRef = ref(storage, `pins/${userId}/${filename}`);
+  // Determine correct file extension based on URI mimetype/filename
+  let fileExt = ".jpg";
+  let contentType = "image/jpeg";
   
-  await uploadBytes(storageRef, blob);
-  return getDownloadURL(storageRef);
+  if (uri.toLowerCase().endsWith(".mp4") || uri.toLowerCase().includes("video")) {
+    fileExt = ".mp4";
+    contentType = "video/mp4";
+  } else if (uri.toLowerCase().endsWith(".png")) {
+    fileExt = ".png";
+    contentType = "image/png";
+  } else if (uri.toLowerCase().endsWith(".gif")) {
+    fileExt = ".gif";
+    contentType = "image/gif";
+  } else {
+    const cleanUri = uri.split("?")[0];
+    const dotIndex = cleanUri.lastIndexOf(".");
+    if (dotIndex !== -1 && cleanUri.length - dotIndex <= 6) {
+      fileExt = cleanUri.substring(dotIndex);
+    }
+  }
+  
+  const filename = `${userId}_${Date.now()}${fileExt}`;
+  const filePath = `pins/${userId}/${filename}`;
+  
+  const url = `https://firebasestorage.googleapis.com/v0/b/pinc-app-d2501.firebasestorage.app/o?name=${encodeURIComponent(filePath)}`;
+  
+  const uploadResult = await FileSystem.uploadAsync(url, uri, {
+    httpMethod: 'POST',
+    uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': contentType,
+    }
+  });
+
+  if (uploadResult.status !== 200) {
+    throw new Error(`Media upload failed: ${uploadResult.body}`);
+  }
+
+  const responseObj = JSON.parse(uploadResult.body);
+  const downloadToken = responseObj.downloadTokens;
+  return `https://firebasestorage.googleapis.com/v0/b/pinc-app-d2501.firebasestorage.app/o/${encodeURIComponent(filePath)}?alt=media&token=${downloadToken}`;
+}
+
+/**
+ * Checks an image against Google Cloud Vision API for safety (Explicit/Violence).
+ * Throws an error if the image is flagged.
+ */
+export async function checkImageSafety(base64Image: string): Promise<void> {
+  const API_KEY = "AIzaSyAWu8nAniIvvtBTkpmcilS0l5hl6lEXkmY";
+  const url = `https://vision.googleapis.com/v1/images:annotate?key=${API_KEY}`;
+  
+  const body = {
+    requests: [
+      {
+        image: {
+          content: base64Image
+        },
+        features: [
+          {
+            type: "SAFE_SEARCH_DETECTION"
+          }
+        ]
+      }
+    ]
+  };
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(body)
+  });
+
+  if (!response.ok) {
+    let errMsg = "Failed to reach AI Safety Filter. Please try again.";
+    try {
+      const errData = await response.json();
+      if (errData?.error?.message) {
+        errMsg += `\n\nDetail: ${errData.error.message}`;
+        if (errData.error.message.toLowerCase().includes("billing")) {
+          errMsg += "\n\nTip: Please enable billing on your Google Cloud Console project or check your Vision API billing status.";
+        }
+      }
+    } catch (_) {
+      errMsg += ` (HTTP ${response.status}: ${response.statusText})`;
+    }
+    throw new Error(errMsg);
+  }
+
+  const data = await response.json();
+  const safeSearch = data.responses?.[0]?.safeSearchAnnotation;
+  
+  if (safeSearch) {
+    const isExplicit = ["LIKELY", "VERY_LIKELY"].includes(safeSearch.adult);
+    const isViolent = ["LIKELY", "VERY_LIKELY"].includes(safeSearch.violence);
+    const isRacy = ["LIKELY", "VERY_LIKELY"].includes(safeSearch.racy);
+
+    if (isExplicit || isViolent || isRacy) {
+      throw new Error("Warning: This image violates our safety guidelines and cannot be posted.");
+    }
+  }
 }
 
 /**
@@ -452,6 +632,12 @@ export async function createPin(params: {
   aestheticRating?: number; // Optional user aesthetic rating
   reportType: "aesthetic" | "live_status";
   liveCrowdVote?: "chill" | "moderate" | "packed";
+  postType?: "standard" | "live_news";
+  situationDetails?: string;
+  mediaType?: "image" | "video";
+  musicTitle?: string;
+  musicUrl?: string;
+  postDuration?: "permanent" | "24h";
 }): Promise<string> {
   const { 
     userId, 
@@ -464,17 +650,25 @@ export async function createPin(params: {
     userCoords,
     aestheticRating,
     reportType,
-    liveCrowdVote
+    liveCrowdVote,
+    postType = "standard",
+    situationDetails = "",
+    mediaType = "image",
+    musicTitle = "",
+    musicUrl = "",
+    postDuration = "permanent"
   } = params;
 
-  // 1. Upload photo with resilient fallback if Firebase Storage fails or quota is exceeded
+  // 1. Upload media to Firebase Storage
   let imageUrl = "";
   if (imageUri) {
     try {
       imageUrl = await uploadPinImage(imageUri, userId);
-    } catch (uploadErr) {
-      console.warn("Firebase Storage upload failed (possibly due to quota limits), proceeding without image:", uploadErr);
-      imageUrl = "";
+    } catch (uploadErr: any) {
+      console.error("Firebase Storage upload failed:", uploadErr);
+      throw new Error(
+        `Failed to upload media to Firebase Storage. Please verify that your Storage bucket is initialized in your Firebase Console.\n\nDetail: ${uploadErr.message || uploadErr}`
+      );
     }
   }
 
@@ -501,10 +695,18 @@ export async function createPin(params: {
     latitude: userCoords.latitude,
     longitude: userCoords.longitude,
     geohash,
+    post_type: postType,
+    post_duration: postDuration,
+    situation_details: situationDetails,
     is_live: isLive,
     is_live_verified: isLive,
     report_type: reportType,
-    live_crowd_vote: liveCrowdVote || null
+    live_crowd_vote: liveCrowdVote || null,
+    media_type: mediaType,
+    likesCount: 0,
+    commentsCount: 0,
+    music_title: musicTitle,
+    music_url: musicUrl
   };
 
   if (typeof aestheticRating === "number") {
@@ -626,10 +828,18 @@ export function subscribeToUserPins(userId: string, onUpdate: (pins: Pin[]) => v
     const pins: Pin[] = [];
     snapshot.forEach((doc) => {
       const data = doc.data();
+      const timestamp = (data.timestamp as Timestamp)?.toDate() || new Date();
+
+      // Filter out 24h posts that have expired
+      if (data.post_duration === "24h") {
+        const diffHours = (new Date().getTime() - timestamp.getTime()) / (1000 * 60 * 60);
+        if (diffHours > 24) return;
+      }
+
       pins.push({
         pinId: doc.id,
         ...data,
-        timestamp: (data.timestamp as Timestamp)?.toDate() || new Date()
+        timestamp
       } as Pin);
     });
     onUpdate(pins);
@@ -651,10 +861,18 @@ export function subscribeToAllPins(onUpdate: (pins: Pin[]) => void, onError?: (e
     const pins: Pin[] = [];
     snapshot.forEach((doc) => {
       const data = doc.data();
+      const timestamp = (data.timestamp as Timestamp)?.toDate() || new Date();
+
+      // Filter out 24h posts that have expired
+      if (data.post_duration === "24h") {
+        const diffHours = (new Date().getTime() - timestamp.getTime()) / (1000 * 60 * 60);
+        if (diffHours > 24) return;
+      }
+
       pins.push({
         pinId: doc.id,
         ...data,
-        timestamp: (data.timestamp as Timestamp)?.toDate() || new Date()
+        timestamp
       } as Pin);
     });
     onUpdate(pins);
@@ -668,6 +886,16 @@ export function subscribeToAllPins(onUpdate: (pins: Pin[]) => void, onError?: (e
  * Toggles like status for a pin. Stores likes inside the pin document's 'likes' array field.
  * Returns true if the pin is now liked by the user, false if unliked.
  */
+export async function deletePin(pinId: string) {
+  try {
+    const docRef = doc(db, "pins", pinId);
+    await deleteDoc(docRef);
+  } catch (error) {
+    console.error(`Firestore deletePin failed for pin ${pinId}:`, error);
+    throw error;
+  }
+}
+
 export async function toggleLikePin(pinId: string, userId: string): Promise<boolean> {
   const pinRef = doc(db, "pins", pinId);
   let isLikedNow = false;

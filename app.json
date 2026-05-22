@@ -9,7 +9,7 @@
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#FDFBF7"
+      "backgroundColor": "#FFFFFF"
     },
     "assetBundlePatterns": [
       "**/*"
@@ -59,10 +59,28 @@
         "expo-build-properties",
         {
           "android": {
-            "jvmArgs": ["-Xmx3G"]
+            "jvmArgs": [
+              "-Xmx3G"
+            ],
+            "packagingOptions": {
+              "pickFirst": [
+                "META-INF/DEPENDENCIES",
+                "META-INF/LICENSE",
+                "META-INF/NOTICE",
+                "META-INF/LICENSE.txt",
+                "META-INF/NOTICE.txt",
+                "META-INF/AL2.0",
+                "META-INF/LGPL2.1",
+                "lib/**/libjsi.so",
+                "lib/**/libc++_shared.so",
+                "lib/**/libfbjni.so",
+                "lib/**/libreactnativejni.so"
+              ]
+            }
           }
         }
-      ]
+      ],
+      "expo-localization",
     ],
     "web": {
       "favicon": "./assets/favicon.png"
