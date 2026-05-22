@@ -424,7 +424,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
         initialRegion={initialRegion}
         customMapStyle={minimalMapStyle}
         showsUserLocation
-        showsMyLocationButton
+        showsMyLocationButton={false}
         onRegionChange={handleRegionChange}
         onRegionChangeComplete={handleRegionChangeComplete}
         clusterColor={PincTheme.colors.primary}
@@ -622,6 +622,24 @@ export const MapScreen: React.FC<MapScreenProps> = ({
         })}
       </MapView>
 
+      {/* Custom GPS Button */}
+      <TouchableOpacity 
+        style={styles.gpsButton}
+        onPress={() => {
+          if (userLocation && mapRef.current) {
+            (mapRef.current as any).animateToRegion({
+              latitude: userLocation.latitude,
+              longitude: userLocation.longitude,
+              latitudeDelta: 0.015,
+              longitudeDelta: 0.015,
+            }, 1000);
+          }
+        }}
+        activeOpacity={0.8}
+      >
+        <Ionicons name="locate" size={24} color={PincTheme.colors.primary} />
+      </TouchableOpacity>
+
       {/* IG Reels-Style Feed */}
       <ReelsFeedModal 
         visible={reelsFeedPins.length > 0}
@@ -640,6 +658,19 @@ const styles = StyleSheet.create({
   },
   map: {
     ...StyleSheet.absoluteFillObject
+  },
+  gpsButton: {
+    position: "absolute",
+    top: Platform.OS === 'android' ? 110 : 120,
+    right: 16,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#FFFFFF",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 998,
+    ...PincTheme.shadows.md,
   },
   searchContainer: {
     position: "absolute",
