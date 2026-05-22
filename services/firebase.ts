@@ -516,7 +516,7 @@ export async function uploadPinImage(uri: string, userId: string): Promise<strin
   let fileExt = ".jpg";
   let contentType = "image/jpeg";
   
-  if (uri.toLowerCase().endsWith(".mp4") || uri.toLowerCase().includes("video")) {
+  if (uri.toLowerCase().endsWith(".mp4") || uri.toLowerCase().endsWith(".mov")) {
     fileExt = ".mp4";
     contentType = "video/mp4";
   } else if (uri.toLowerCase().endsWith(".png")) {
