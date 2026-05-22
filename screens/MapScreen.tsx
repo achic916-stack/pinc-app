@@ -14,6 +14,7 @@ import {
   PanResponder,
   Platform
 } from "react-native";
+import * as Location from "expo-location";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { Marker, PROVIDER_GOOGLE } from "react-native-maps";
@@ -642,14 +643,46 @@ export const MapScreen: React.FC<MapScreenProps> = ({
       {/* Custom GPS Button */}
       <TouchableOpacity 
         style={styles.gpsButton}
-        onPress={() => {
-          if (userLocation && mapRef.current) {
-            (mapRef.current as any).animateToRegion({
-              latitude: userLocation.latitude,
-              longitude: userLocation.longitude,
-              latitudeDelta: 0.015,
-              longitudeDelta: 0.015,
-            }, 1000);
+        onPress={async () => {
+          try {
+            // First attempt to grab latest location dynamically for maximum accuracy
+            const { status } = await Location.requestForegroundPermissionsAsync();
+            if (status !== 'granted') {
+              console.warn("Location permission denied");
+              return;
+            }
+            const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+            if (mapRef.current) {
+              const region = {
+                latitude: loc.coords.latitude,
+                longitude: loc.coords.longitude,
+                latitudeDelta: 0.015,
+                longitudeDelta: 0.015,
+              };
+              const mapObj = mapRef.current as any;
+              if (typeof mapObj.animateToRegion === 'function') {
+                mapObj.animateToRegion(region, 1000);
+              } else if (typeof mapObj.getMapRef === 'function') {
+                mapObj.getMapRef().animateToRegion(region, 1000);
+              }
+            }
+          } catch (error) {
+            console.warn("Failed to get location on GPS button press", error);
+            // Fallback to userLocation state
+            if (userLocation && mapRef.current) {
+              const region = {
+                latitude: userLocation.latitude,
+                longitude: userLocation.longitude,
+                latitudeDelta: 0.015,
+                longitudeDelta: 0.015,
+              };
+              const mapObj = mapRef.current as any;
+              if (typeof mapObj.animateToRegion === 'function') {
+                mapObj.animateToRegion(region, 1000);
+              } else if (typeof mapObj.getMapRef === 'function') {
+                mapObj.getMapRef().animateToRegion(region, 1000);
+              }
+            }
           }
         }}
         activeOpacity={0.8}
