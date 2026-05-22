@@ -179,7 +179,6 @@ export const PincButton: React.FC<PincButtonProps> = ({
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: mediaType,
         allowsEditing: true,
-        aspect: [4, 3],
         quality: 0.8, // compress to 80% to minimize network traffic and Firebase storage costs
         base64: true,
         videoMaxDuration: 15
