@@ -116,14 +116,19 @@ const FeedItem = ({
     <View style={styles.itemContainer}>
       {/* Media Background */}
       {item.media_type === "video" ? (
-        <CachedVideo
-          source={{ uri: item.image_url }}
-          style={styles.media}
-          resizeMode={ResizeMode.COVER}
-          shouldPlay={isVisible}
-          isLooping
-          isMuted={!!item.music_url}
-        />
+        <View style={[styles.media, { backgroundColor: '#000' }]}>
+          <Image
+            source={{ uri: item.image_url }}
+            style={styles.media}
+            resizeMode="cover"
+          />
+          {/* Play icon overlay */}
+          <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center' }}>
+            <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
+              <Ionicons name="play" size={40} color="#FFF" />
+            </View>
+          </View>
+        </View>
       ) : (
         <Image
           source={{ uri: item.image_url }}
