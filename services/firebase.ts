@@ -87,6 +87,11 @@ export interface Venue {
   campaign_start_date?: Date | Timestamp;
   campaign_end_date?: Date | Timestamp;
   last_updated?: Date | Timestamp;
+  subscription_status?: 'ACTIVE' | 'GRACE_PERIOD' | 'EXPIRED' | 'NONE';
+  currentPeriodEnd?: Date | Timestamp | null;
+  gracePeriodEnd?: Date | Timestamp | null;
+  cancelAtPeriodEnd?: boolean;
+  stripeSubscriptionId?: string;
 }
 
 /**
@@ -1058,3 +1063,36 @@ export async function seedInitialVenues(): Promise<void> {
     await addDoc(venuesRef, venue);
   }
 }
+
+// ==========================================
+// STORE SUBSCRIPTION QUERIES
+// ==========================================
+
+/**
+ * Fetches active sponsored venues.
+ * This filters out venues that have expired their subscription.
+ * Venues must be either ACTIVE or in GRACE_PERIOD.
+ */
+export async function getActiveSponsoredVenues(): Promise<Venue[]> {
+  const venuesRef = collection(db, 'venues');
+  
+  // Query all sponsored venues
+  const q = query(venuesRef, where('is_sponsored', '==', true));
+  
+  const snapshot = await withTimeout(getDocs(q), 5000, "Firestore fetch sponsored venues timeout.");
+  const activeVenues: Venue[] = [];
+
+  snapshot.forEach((doc) => {
+    const data = doc.data() as Venue;
+    const status = data.subscription_status;
+    
+    // Default to active if status is not strictly defined yet (legacy support)
+    // Otherwise check if it's ACTIVE or GRACE_PERIOD
+    if (!status || status === 'ACTIVE' || status === 'GRACE_PERIOD') {
+      activeVenues.push({ venueId: doc.id, ...data });
+    }
+  });
+
+  return activeVenues;
+}
+
