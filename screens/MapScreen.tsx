@@ -456,7 +456,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
             <Marker key={clusterKey} coordinate={{ latitude: centerLat, longitude: centerLng }} onPress={onPress} tracksViewChanges={markerTracksViewChanges[clusterKey] ?? true}>
               <View style={{ width: 68, height: 68, borderRadius: 34, padding: 3, backgroundColor: '#FFF', ...PincTheme.shadows.md }}>
                 {profilePicUrl ? (
-                  <Image source={{ uri: profilePicUrl }} style={{ width: '100%', height: '100%', borderRadius: 31 }} resizeMode="cover" onLoadEnd={() => setMarkerTracksViewChanges(prev => ({ ...prev, [clusterKey]: false }))} />
+                  <Image source={{ uri: profilePicUrl }} style={{ width: '100%', height: '100%', borderRadius: 31 }} resizeMode="cover" onLoadEnd={() => setMarkerTracksViewChanges(prev => prev[clusterKey] === false ? prev : { ...prev, [clusterKey]: false })} />
                 ) : (
                   <View style={{ width: '100%', height: '100%', borderRadius: 31, backgroundColor: PincTheme.colors.card }} />
                 )}
@@ -571,7 +571,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                             source={{ uri: photoUrl }} 
                             style={[styles.photoPinImage, { width: 62, height: 62, borderRadius: 31 }]} 
                             resizeMode="cover" 
-                            onLoadEnd={() => setMarkerTracksViewChanges(prev => ({ ...prev, [pinKey]: false }))} 
+                            onLoadEnd={() => setMarkerTracksViewChanges(prev => prev[pinKey] === false ? prev : { ...prev, [pinKey]: false })} 
                           />
                         )}
                       </View>
@@ -629,7 +629,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                                   source={{ uri: photoUrl }} 
                                   style={[styles.photoPinImage, { width: 68, height: 68, borderRadius: 4 }]} 
                                   resizeMode="cover" 
-                                  onLoadEnd={() => setMarkerTracksViewChanges(prev => ({ ...prev, [pinKey]: false }))} 
+                                  onLoadEnd={() => setMarkerTracksViewChanges(prev => prev[pinKey] === false ? prev : { ...prev, [pinKey]: false })} 
                                 />
                               )}
                             </View>
