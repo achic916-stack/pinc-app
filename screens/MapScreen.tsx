@@ -52,6 +52,8 @@ interface MapScreenProps {
   locale?: "en" | "th";
   cameraTarget?: { latitude: number; longitude: number; timestamp: number } | null;
   focusSearchTrigger?: number;
+  selectedMemoryPin?: Pin | null;
+  onClearMemory?: () => void;
 }
 
 // Minimal/Light Lifestyle Map Styling for Google Maps
@@ -170,7 +172,9 @@ export const MapScreen: React.FC<MapScreenProps> = ({
   followingVenueIds = new Set<string>(),
   locale = "en",
   cameraTarget = null,
-  focusSearchTrigger = 0
+  focusSearchTrigger = 0,
+  selectedMemoryPin = null,
+  onClearMemory
 }) => {
   const { t } = useTranslation();
   const mapRef = useRef<MapView | null>(null);
@@ -203,6 +207,33 @@ export const MapScreen: React.FC<MapScreenProps> = ({
       }, 1000);
     }
   }, [cameraTarget]);
+
+  // Handle selected memory pin (Fly-to animation and auto open timeline)
+  const [isMemorySheetVisible, setIsMemorySheetVisible] = useState(false);
+  useEffect(() => {
+    if (selectedMemoryPin && mapRef.current) {
+      setIsMemorySheetVisible(false);
+      
+      const coordinate = { 
+        latitude: selectedMemoryPin.latitude, 
+        longitude: selectedMemoryPin.longitude 
+      };
+      
+      // Fly to animation
+      (mapRef.current as any).animateCamera({
+        center: coordinate,
+        pitch: 45,
+        zoom: 18,
+      }, { duration: 1500 });
+
+      // Open memory sheet after animation completes
+      const timeoutId = setTimeout(() => {
+        setIsMemorySheetVisible(true);
+      }, 1600);
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [selectedMemoryPin]);
 
   // Time-Decay Logic: filter out expired pins
   const validPins = useMemo(() => {
@@ -656,9 +687,34 @@ export const MapScreen: React.FC<MapScreenProps> = ({
             </Marker>
           );
         })}
+        {/* Render Custom Red Pin for Selected Memory */}
+        {selectedMemoryPin && (
+          <Marker
+            coordinate={{ latitude: selectedMemoryPin.latitude, longitude: selectedMemoryPin.longitude }}
+            tracksViewChanges={false}
+            zIndex={9999}
+          >
+            <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+              <View style={{ position: 'absolute', width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255, 59, 48, 0.4)' }} />
+              <Ionicons name="location" size={48} color="#FF3B30" />
+            </View>
+          </Marker>
+        )}
+
       </MapView>
 
-      {/* Custom GPS Button */}
+      {/* Memory Timeline Modal */}
+      <ReelsFeedModal
+        visible={isMemorySheetVisible && !!selectedMemoryPin}
+        pins={selectedMemoryPin ? [selectedMemoryPin] : []}
+        onClose={() => {
+          setIsMemorySheetVisible(false);
+          if (onClearMemory) onClearMemory();
+        }}
+        currentUserId={""} // Pass appropriately if needed
+      />
+
+      {/* Main Bottom Dashboard Tab Bar Overlay */}
       <TouchableOpacity 
         style={styles.gpsButton}
         onPress={async () => {

@@ -83,6 +83,7 @@ export default function App() {
   const [deleteModePinId, setDeleteModePinId] = useState<string | null>(null);
   const [expandedPin, setExpandedPin] = useState<string | null>(null);
   const [activeVideoId, setActiveVideoId] = useState<string | null>(null);
+  const [selectedMemoryPin, setSelectedMemoryPin] = useState<Pin | null>(null);
 
   // Settings & GDPR States
   const [locale, setLocale] = useState<"en" | "th">("en");
@@ -531,6 +532,8 @@ export default function App() {
             locale={locale}
             cameraTarget={cameraTarget}
             focusSearchTrigger={focusSearchTrigger}
+            selectedMemoryPin={selectedMemoryPin}
+            onClearMemory={() => setSelectedMemoryPin(null)}
           />
 
           {/* Floating Action Button "The Pinc Button" */}
@@ -566,6 +569,11 @@ export default function App() {
             userId={selectedUserProfileId}
             currentUserId={currentUser.userId}
             onClose={() => setSelectedUserProfileId(null)}
+            onSelectMemory={(pin) => {
+              setSelectedMemoryPin(pin);
+              setSelectedUserProfileId(null);
+              setActiveTab("home");
+            }}
             locale={locale}
           />
 

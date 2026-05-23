@@ -36,6 +36,7 @@ interface UserProfileModalProps {
   userId: string | null;
   currentUserId: string;
   onClose: () => void;
+  onSelectMemory?: (pin: Pin) => void;
   locale?: "en" | "th";
 }
 
@@ -44,6 +45,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   userId,
   currentUserId,
   onClose,
+  onSelectMemory,
   locale = "en"
 }) => {
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -248,7 +250,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             <FlatList
               data={pins}
               keyExtractor={(item, index) => item.pinId || index.toString()}
-              numColumns={3}
+              numColumns={2}
               showsVerticalScrollIndicator={false}
               contentContainerStyle={{ paddingBottom: 20 }}
               ListHeaderComponent={
@@ -342,7 +344,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   
                   <View style={styles.gridHeader}>
                     <Text style={styles.gridHeaderTitle}>
-                      📸 {locale === "th" ? "พิกัด Reality Check" : "Reality Checks"}
+                      📸 {locale === "th" ? "พิกัดความทรงจำของคุณ" : "My Pinc. Memories"}
                     </Text>
                   </View>
                 </View>
@@ -352,17 +354,31 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   <Text style={styles.emptyGridText}>Start your first Reality Check!</Text>
                 </View>
               }
-              renderItem={({ item: pin }) => (
-                <View style={styles.gridItem}>
-                  {pin.image_url ? (
-                    <Image source={{ uri: pin.image_url }} style={styles.gridImage} resizeMode="cover" />
-                  ) : (
-                    <View style={styles.gridImagePlaceholder}>
-                      <Text style={{ fontSize: 24 }}>☕</Text>
+              renderItem={({ item: pin }) => {
+                const pinDate = pin.timestamp ? new Date(pin.timestamp).toLocaleString(locale === 'th' ? 'th-TH' : 'en-GB', {
+                  day: 'numeric', month: 'short', year: 'numeric',
+                  hour: '2-digit', minute: '2-digit'
+                }) : '';
+                return (
+                  <TouchableOpacity 
+                    style={styles.memoryCard} 
+                    activeOpacity={0.85}
+                    onPress={() => onSelectMemory && onSelectMemory(pin)}
+                  >
+                    <Image 
+                      source={{ uri: pin.thumbnail_url || pin.image_url }} 
+                      style={styles.memoryThumbnail} 
+                      resizeMode="cover" 
+                    />
+                    <View style={styles.memoryInfo}>
+                      <Text style={styles.memoryVenue} numberOfLines={1}>
+                        {pin.venueName || "Unknown Location"}
+                      </Text>
+                      <Text style={styles.memoryDate}>{pinDate}</Text>
                     </View>
-                  )}
-                </View>
-              )}
+                  </TouchableOpacity>
+                );
+              }}
             />
           )}
         </SafeAreaView>
@@ -823,21 +839,35 @@ const styles = StyleSheet.create({
     color: PincTheme.colors.primary,
     textAlign: "center"
   },
-  gridItem: {
-    width: SCREEN_WIDTH / 3,
-    height: SCREEN_WIDTH / 3,
-    padding: 1
+  memoryCard: {
+    flex: 1,
+    margin: 8,
+    borderRadius: 12,
+    backgroundColor: '#FFF',
+    overflow: 'hidden',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
-  gridImage: {
-    width: "100%",
-    height: "100%",
-    backgroundColor: PincTheme.colors.border
+  memoryThumbnail: {
+    width: '100%',
+    height: 180,
   },
-  gridImagePlaceholder: {
-    width: "100%",
-    height: "100%",
-    backgroundColor: PincTheme.colors.border,
-    alignItems: "center",
-    justifyContent: "center"
+  memoryInfo: {
+    padding: 10,
+  },
+  memoryVenue: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#333',
+    fontFamily: PincTheme.fonts.heading,
+  },
+  memoryDate: {
+    fontSize: 11,
+    color: '#888',
+    marginTop: 4,
+    fontFamily: PincTheme.fonts.body,
   }
 });
