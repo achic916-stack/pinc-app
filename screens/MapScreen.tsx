@@ -519,7 +519,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                                     <View style={{ width: '100%', height: '100%', backgroundColor: PincTheme.colors.card }} />
                                   )}
                                   <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)' }}>
-                                    <Ionicons name="videocam" size={24} color="#FFF" />
+                                    <Ionicons name="play" size={24} color={PincTheme.colors.primary} />
                                   </View>
                                 </View>
                               ) : (
@@ -568,7 +568,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                               <View style={{ width: '100%', height: '100%', backgroundColor: PincTheme.colors.card }} />
                             )}
                             <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)' }}>
-                              <Ionicons name="videocam" size={18} color="#FFF" />
+                              <Ionicons name="play" size={20} color={PincTheme.colors.primary} />
                             </View>
                           </View>
                         ) : (
@@ -630,7 +630,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                                     <View style={{ width: '100%', height: '100%', backgroundColor: PincTheme.colors.card }} />
                                   )}
                                   <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)' }}>
-                                    <Ionicons name="videocam" size={24} color="#FFF" />
+                                    <Ionicons name="play" size={24} color={PincTheme.colors.primary} />
                                   </View>
                                 </View>
                               ) : (
