@@ -625,7 +625,7 @@ export default function App() {
                             >
                               <Image source={{ uri: getSafeVideoUrl(pin.image_url) }} style={styles.shelfImage} contentFit="cover" />
                               <View style={[StyleSheet.absoluteFill, { justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)' }]}>
-                                <Text style={{ fontSize: 32 }}>▶️</Text>
+                                <Ionicons name="play" size={24} color="#FFFFFF" />
                               </View>
                             </TouchableOpacity>
                           )
@@ -634,7 +634,7 @@ export default function App() {
                         )}
                         {isVideo && (
                           <View style={styles.videoOverlayBadge}>
-                            <Text style={styles.videoOverlayText}>▶️</Text>
+                            <Ionicons name="play" size={14} color="#FFFFFF" />
                           </View>
                         )}
                         {deleteModePinId === pin.pinId && (
