@@ -631,7 +631,11 @@ export default function App() {
                           ) : (
                             <TouchableOpacity 
                               style={{ width: '100%', height: '100%' }} 
-                              onPress={() => setActiveVideoId(pin.pinId || null)}
+                              onPress={() => {
+                                const idx = currentUserPins.findIndex(p => p.pinId === pin.pinId);
+                                setAppReelsInitialIndex(idx >= 0 ? idx : 0);
+                                setAppReelsPins(currentUserPins);
+                              }}
                               activeOpacity={0.8}
                             >
                               <Image source={{ uri: getSafeVideoUrl(pin.image_url) }} style={styles.shelfImage} contentFit="cover" />

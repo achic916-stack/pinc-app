@@ -262,9 +262,10 @@ export const ReelsFeedModal: React.FC<ReelsFeedModalProps> = ({
       onRequestClose={onClose}
     >
       <View style={styles.container}>
-        <FlatList
-          ref={flatListRef}
-          data={pins}
+        {visible && (
+          <FlatList
+            ref={flatListRef}
+            data={pins}
           keyExtractor={(item) => item.pinId || Math.random().toString()}
           renderItem={({ item, index }) => (
             <FeedItem 
@@ -285,7 +286,13 @@ export const ReelsFeedModal: React.FC<ReelsFeedModalProps> = ({
             offset: windowHeight * index,
             index,
           })}
+          onScrollToIndexFailed={(info) => {
+            setTimeout(() => {
+              flatListRef.current?.scrollToIndex({ index: info.index, animated: false });
+            }, 100);
+          }}
         />
+        )}
 
         {/* Global Close Button */}
         <TouchableOpacity style={styles.closeButton} onPress={onClose}>
