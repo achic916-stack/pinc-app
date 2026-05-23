@@ -62,7 +62,7 @@ interface MapScreenProps {
   onDeletePin?: (pin: Pin) => void;
 }
 
-// Minimal/Light Lifestyle Map Styling for Google Maps
+// Detailed Light Lifestyle Map Styling for Google Maps
 const minimalMapStyle = [
   {
     featureType: "all",
@@ -92,7 +92,7 @@ const minimalMapStyle = [
   {
     featureType: "poi",
     elementType: "all",
-    stylers: [{ visibility: "off" }]
+    stylers: [{ visibility: "on" }]
   },
   {
     featureType: "poi.park",
@@ -107,12 +107,12 @@ const minimalMapStyle = [
   {
     featureType: "road",
     elementType: "labels",
-    stylers: [{ visibility: "simplified" }]
+    stylers: [{ visibility: "on" }]
   },
   {
     featureType: "transit",
     elementType: "all",
-    stylers: [{ visibility: "off" }]
+    stylers: [{ visibility: "on" }]
   }
 ];
 
