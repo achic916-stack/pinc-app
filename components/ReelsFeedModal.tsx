@@ -27,6 +27,7 @@ interface ReelsFeedModalProps {
   pins: Pin[];
   onClose: () => void;
   currentUserId: string;
+  initialIndex?: number;
 }
 
 const FeedItem = ({ 
@@ -215,10 +216,24 @@ export const ReelsFeedModal: React.FC<ReelsFeedModalProps> = ({
   visible,
   pins,
   onClose,
-  currentUserId
+  currentUserId,
+  initialIndex = 0
 }) => {
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [activeCommentPinId, setActiveCommentPinId] = useState<string | null>(null);
+  const flatListRef = useRef<FlatList>(null);
+
+  useEffect(() => {
+    if (visible && pins.length > 0) {
+      setCurrentIndex(initialIndex);
+      // Small delay to ensure layout is ready before scrolling
+      setTimeout(() => {
+        if (flatListRef.current) {
+          flatListRef.current.scrollToIndex({ index: initialIndex, animated: false });
+        }
+      }, 100);
+    }
+  }, [visible, initialIndex, pins.length]);
 
   const handleViewableItemsChanged = useRef(({ viewableItems }: any) => {
     if (viewableItems.length > 0) {
@@ -248,6 +263,7 @@ export const ReelsFeedModal: React.FC<ReelsFeedModalProps> = ({
     >
       <View style={styles.container}>
         <FlatList
+          ref={flatListRef}
           data={pins}
           keyExtractor={(item) => item.pinId || Math.random().toString()}
           renderItem={({ item, index }) => (
@@ -263,6 +279,7 @@ export const ReelsFeedModal: React.FC<ReelsFeedModalProps> = ({
           viewabilityConfig={viewabilityConfig}
           snapToAlignment="start"
           decelerationRate="fast"
+          initialScrollIndex={initialIndex}
           getItemLayout={(data, index) => ({
             length: windowHeight,
             offset: windowHeight * index,

@@ -80,6 +80,7 @@ export default function App() {
   const [cameraTarget, setCameraTarget] = useState<{ latitude: number; longitude: number; timestamp: number } | null>(null);
   const [focusSearchTrigger, setFocusSearchTrigger] = useState(0);
   const [appReelsPins, setAppReelsPins] = useState<Pin[]>([]);
+  const [appReelsInitialIndex, setAppReelsInitialIndex] = useState<number>(0);
   const [deleteModePinId, setDeleteModePinId] = useState<string | null>(null);
   const [expandedPin, setExpandedPin] = useState<string | null>(null);
   const [activeVideoId, setActiveVideoId] = useState<string | null>(null);
@@ -610,7 +611,9 @@ export default function App() {
                           if (deleteModePinId) {
                             setDeleteModePinId(null);
                           } else {
-                            handleSelectShelfPin(pin);
+                            const idx = currentUserPins.findIndex(p => p.pinId === pin.pinId);
+                            setAppReelsInitialIndex(idx >= 0 ? idx : 0);
+                            setAppReelsPins(currentUserPins);
                           }
                         }}
                         onLongPress={() => setDeleteModePinId(pin.pinId || null)}
@@ -721,8 +724,10 @@ export default function App() {
           <ReelsFeedModal 
             visible={appReelsPins.length > 0}
             pins={appReelsPins}
+            initialIndex={appReelsInitialIndex}
             onClose={() => {
               setAppReelsPins([]);
+              setAppReelsInitialIndex(0);
               setActiveTab("home");
             }}
             currentUserId={currentUser.userId}
