@@ -17,13 +17,17 @@ import {
 import * as Location from "expo-location";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
-import { Marker, PROVIDER_GOOGLE } from "react-native-maps";
-import MapView from "react-native-map-clustering";
+import * as RNMaps from "react-native-maps";
+import RNMapClustering from "react-native-map-clustering";
+
+const Marker = Platform.OS === 'web' ? View : RNMaps.Marker;
+const PROVIDER_GOOGLE = Platform.OS === 'web' ? null : RNMaps.PROVIDER_GOOGLE;
+const MapView = Platform.OS === 'web' ? View : RNMapClustering;
 const Audio = { Sound: { createAsync: async () => ({ sound: { playAsync: async () => {}, stopAsync: async () => {}, unloadAsync: async () => {} } }) }, setAudioModeAsync: async () => {} }; const Video = () => null; const ResizeMode = { COVER: 'cover', CONTAIN: 'contain' };
 
 import { CachedVideo } from "../components/CachedVideo";
 import { PincTheme } from "../styles/theme";
-import { Venue, Pin, isCampaignActive, auth } from "../services/firebase";
+import { Venue, Pin, auth } from "../services/firebase";
 import { useTranslation } from 'react-i18next';
 import { ReelsFeedModal } from "../components/ReelsFeedModal";
 
@@ -42,7 +46,7 @@ const isVideoUrl = (url: string | null | undefined): boolean => {
 };
 
 interface MapScreenProps {
-  venues: Venue[];
+  venues: Venue[]; // To be deprecated later
   allPins: Pin[];
   userLocation: { latitude: number; longitude: number } | null;
   onSelectVenue: (venue: Venue) => void;
@@ -54,6 +58,8 @@ interface MapScreenProps {
   focusSearchTrigger?: number;
   selectedMemoryPin?: Pin | null;
   onClearMemory?: () => void;
+  currentUserId?: string;
+  onDeletePin?: (pin: Pin) => void;
 }
 
 // Minimal/Light Lifestyle Map Styling for Google Maps
@@ -110,40 +116,7 @@ const minimalMapStyle = [
   }
 ];
 
-// Glowing Radar Pulse Animation component for Tier 2 Sponsorship
-const RadarPulse: React.FC = () => {
-  const scaleVal = useRef(new Animated.Value(1)).current;
-  const opacityVal = useRef(new Animated.Value(0.7)).current;
-
-  useEffect(() => {
-    Animated.loop(
-      Animated.parallel([
-        Animated.timing(scaleVal, {
-          toValue: 2.3,
-          duration: 1800,
-          useNativeDriver: true,
-        }),
-        Animated.timing(opacityVal, {
-          toValue: 0,
-          duration: 1800,
-          useNativeDriver: true,
-        })
-      ])
-    ).start();
-  }, []);
-
-  return (
-    <Animated.View
-      style={[
-        styles.radarPulseRing,
-        {
-          transform: [{ scale: scaleVal }],
-          opacity: opacityVal
-        }
-      ]}
-    />
-  );
-};
+// Removed RadarPulse
 
 const BlinkingLiveNewsBadge: React.FC = () => {
   const opacityVal = useRef(new Animated.Value(1)).current;
@@ -157,7 +130,7 @@ const BlinkingLiveNewsBadge: React.FC = () => {
   }, []);
   return (
     <Animated.View style={[styles.liveNewsBadge, { opacity: opacityVal }]}>
-      <Text style={styles.liveNewsBadgeText}>LIVE NEWS</Text>
+      <Text style={styles.liveNewsBadgeText}>PINC STORY</Text>
     </Animated.View>
   );
 };
@@ -174,7 +147,9 @@ export const MapScreen: React.FC<MapScreenProps> = ({
   cameraTarget = null,
   focusSearchTrigger = 0,
   selectedMemoryPin = null,
-  onClearMemory
+  onClearMemory,
+  currentUserId,
+  onDeletePin
 }) => {
   const { t } = useTranslation();
   const mapRef = useRef<MapView | null>(null);
@@ -185,6 +160,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
   const [isFilterFriends, setIsFilterFriends] = useState(false);
   const [markerTracksViewChanges, setMarkerTracksViewChanges] = useState<Record<string, boolean>>({});
   const [reelsFeedPins, setReelsFeedPins] = useState<Pin[]>([]);
+  const [deleteModePinId, setDeleteModePinId] = useState<string | null>(null);
 
   // Effect to autofocus search bar on trigger
   useEffect(() => {
@@ -242,9 +218,9 @@ export const MapScreen: React.FC<MapScreenProps> = ({
       const pinTime = new Date(pin.timestamp).getTime();
       const ageHours = (now - pinTime) / (1000 * 60 * 60);
       if (pin.post_type === "live_news") {
-        return ageHours <= 6;
+        return ageHours <= 24; // Pinc Story (formerly Live News) lasts 24h
       } else {
-        return ageHours <= 24;
+        return true; // Standard pins are now Permanent
       }
     });
   }, [allPins]);
@@ -329,12 +305,8 @@ export const MapScreen: React.FC<MapScreenProps> = ({
       venue.category.toLowerCase().includes(queryStr)
     );
 
-    // Prioritize active sponsored pins at the top of the search result list
-    return matched.sort((a, b) => {
-      const isSponsoredA = isCampaignActive(a) ? 1 : 0;
-      const isSponsoredB = isCampaignActive(b) ? 1 : 0;
-      return isSponsoredB - isSponsoredA; // Sponsored (1) comes before Non-sponsored (0)
-    });
+    // Basic sorting (could sort by distance in the future)
+    return matched;
   }, [searchQuery, displayedVenues]);
 
   const handleSelectSearchResult = (venue: Venue) => {
@@ -400,20 +372,15 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                 style={styles.dropdownScroll}
               >
                 {searchResults.map((venue) => {
-                  const sponsored = isCampaignActive(venue);
                   return (
                     <TouchableOpacity
                       key={venue.venueId}
-                      style={[styles.resultItem, sponsored && styles.resultItemSponsored]}
+                      style={styles.resultItem}
                       onPress={() => handleSelectSearchResult(venue)}
                     >
-                      {sponsored && venue.custom_icon_url ? (
-                        <Image source={{ uri: venue.custom_icon_url }} style={styles.resultLogo} />
-                      ) : (
-                        <View style={styles.resultCategoryPlaceholder}>
-                          <Text style={{ fontSize: 14 }}>☕</Text>
-                        </View>
-                      )}
+                      <View style={styles.resultCategoryPlaceholder}>
+                        <Text style={{ fontSize: 14 }}>☕</Text>
+                      </View>
                       
                       <View style={styles.resultTextContainer}>
                         <Text style={styles.resultName}>{venue.name}</Text>
@@ -422,11 +389,6 @@ export const MapScreen: React.FC<MapScreenProps> = ({
 
 
 
-                      {sponsored && (
-                        <View style={styles.sponsoredBadge}>
-                          <Text style={styles.sponsoredBadgeText}>✓ SPONSORED</Text>
-                        </View>
-                      )}
                     </TouchableOpacity>
                   );
                 })}
@@ -470,128 +432,65 @@ export const MapScreen: React.FC<MapScreenProps> = ({
         clusterColor={PincTheme.colors.primary}
         clusterTextColor="#FFFFFF"
       >
-        {displayedVenues.map((venue) => {
-          const sponsored = isCampaignActive(venue);
-          const { photoUrl, latestPin } = getVenueLatestPhoto(venue);
-          const isLiveNews = latestPin?.post_type === "live_news";
+        {validPins.map((pin) => {
+          const photoUrl = pin.media_type === "video" && pin.thumbnail_url ? pin.thumbnail_url : pin.image_url;
+          const isLiveNews = pin.post_type === "live_news";
+          const isDeleteMode = deleteModePinId === pin.pinId;
+          const pinKey = pin.pinId || `${pin.latitude}-${pin.longitude}-${pin.timestamp}`;
           
           return (
             <Marker
-              key={venue.venueId}
-              coordinate={
-                latestPin 
-                  ? { latitude: latestPin.latitude, longitude: latestPin.longitude }
-                  : { latitude: venue.latitude, longitude: venue.longitude }
-              }
+              key={pinKey}
+              coordinate={{ latitude: pin.latitude, longitude: pin.longitude }}
               onPress={() => {
-                const venuePins = validPins.filter(pin => pin.venueId === venue.venueId);
-                if (venuePins.length > 0) {
-                  setReelsFeedPins(venuePins);
-                } else {
-                  onSelectVenue(venue);
+                if (deleteModePinId) {
+                  setDeleteModePinId(null);
+                  return;
+                }
+                setReelsFeedPins([pin]);
+              }}
+              // @ts-ignore
+              onLongPress={() => {
+                if (currentUserId && pin.userId === currentUserId) {
+                  setDeleteModePinId(pin.pinId || null);
                 }
               }}
               tracksViewChanges={
                 tracksViewChangesDuringZoom || 
-                latestPin?.media_type === "video" || 
+                pin.media_type === "video" || 
                 isVideoUrl(photoUrl) ||
-                (markerTracksViewChanges[venue.venueId] ?? true)
+                (markerTracksViewChanges[pinKey] ?? true)
               }
-              anchor={sponsored ? { x: 0.5, y: 0.5 } : isLiveNews ? { x: 0.5, y: 0.5 } : { x: 0.5, y: 0.68 }}
+              anchor={isLiveNews ? { x: 0.5, y: 0.5 } : { x: 0.5, y: 0.68 }}
             >
-
-
-              {sponsored ? (
-                /* OVERRIDE: Render Sponsored Pin UI Overrides */
-                <View style={[styles.customMarkerContainer, { transform: [{ scale: zoomScale * (venue.sponsor_tier === 3 ? 1.05 : 1.0) }] }]}>
-                  <View style={{ alignItems: "center", justifyContent: "center", paddingBottom: 15 }}>
-                    {/* Glowing Radar Pulse Effect for Tier 3 Sponsorship */}
-                    {venue.sponsor_tier === 3 && <RadarPulse />}
-
-                    {(() => {
-                      const cardPaddingTop = 17; // Always show name for sponsored venues
-                      const tier = venue.sponsor_tier || 1;
-                      
-                      let borderColor = "#A6A6A6"; // Tier 1: Silver
-                      if (tier === 2) borderColor = "#FFC107"; // Tier 2: Gold
-                      if (tier === 3) borderColor = "#FF4B72"; // Tier 3: Pink
-
-                      return (
-                        <>
-                          {/* Concentric shadows */}
-                          <View style={[styles.photoPinCard, styles.concentricShadow1, { paddingTop: cardPaddingTop, borderColor: borderColor }]} />
-                          <View style={[styles.photoPinCard, styles.concentricShadow2, { paddingTop: cardPaddingTop, borderColor: borderColor }]} />
-
-                          {/* Front Card */}
-                          <View style={[styles.photoPinCard, { paddingTop: cardPaddingTop, paddingBottom: 3, justifyContent: "flex-end", borderColor: borderColor, borderWidth: tier >= 2 ? 2.5 : 1.5 }]}>
-                            {/* Name inside the top part of the card */}
-                            <View style={{ position: "absolute", top: 0, left: 0, right: 0, height: cardPaddingTop, justifyContent: "center", alignItems: "center" }}>
-                              <Text 
-                                style={{ 
-                                  fontSize: 11, 
-                                  fontWeight: "800", 
-                                  color: PincTheme.colors.textPrimary, 
-                                  width: "95%", 
-                                  textAlign: "center",
-                                  includeFontPadding: false
-                                }} 
-                                numberOfLines={1}
-                              >
-                                {venue.name}
-                              </Text>
-                            </View>
-
-                            <View style={styles.imageWrapper}>
-                              {latestPin?.media_type === "video" || isVideoUrl(photoUrl) ? (
-                                <View style={{ width: 68, height: 68, borderRadius: 4, overflow: 'hidden' }}>
-                                  {photoUrl && !isVideoUrl(photoUrl) ? (
-                                    <Image source={{ uri: photoUrl }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
-                                  ) : (
-                                    <View style={{ width: '100%', height: '100%', backgroundColor: PincTheme.colors.card }} />
-                                  )}
-                                  <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)' }}>
-                                    <Ionicons name="play" size={24} color={PincTheme.colors.primary} />
-                                  </View>
-                                </View>
-                              ) : (
-                                <Image 
-                                  key={venue.custom_icon_url || photoUrl || venue.cover_image}
-                                  source={{ uri: venue.custom_icon_url || photoUrl || venue.cover_image }} 
-                                  style={[styles.photoPinImage, { width: 68, height: 68, borderRadius: 4 }]} 
-                                  resizeMode="cover" 
-                                  onLoadEnd={() => setMarkerTracksViewChanges(prev => ({ ...prev, [venue.venueId]: false }))} 
-                                />
-                              )}
-                            </View>
-                          </View>
-                        </>
-                      );
-                    })()}
-                  </View>
-                  
-                  {/* Triangular Marker Pointer (Colored by Tier) */}
-                  <View style={[
-                    styles.photoPinPointer, 
-                    { 
-                      borderTopColor: (venue.sponsor_tier || 1) === 1 ? "#A6A6A6" : ((venue.sponsor_tier || 1) === 2 ? "#FFC107" : "#FF4B72") 
-                    }
-                  ]} />
+              {/* Red Minus Delete Badge Overlay */}
+              {isDeleteMode && (
+                <View style={{ position: 'absolute', top: '50%', left: '50%', marginTop: -20, marginLeft: -18, zIndex: 100, elevation: 20 }}>
+                  <TouchableOpacity 
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      if (onDeletePin) onDeletePin(pin);
+                      setDeleteModePinId(null);
+                    }}
+                    style={{ backgroundColor: '#FFFFFF', borderRadius: 20, padding: 2 }}
+                  >
+                    <Ionicons name="remove-circle" size={32} color="#FF3B30" />
+                  </TouchableOpacity>
                 </View>
-              ) : isLiveNews ? (
-                /* LIVE NEWS: Render Custom Circular Photo Pin */
-                <View style={[styles.customMarkerContainer, { transform: [{ scale: zoomScale }] }]}>
-                  {/* Labels removed by user request, keeping only LIVE NEWS badge */}
+              )}
 
+              {isLiveNews ? (
+                /* PINC STORY (formerly LIVE NEWS): Render Custom Circular Photo Pin */
+                <View style={[styles.customMarkerContainer, { transform: [{ scale: zoomScale }] }]}>
                   <BlinkingLiveNewsBadge />
 
                   <View style={{ alignItems: "center", justifyContent: "center" }}>
-                    {/* Concentric shadows for Android blur effect */}
                     <View style={[styles.livePhotoPinCard, styles.concentricShadow1]} />
                     <View style={[styles.livePhotoPinCard, styles.concentricShadow2]} />
 
                     <View style={styles.livePhotoPinCard}>
                       <View style={styles.liveImageWrapper}>
-                        {latestPin?.media_type === "video" || isVideoUrl(photoUrl) ? (
+                        {pin.media_type === "video" || isVideoUrl(photoUrl) ? (
                           <View style={{ width: 62, height: 62, borderRadius: 31, overflow: 'hidden' }}>
                             {photoUrl && !isVideoUrl(photoUrl) ? (
                               <Image source={{ uri: photoUrl }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
@@ -608,7 +507,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                             source={{ uri: photoUrl }} 
                             style={[styles.photoPinImage, { width: 62, height: 62, borderRadius: 31 }]} 
                             resizeMode="cover" 
-                            onLoadEnd={() => setMarkerTracksViewChanges(prev => ({ ...prev, [venue.venueId]: false }))} 
+                            onLoadEnd={() => setMarkerTracksViewChanges(prev => ({ ...prev, [pinKey]: false }))} 
                           />
                         )}
                       </View>
@@ -616,24 +515,20 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                   </View>
                 </View>
               ) : (
-                /* STANDARD: Render Custom white-bordered Photo Pin */
+                /* STANDARD (Permanent): Render Custom white-bordered Photo Pin */
                 <View style={[styles.customMarkerContainer, { transform: [{ scale: zoomScale }] }]}>
                   <View style={{ alignItems: "center", justifyContent: "center", paddingBottom: 15 }}>
-                    {/* Dynamic styles for the expanded card */}
                     {(() => {
-                      const showName = latestPin?.username || !venue.name.includes("Current Location");
-                      const displayName = latestPin?.username || venue.name;
+                      const showName = !!pin.username;
+                      const displayName = pin.username || "";
                       const cardPaddingTop = showName ? 17 : 3;
 
                       return (
                         <>
-                          {/* Concentric shadows for Android blur effect */}
                           <View style={[styles.photoPinCard, styles.concentricShadow1, { paddingTop: cardPaddingTop }]} />
                           <View style={[styles.photoPinCard, styles.concentricShadow2, { paddingTop: cardPaddingTop }]} />
 
-                          {/* Front Card */}
                           <View style={[styles.photoPinCard, { paddingTop: cardPaddingTop, paddingBottom: 3, justifyContent: "flex-end" }]}>
-                            {/* Name inside the top part of the card */}
                             {showName && (
                               <View style={{ position: "absolute", top: 0, left: 0, right: 0, height: cardPaddingTop, justifyContent: "center", alignItems: "center" }}>
                                 <Text 
@@ -653,7 +548,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                             )}
 
                             <View style={styles.imageWrapper}>
-                              {latestPin?.media_type === "video" || isVideoUrl(photoUrl) ? (
+                              {pin.media_type === "video" || isVideoUrl(photoUrl) ? (
                                 <View style={{ width: 68, height: 68, borderRadius: 4, overflow: 'hidden' }}>
                                   {photoUrl && !isVideoUrl(photoUrl) ? (
                                     <Image source={{ uri: photoUrl }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
@@ -670,7 +565,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                                   source={{ uri: photoUrl }} 
                                   style={[styles.photoPinImage, { width: 68, height: 68, borderRadius: 4 }]} 
                                   resizeMode="cover" 
-                                  onLoadEnd={() => setMarkerTracksViewChanges(prev => ({ ...prev, [venue.venueId]: false }))} 
+                                  onLoadEnd={() => setMarkerTracksViewChanges(prev => ({ ...prev, [pinKey]: false }))} 
                                 />
                               )}
                             </View>
@@ -680,7 +575,6 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                     })()}
                   </View>
                   
-                  {/* Triangular Marker Pointer */}
                   <View style={styles.photoPinPointer} />
                 </View>
               )}

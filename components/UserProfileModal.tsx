@@ -372,7 +372,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                     />
                     <View style={styles.memoryInfo}>
                       <Text style={styles.memoryVenue} numberOfLines={1}>
-                        {pin.venueName || "Unknown Location"}
+                        {(pin.username || "Memory") || "Unknown Location"}
                       </Text>
                       <Text style={styles.memoryDate}>{pinDate}</Text>
                     </View>

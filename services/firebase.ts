@@ -35,6 +35,7 @@ import {
   User,
   deleteUser
 } from "firebase/auth";
+import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // ==========================================
@@ -51,10 +52,10 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+export const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 export const db = getFirestore(app);
 export const auth = initializeAuth(app, {
-  persistence: getReactNativePersistence(AsyncStorage)
+  persistence: Platform.OS === 'web' ? undefined : getReactNativePersistence(AsyncStorage)
 });
 export const storage = getStorage(app);
 
@@ -94,28 +95,7 @@ export interface Venue {
   stripeSubscriptionId?: string;
 }
 
-/**
- * Checks if a venue's sponsored campaign is currently active based on date bounds.
- */
-export function isCampaignActive(venue: Venue): boolean {
-  if (!venue.is_sponsored) return false;
-  const now = new Date();
-  
-  const start = venue.campaign_start_date instanceof Date 
-    ? venue.campaign_start_date 
-    : (venue.campaign_start_date as any)?.toDate 
-      ? (venue.campaign_start_date as any).toDate() 
-      : null;
-      
-  const end = venue.campaign_end_date instanceof Date 
-    ? venue.campaign_end_date 
-    : (venue.campaign_end_date as any)?.toDate 
-      ? (venue.campaign_end_date as any).toDate() 
-      : null;
 
-  if (!start || !end) return false;
-  return now >= start && now <= end;
-}
 
 export interface Pin {
   pinId?: string;
@@ -1089,7 +1069,7 @@ export async function getActiveSponsoredVenues(): Promise<Venue[]> {
     // Default to active if status is not strictly defined yet (legacy support)
     // Otherwise check if it's ACTIVE or GRACE_PERIOD
     if (!status || status === 'ACTIVE' || status === 'GRACE_PERIOD') {
-      activeVenues.push({ venueId: doc.id, ...data });
+      activeVenues.push({ ...data, venueId: doc.id });
     }
   });
 

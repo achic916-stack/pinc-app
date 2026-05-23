@@ -62,7 +62,7 @@ export const PincButton: React.FC<PincButtonProps> = ({
   const [capturedMediaType, setCapturedMediaType] = useState<"image" | "video">("image");
   const [text, setText] = useState("");
   const [postType, setPostType] = useState<"standard" | "live_news">("standard");
-  const [postDuration, setPostDuration] = useState<"time_decay" | "permanent">("time_decay");
+  const [postDuration, setPostDuration] = useState<"24h" | "permanent">("permanent");
   const [capturedBase64, setCapturedBase64] = useState<string | null>(null);
   
   const [currentGPSLocation, setCurrentGPSLocation] = useState<{ latitude: number; longitude: number } | null>(null);
@@ -303,7 +303,7 @@ export const PincButton: React.FC<PincButtonProps> = ({
         userCoords: loc,
         reportType: "live_status",
         postType,
-        postDuration: canPostPermanent ? postDuration : "time_decay",
+        postDuration: canPostPermanent ? postDuration : "24h",
         situationDetails: postType === "live_news" ? text : "",
         mediaType: capturedMediaType,
         musicTitle: selectedTrack.id !== "original" ? selectedTrack.title : "",
@@ -463,60 +463,33 @@ export const PincButton: React.FC<PincButtonProps> = ({
 
             {/* Post Type & Duration Combined Selector */}
             <View style={styles.postTypeToggleContainer}>
-              {/* Option 1: Permanent Standard (Admin/Premium Only) */}
-              {canPostPermanent && (
-                <TouchableOpacity
-                  style={[
-                    styles.postTypeTab, 
-                    postType === "standard" && postDuration === "permanent" && styles.postTypeTabActive
-                  ]}
-                  onPress={() => {
-                    setPostType("standard");
-                    setPostDuration("permanent");
-                  }}
-                  disabled={isSubmitting}
-                >
-                  <Ionicons 
-                    name="infinite" 
-                    size={14} 
-                    color={postType === "standard" && postDuration === "permanent" ? PincTheme.colors.textPrimary : PincTheme.colors.textSecondary} 
-                  />
-                  <Text style={[
-                    styles.postTypeTabText, 
-                    { fontSize: 11, marginLeft: -4 },
-                    postType === "standard" && postDuration === "permanent" && styles.postTypeTabTextActive
-                  ]}>
-                    {t("permanent")}
-                  </Text>
-                </TouchableOpacity>
-              )}
-              
-              {/* Option 2: 24h Reality Check */}
+              {/* Option 1: Permanent Standard */}
               <TouchableOpacity
                 style={[
                   styles.postTypeTab, 
-                  postType === "standard" && postDuration === "time_decay" && styles.postTypeTabActive
+                  postType === "standard" && styles.postTypeTabActive
                 ]}
                 onPress={() => {
                   setPostType("standard");
-                  setPostDuration("time_decay");
+                  setPostDuration("permanent");
                 }}
                 disabled={isSubmitting}
               >
                 <Ionicons 
-                  name="time" 
+                  name="infinite" 
                   size={14} 
-                  color={postType === "standard" && postDuration === "time_decay" ? PincTheme.colors.textPrimary : PincTheme.colors.textSecondary} 
+                  color={postType === "standard" ? PincTheme.colors.textPrimary : PincTheme.colors.textSecondary} 
                 />
                 <Text style={[
                   styles.postTypeTabText, 
                   { fontSize: 11, marginLeft: -4 },
-                  postType === "standard" && postDuration === "time_decay" && styles.postTypeTabTextActive
+                  postType === "standard" && styles.postTypeTabTextActive
                 ]}>
-                  {t("24h")}
+                  ถาวร
                 </Text>
               </TouchableOpacity>
 
+              {/* Option 2: Pinc Story (24h) */}
               <TouchableOpacity
                 style={[
                   styles.postTypeTab, 
@@ -524,13 +497,15 @@ export const PincButton: React.FC<PincButtonProps> = ({
                 ]}
                 onPress={() => {
                   setPostType("live_news");
-                  setPostDuration("time_decay");
+                  setPostDuration("24h");
                 }}
                 disabled={isSubmitting}
               >
                 <View style={styles.liveNewsIconContainer}>
-                  <Text style={[styles.liveNewsBlinkText, { fontSize: 9 }]}>{t("liveNews")}</Text>
-                  <View style={styles.liveNewsIcon} />
+                  <Text style={[styles.liveNewsBlinkText, { fontSize: 10, color: postType === "live_news" ? "#FFF" : PincTheme.colors.textPrimary }]}>
+                    Pinc Story
+                  </Text>
+                  {postType === "live_news" && <View style={[styles.liveNewsIcon, { backgroundColor: "#FFF" }]} />}
                 </View>
               </TouchableOpacity>
             </View>

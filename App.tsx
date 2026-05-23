@@ -45,6 +45,7 @@ import {
   seedInitialVenues,
   signOutUser,
   deleteUserAccount,
+  deletePin,
   withTimeout,
   subscribeToFollowingIds,
   getFollowingList,
@@ -124,15 +125,14 @@ export default function App() {
       locale === "th" ? "ลบโพสต์" : "Delete Upload",
       locale === "th" ? "คุณแน่ใจหรือไม่ว่าต้องการลบภาพ/วิดีโอนี้?" : "Are you sure you want to delete this photo/video?",
       [
-        { text: locale === "th" ? "ยกเลิก" : "Cancel", style: "cancel", onPress: () => setDeleteModePinId(null) },
+        { text: locale === "th" ? "ยกเลิก" : "Cancel", style: "cancel" },
         { 
           text: locale === "th" ? "ลบ" : "Delete", 
           style: "destructive",
           onPress: async () => {
             try {
                if (pin.pinId) {
-                 await deleteDoc(doc(db, "pins", pin.pinId));
-                 setDeleteModePinId(null);
+                 await deletePin(pin.pinId);
                }
             } catch (err) {
                Alert.alert(locale === "th" ? "เกิดข้อผิดพลาด" : "Error", locale === "th" ? "ไม่สามารถลบโพสต์ได้" : "Could not delete pin.");
@@ -462,6 +462,8 @@ export default function App() {
     }
   };
 
+
+
   const handleAuthSuccess = (profile: UserProfile) => {
     setCurrentUser(profile);
   };
@@ -535,6 +537,8 @@ export default function App() {
             focusSearchTrigger={focusSearchTrigger}
             selectedMemoryPin={selectedMemoryPin}
             onClearMemory={() => setSelectedMemoryPin(null)}
+            currentUserId={currentUser?.userId}
+            onDeletePin={handleDeletePin}
           />
 
           {/* Floating Action Button "The Pinc Button" */}
@@ -546,7 +550,8 @@ export default function App() {
             locationTrackingEnabled={locationTrackingEnabled}
           />
 
-          {/* Reality Check Sliding Sheet */}
+          {/* Reality Check Sliding Sheet (Deprecated, kept for reference or legacy data) */}
+          {/* 
           {selectedVenue && (
             <View style={styles.sheetOverlay}>
               <VenueDetailsSheet
@@ -562,7 +567,8 @@ export default function App() {
                 currentUser={currentUser}
               />
             </View>
-          )}
+          )} 
+          */}
 
           {/* User Profile Modal */}
           <UserProfileModal
@@ -624,7 +630,7 @@ export default function App() {
                             <CachedVideo 
                               source={{ uri: pin.image_url }} 
                               style={styles.shelfImage} 
-                              resizeMode={ResizeMode.COVER} 
+                              resizeMode={"cover"} 
                               shouldPlay 
                               useNativeControls
                             />
