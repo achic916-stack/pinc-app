@@ -507,17 +507,21 @@ export const MapScreen: React.FC<MapScreenProps> = ({
           setDeleteModePinId(null);
         }}
         onClusterPress={(cluster: any, markers: any[]) => {
-          // ดึง pinIds ออกจาก markers
+          // ดึง pinIds ออกจาก markers โดยป้องกันการซ้ำ
+          const availablePins = [...validPins];
           const clusterPins: Pin[] = [];
           markers.forEach((m: any) => {
-            const found = validPins.find(p => {
+            const foundIdx = availablePins.findIndex(p => {
               const pKey = p.pinId || `${p.latitude}-${p.longitude}-${p.timestamp}`;
               const mKey = m.properties?.identifier || m.id || '';
               return pKey === mKey ||
                 (Math.abs(p.latitude - m.geometry?.coordinates?.[1]) < 0.00001 &&
                   Math.abs(p.longitude - m.geometry?.coordinates?.[0]) < 0.00001);
             });
-            if (found) clusterPins.push(found);
+            if (foundIdx !== -1) {
+              clusterPins.push(availablePins[foundIdx]);
+              availablePins.splice(foundIdx, 1);
+            }
           });
 
           const centerLat = cluster.geometry?.coordinates?.[1] ?? cluster.coordinate?.latitude ?? 0;
@@ -734,17 +738,14 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                 )}
 
                 {isLiveNews ? (
-                  <View style={[styles.customMarkerContainer, { transform: [{ scale: 0.8 * zoomScale }] }]}>
-                    <BlinkingLiveNewsBadge />
+                  <View style={[styles.customMarkerContainer, { transform: [{ scale: 0.85 * zoomScale }] }]}>
                     <View style={{ alignItems: 'center', justifyContent: 'center' }}>
-                      <View style={[styles.livePhotoPinCard, styles.concentricShadow1]} />
-                      <View style={[styles.livePhotoPinCard, styles.concentricShadow2]} />
-                      <View style={styles.livePhotoPinCard}>
+                      <View style={{ width: 62, height: 62, borderRadius: 31, backgroundColor: "#FFFFFF", padding: 3, borderWidth: 2, borderColor: PincTheme.colors.crowdRed, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 6, elevation: 10, justifyContent: "center", alignItems: "center" }}>
                         <View style={styles.liveImageWrapper}>
                           <Image
                             key={photoUrl}
                             source={{ uri: photoUrl }}
-                            style={[styles.photoPinImage, { width: 50, height: 50, borderRadius: 25 }]}
+                            style={[styles.photoPinImage, { width: 52, height: 52, borderRadius: 26 }]}
                             resizeMode="cover"
                             onLoadEnd={() => setMarkerTracksViewChanges(prev => ({ ...prev, [pinKey]: false }))}
                           />
@@ -753,11 +754,9 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                     </View>
                   </View>
                 ) : (
-                  <View style={[styles.customMarkerContainer, { transform: [{ scale: 0.8 * zoomScale }] }]}>
-                    <View style={{ alignItems: 'center', justifyContent: 'center', paddingBottom: 15 }}>
-                      <View style={[styles.photoPinCard, styles.concentricShadow1, { paddingTop: 3 }]} />
-                      <View style={[styles.photoPinCard, styles.concentricShadow2, { paddingTop: 3 }]} />
-                      <View style={[styles.photoPinCard, { paddingTop: 3, paddingBottom: 3, justifyContent: 'flex-end' }]}>
+                  <View style={[styles.customMarkerContainer, { transform: [{ scale: 0.85 * zoomScale }] }]}>
+                    <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+                      <View style={{ width: 60, height: 60, borderRadius: 8, backgroundColor: "#FFFFFF", padding: 3, borderWidth: 1.5, borderColor: "#FFFFFF", shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 6, elevation: 10, justifyContent: "center", alignItems: "center" }}>
                         <View style={styles.imageWrapper}>
                           <Image
                             key={photoUrl}
@@ -769,7 +768,6 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                         </View>
                       </View>
                     </View>
-                    <View style={styles.photoPinPointer} />
                   </View>
                 )}
               </Marker>
