@@ -44,6 +44,7 @@ interface PincButtonProps {
     username: string;
     profile_pic: string;
     bio: string;
+    role?: "USER" | "ADMIN" | "PREMIUM_STORE";
   };
   locationTrackingEnabled?: boolean;
 }
@@ -61,7 +62,7 @@ export const PincButton: React.FC<PincButtonProps> = ({
   const [capturedMediaType, setCapturedMediaType] = useState<"image" | "video">("image");
   const [text, setText] = useState("");
   const [postType, setPostType] = useState<"standard" | "live_news">("standard");
-  const [postDuration, setPostDuration] = useState<"permanent" | "24h">("permanent");
+  const [postDuration, setPostDuration] = useState<"time_decay" | "permanent">("time_decay");
   const [capturedBase64, setCapturedBase64] = useState<string | null>(null);
   
   const [currentGPSLocation, setCurrentGPSLocation] = useState<{ latitude: number; longitude: number } | null>(null);
@@ -74,6 +75,10 @@ export const PincButton: React.FC<PincButtonProps> = ({
   const [musicPickerVisible, setMusicPickerVisible] = useState(false);
   const [playingTrackId, setPlayingTrackId] = useState<string | null>(null);
   const [soundObject, setSoundObject] = useState<Audio.Sound | null>(null);
+
+  // Check role for permanent posting
+  const userRole = currentUser?.role || "USER";
+  const canPostPermanent = userRole === "ADMIN" || userRole === "PREMIUM_STORE";
 
   // Preview Music Logic
   const handlePlayPreview = async (track: typeof MOCK_TRACKS[0]) => {
@@ -298,7 +303,7 @@ export const PincButton: React.FC<PincButtonProps> = ({
         userCoords: loc,
         reportType: "live_status",
         postType,
-        postDuration,
+        postDuration: canPostPermanent ? postDuration : "time_decay",
         situationDetails: postType === "live_news" ? text : "",
         mediaType: capturedMediaType,
         musicTitle: selectedTrack.id !== "original" ? selectedTrack.title : "",
@@ -458,53 +463,55 @@ export const PincButton: React.FC<PincButtonProps> = ({
 
             {/* Post Type & Duration Combined Selector */}
             <View style={styles.postTypeToggleContainer}>
-              {/* Option 1: Permanent Standard */}
-              <TouchableOpacity
-                style={[
-                  styles.postTypeTab, 
-                  postType === "standard" && postDuration === "permanent" && styles.postTypeTabActive
-                ]}
-                onPress={() => {
-                  setPostType("standard");
-                  setPostDuration("permanent");
-                }}
-                disabled={isSubmitting}
-              >
-                <Ionicons 
-                  name="infinite" 
-                  size={14} 
-                  color={postType === "standard" && postDuration === "permanent" ? PincTheme.colors.textPrimary : PincTheme.colors.textSecondary} 
-                />
-                <Text style={[
-                  styles.postTypeTabText, 
-                  { fontSize: 11, marginLeft: -4 },
-                  postType === "standard" && postDuration === "permanent" && styles.postTypeTabTextActive
-                ]}>
-                  {t("permanent")}
-                </Text>
-              </TouchableOpacity>
+              {/* Option 1: Permanent Standard (Admin/Premium Only) */}
+              {canPostPermanent && (
+                <TouchableOpacity
+                  style={[
+                    styles.postTypeTab, 
+                    postType === "standard" && postDuration === "permanent" && styles.postTypeTabActive
+                  ]}
+                  onPress={() => {
+                    setPostType("standard");
+                    setPostDuration("permanent");
+                  }}
+                  disabled={isSubmitting}
+                >
+                  <Ionicons 
+                    name="infinite" 
+                    size={14} 
+                    color={postType === "standard" && postDuration === "permanent" ? PincTheme.colors.textPrimary : PincTheme.colors.textSecondary} 
+                  />
+                  <Text style={[
+                    styles.postTypeTabText, 
+                    { fontSize: 11, marginLeft: -4 },
+                    postType === "standard" && postDuration === "permanent" && styles.postTypeTabTextActive
+                  ]}>
+                    {t("permanent")}
+                  </Text>
+                </TouchableOpacity>
+              )}
               
               {/* Option 2: 24h Reality Check */}
               <TouchableOpacity
                 style={[
                   styles.postTypeTab, 
-                  postType === "standard" && postDuration === "24h" && styles.postTypeTabActive
+                  postType === "standard" && postDuration === "time_decay" && styles.postTypeTabActive
                 ]}
                 onPress={() => {
                   setPostType("standard");
-                  setPostDuration("24h");
+                  setPostDuration("time_decay");
                 }}
                 disabled={isSubmitting}
               >
                 <Ionicons 
                   name="time" 
                   size={14} 
-                  color={postType === "standard" && postDuration === "24h" ? PincTheme.colors.textPrimary : PincTheme.colors.textSecondary} 
+                  color={postType === "standard" && postDuration === "time_decay" ? PincTheme.colors.textPrimary : PincTheme.colors.textSecondary} 
                 />
                 <Text style={[
                   styles.postTypeTabText, 
                   { fontSize: 11, marginLeft: -4 },
-                  postType === "standard" && postDuration === "24h" && styles.postTypeTabTextActive
+                  postType === "standard" && postDuration === "time_decay" && styles.postTypeTabTextActive
                 ]}>
                   {t("24h")}
                 </Text>
@@ -517,7 +524,7 @@ export const PincButton: React.FC<PincButtonProps> = ({
                 ]}
                 onPress={() => {
                   setPostType("live_news");
-                  setPostDuration("24h");
+                  setPostDuration("time_decay");
                 }}
                 disabled={isSubmitting}
               >

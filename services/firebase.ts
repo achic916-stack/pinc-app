@@ -66,6 +66,7 @@ export interface UserProfile {
   username: string;
   profile_pic: string;
   bio: string;
+  role?: "USER" | "ADMIN" | "PREMIUM_STORE";
   created_at: Date;
 }
 
@@ -124,6 +125,7 @@ export interface Pin {
   longitude: number;
   geohash: string;
   post_type: "standard" | "live_news";
+  expiresAt?: Date | null;
   situation_details?: string;
   is_live: boolean;
   is_live_verified: boolean;
@@ -694,6 +696,17 @@ export async function createPin(params: {
   );
   const isLive = distance <= 50;
 
+  // 2.5 Calculate Time-Decay logic (expiresAt)
+  let computedExpiresAt: Date | null = null;
+  if (postDuration === "24h" || postDuration !== "permanent") {
+    const now = new Date();
+    if (postType === "standard") {
+      computedExpiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000); // 24 hours
+    } else if (postType === "live_news") {
+      computedExpiresAt = new Date(now.getTime() + 6 * 60 * 60 * 1000); // 6 hours
+    }
+  }
+
   // 3. Create document properties
   const geohash = encodeGeohash(userCoords.latitude, userCoords.longitude, 9);
   
@@ -720,7 +733,8 @@ export async function createPin(params: {
     commentsCount: 0,
     music_title: musicTitle,
     music_url: musicUrl,
-    thumbnail_url: thumbnailUrl || null
+    thumbnail_url: thumbnailUrl || null,
+    expiresAt: computedExpiresAt
   };
 
   if (typeof aestheticRating === "number") {
