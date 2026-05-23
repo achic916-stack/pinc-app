@@ -484,12 +484,13 @@ export const MapScreen: React.FC<MapScreenProps> = ({
           });
 
           const photoUrl = nearestPin ? (nearestPin.media_type === 'video' && nearestPin.thumbnail_url ? nearestPin.thumbnail_url : nearestPin.image_url) : null;
+          const clusterKey = `cluster-${id}`;
 
           return (
-            <Marker key={`cluster-${id}`} coordinate={{ latitude: centerLat, longitude: centerLng }} onPress={onPress} tracksViewChanges={false}>
+            <Marker key={clusterKey} coordinate={{ latitude: centerLat, longitude: centerLng }} onPress={onPress} tracksViewChanges={markerTracksViewChanges[clusterKey] ?? true}>
               <View style={{ width: 68, height: 68, borderRadius: 34, padding: 3, backgroundColor: '#FFF', ...PincTheme.shadows.md }}>
                 {photoUrl ? (
-                  <Image source={{ uri: photoUrl }} style={{ width: '100%', height: '100%', borderRadius: 31 }} resizeMode="cover" />
+                  <Image source={{ uri: photoUrl }} style={{ width: '100%', height: '100%', borderRadius: 31 }} resizeMode="cover" onLoadEnd={() => setMarkerTracksViewChanges(prev => ({ ...prev, [clusterKey]: false }))} />
                 ) : (
                   <View style={{ width: '100%', height: '100%', borderRadius: 31, backgroundColor: PincTheme.colors.card }} />
                 )}
