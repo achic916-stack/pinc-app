@@ -617,9 +617,8 @@ export default function App() {
                           if (deleteModePinId) {
                             setDeleteModePinId(null);
                           } else {
-                            const idx = currentUserPins.findIndex(p => p.pinId === pin.pinId);
-                            setAppReelsInitialIndex(idx >= 0 ? idx : 0);
-                            setAppReelsPins(currentUserPins);
+                            setSelectedMemoryPin(pin);
+                            setPhotoShelfVisible(false);
                           }
                         }}
                         onLongPress={() => setDeleteModePinId(pin.pinId || null)}
