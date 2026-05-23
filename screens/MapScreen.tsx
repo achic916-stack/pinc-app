@@ -175,8 +175,9 @@ export const MapScreen: React.FC<MapScreenProps> = ({
     centerLat: number,
     centerLng: number,
     count: number,
-    radiusDeg: number = 0.0007
   ) => {
+    // Dynamic radius based on how many pins are in the cluster
+    const radiusDeg = 0.0006 + (count * 0.00008);
     return Array.from({ length: count }, (_, i) => {
       const angle = (2 * Math.PI * i) / count - Math.PI / 2;
       return {
@@ -455,7 +456,50 @@ export const MapScreen: React.FC<MapScreenProps> = ({
         onRegionChangeComplete={handleRegionChangeComplete}
         clusterColor={PincTheme.colors.primary}
         clusterTextColor="#FFFFFF"
-        radius={28}
+        radius={35}
+        renderCluster={(cluster: any) => {
+          const { id, geometry, onPress, properties } = cluster;
+          const points = properties.point_count;
+          const centerLat = geometry.coordinates[1];
+          const centerLng = geometry.coordinates[0];
+
+          if (spreadCluster && spreadCluster.clusterId === id) {
+            return (
+              <Marker key={`cluster-${id}`} coordinate={{ latitude: centerLat, longitude: centerLng }} onPress={() => setSpreadCluster(null)}>
+                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255, 59, 48, 0.9)', justifyContent: 'center', alignItems: 'center' }}>
+                  <Ionicons name="close" size={24} color="#FFF" />
+                </View>
+              </Marker>
+            );
+          }
+
+          let nearestPin: Pin | null = null;
+          let minDistance = Infinity;
+          validPins.forEach(p => {
+            const d = Math.pow(p.latitude - centerLat, 2) + Math.pow(p.longitude - centerLng, 2);
+            if (d < minDistance) {
+              minDistance = d;
+              nearestPin = p;
+            }
+          });
+
+          const photoUrl = nearestPin ? (nearestPin.media_type === 'video' && nearestPin.thumbnail_url ? nearestPin.thumbnail_url : nearestPin.image_url) : null;
+
+          return (
+            <Marker key={`cluster-${id}`} coordinate={{ latitude: centerLat, longitude: centerLng }} onPress={onPress} tracksViewChanges={false}>
+              <View style={{ width: 68, height: 68, borderRadius: 34, padding: 3, backgroundColor: '#FFF', ...PincTheme.shadows.md }}>
+                {photoUrl ? (
+                  <Image source={{ uri: photoUrl }} style={{ width: '100%', height: '100%', borderRadius: 31 }} resizeMode="cover" />
+                ) : (
+                  <View style={{ width: '100%', height: '100%', borderRadius: 31, backgroundColor: PincTheme.colors.card }} />
+                )}
+                <View style={{ position: 'absolute', top: -2, right: -2, backgroundColor: PincTheme.colors.primary, borderRadius: 12, minWidth: 24, paddingHorizontal: 6, paddingVertical: 2, alignItems: 'center' }}>
+                  <Text style={{ color: '#FFF', fontSize: 12, fontWeight: 'bold' }}>{points}</Text>
+                </View>
+              </View>
+            </Marker>
+          );
+        }}
         onPress={() => {
           // แตะพื้นที่ว่างบนแผนที่ = ยุบหมุดที่กระจายออกและเคลียร์ delete mode
           setSpreadCluster(null);
@@ -689,7 +733,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                 )}
 
                 {isLiveNews ? (
-                  <View style={[styles.customMarkerContainer, { transform: [{ scale: zoomScale }] }]}>
+                  <View style={[styles.customMarkerContainer, { transform: [{ scale: 0.8 * zoomScale }] }]}>
                     <BlinkingLiveNewsBadge />
                     <View style={{ alignItems: 'center', justifyContent: 'center' }}>
                       <View style={[styles.livePhotoPinCard, styles.concentricShadow1]} />
@@ -699,7 +743,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                           <Image
                             key={photoUrl}
                             source={{ uri: photoUrl }}
-                            style={[styles.photoPinImage, { width: 62, height: 62, borderRadius: 31 }]}
+                            style={[styles.photoPinImage, { width: 50, height: 50, borderRadius: 25 }]}
                             resizeMode="cover"
                             onLoadEnd={() => setMarkerTracksViewChanges(prev => ({ ...prev, [pinKey]: false }))}
                           />
@@ -708,7 +752,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                     </View>
                   </View>
                 ) : (
-                  <View style={[styles.customMarkerContainer, { transform: [{ scale: zoomScale }] }]}>
+                  <View style={[styles.customMarkerContainer, { transform: [{ scale: 0.8 * zoomScale }] }]}>
                     <View style={{ alignItems: 'center', justifyContent: 'center', paddingBottom: 15 }}>
                       <View style={[styles.photoPinCard, styles.concentricShadow1, { paddingTop: 3 }]} />
                       <View style={[styles.photoPinCard, styles.concentricShadow2, { paddingTop: 3 }]} />
@@ -717,7 +761,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                           <Image
                             key={photoUrl}
                             source={{ uri: photoUrl }}
-                            style={[styles.photoPinImage, { width: 68, height: 68, borderRadius: 4 }]}
+                            style={[styles.photoPinImage, { width: 54, height: 54, borderRadius: 4 }]}
                             resizeMode="cover"
                             onLoadEnd={() => setMarkerTracksViewChanges(prev => ({ ...prev, [pinKey]: false }))}
                           />
