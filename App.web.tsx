@@ -18,6 +18,10 @@ export default function App() {
       <PincButton 
         onPincSuccess={() => {}}
         currentUserId="test_user"
+        venues={[]}
+        userLocation={null}
+        onPinCreated={() => {}}
+        currentUser={{ userId: "test", username: "test", profile_pic: "", bio: "" }}
       />
     </View>
   );

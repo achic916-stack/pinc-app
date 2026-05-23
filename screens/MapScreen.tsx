@@ -152,7 +152,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
   onDeletePin
 }) => {
   const { t } = useTranslation();
-  const mapRef = useRef<MapView | null>(null);
+  const mapRef = useRef<any | null>(null);
   const searchInputRef = useRef<TextInput | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearchFocused, setIsSearchFocused] = useState(false);
@@ -161,31 +161,6 @@ export const MapScreen: React.FC<MapScreenProps> = ({
   const [markerTracksViewChanges, setMarkerTracksViewChanges] = useState<Record<string, boolean>>({});
   const [reelsFeedPins, setReelsFeedPins] = useState<Pin[]>([]);
   const [deleteModePinId, setDeleteModePinId] = useState<string | null>(null);
-
-  // Spiderfier state: tracks which cluster is currently spread out
-  const [spreadCluster, setSpreadCluster] = useState<{
-    clusterId: number;
-    centerLat: number;
-    centerLng: number;
-    pins: Pin[];
-  } | null>(null);
-
-  // Calculate radial spread positions around a center point
-  const calcSpiderPositions = (
-    centerLat: number,
-    centerLng: number,
-    count: number,
-  ) => {
-    // Dynamic radius based on how many pins are in the cluster
-    const radiusDeg = 0.0006 + (count * 0.00008);
-    return Array.from({ length: count }, (_, i) => {
-      const angle = (2 * Math.PI * i) / count - Math.PI / 2;
-      return {
-        latitude: centerLat + radiusDeg * Math.sin(angle),
-        longitude: centerLng + radiusDeg * Math.cos(angle),
-      };
-    });
-  };
 
   // Effect to autofocus search bar on trigger
   useEffect(() => {
@@ -446,7 +421,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
       {/* 2. Map view rendering */}
       <MapView
         ref={mapRef}
-        provider={PROVIDER_GOOGLE}
+        provider={PROVIDER_GOOGLE as any}
         style={styles.map}
         initialRegion={initialRegion}
         customMapStyle={minimalMapStyle}
@@ -463,16 +438,6 @@ export const MapScreen: React.FC<MapScreenProps> = ({
           const centerLat = geometry.coordinates[1];
           const centerLng = geometry.coordinates[0];
 
-          if (spreadCluster && spreadCluster.clusterId === id) {
-            return (
-              <Marker key={`cluster-${id}`} coordinate={{ latitude: centerLat, longitude: centerLng }} onPress={() => setSpreadCluster(null)}>
-                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255, 59, 48, 0.9)', justifyContent: 'center', alignItems: 'center' }}>
-                  <Ionicons name="close" size={24} color="#FFF" />
-                </View>
-              </Marker>
-            );
-          }
-
           let nearestPin: Pin | null = null;
           let minDistance = Infinity;
           validPins.forEach(p => {
@@ -483,14 +448,15 @@ export const MapScreen: React.FC<MapScreenProps> = ({
             }
           });
 
-          const photoUrl = nearestPin ? (nearestPin.media_type === 'video' && nearestPin.thumbnail_url ? nearestPin.thumbnail_url : nearestPin.image_url) : null;
+          // ใช้รูปโปรไฟล์ (user_profile_pic) แทนรูปภาพในโพสต์
+          const profilePicUrl = (nearestPin as any)?.user_profile_pic || null;
           const clusterKey = `cluster-${id}`;
 
           return (
             <Marker key={clusterKey} coordinate={{ latitude: centerLat, longitude: centerLng }} onPress={onPress} tracksViewChanges={markerTracksViewChanges[clusterKey] ?? true}>
               <View style={{ width: 68, height: 68, borderRadius: 34, padding: 3, backgroundColor: '#FFF', ...PincTheme.shadows.md }}>
-                {photoUrl ? (
-                  <Image source={{ uri: photoUrl }} style={{ width: '100%', height: '100%', borderRadius: 31 }} resizeMode="cover" onLoadEnd={() => setMarkerTracksViewChanges(prev => ({ ...prev, [clusterKey]: false }))} />
+                {profilePicUrl ? (
+                  <Image source={{ uri: profilePicUrl }} style={{ width: '100%', height: '100%', borderRadius: 31 }} resizeMode="cover" onLoadEnd={() => setMarkerTracksViewChanges(prev => ({ ...prev, [clusterKey]: false }))} />
                 ) : (
                   <View style={{ width: '100%', height: '100%', borderRadius: 31, backgroundColor: PincTheme.colors.card }} />
                 )}
@@ -502,11 +468,11 @@ export const MapScreen: React.FC<MapScreenProps> = ({
           );
         }}
         onPress={() => {
-          // แตะพื้นที่ว่างบนแผนที่ = ยุบหมุดที่กระจายออกและเคลียร์ delete mode
-          setSpreadCluster(null);
+          // แตะพื้นที่ว่างบนแผนที่เคลียร์ delete mode
           setDeleteModePinId(null);
         }}
-        onClusterPress={(cluster: any, markers: any[]) => {
+        onClusterPress={(cluster: any, markers?: any[]) => {
+          if (!markers) return;
           // ดึง pinIds ออกจาก markers โดยป้องกันการซ้ำ
           const availablePins = [...validPins];
           const clusterPins: Pin[] = [];
@@ -524,16 +490,9 @@ export const MapScreen: React.FC<MapScreenProps> = ({
             }
           });
 
-          const centerLat = cluster.geometry?.coordinates?.[1] ?? cluster.coordinate?.latitude ?? 0;
-          const centerLng = cluster.geometry?.coordinates?.[0] ?? cluster.coordinate?.longitude ?? 0;
-          const cId = cluster.id ?? cluster.properties?.cluster_id ?? Math.random();
-
-          if (spreadCluster && spreadCluster.clusterId === cId) {
-            // แตะซ้ำที่หมุดเดิม = ยุบกลับ
-            setSpreadCluster(null);
-          } else {
-            // กระจายออกเป็นวงกลม
-            setSpreadCluster({ clusterId: cId, centerLat, centerLng, pins: clusterPins });
+          // เมื่อกดที่หมุดรวม ให้เปิด Modal เรียงรูปทันที
+          if (clusterPins.length > 0) {
+            setReelsFeedPins(clusterPins);
           }
         }}
       >
@@ -686,96 +645,6 @@ export const MapScreen: React.FC<MapScreenProps> = ({
             </Marker>
           );
         })}
-        {/* Spread-out spider markers from cluster */}
-        {spreadCluster && (() => {
-          const positions = calcSpiderPositions(
-            spreadCluster.centerLat,
-            spreadCluster.centerLng,
-            spreadCluster.pins.length
-          );
-          return spreadCluster.pins.map((pin, idx) => {
-            const photoUrl = pin.media_type === 'video' && pin.thumbnail_url ? pin.thumbnail_url : pin.image_url;
-            const isLiveNews = pin.post_type === 'live_news';
-            const isDeleteMode = deleteModePinId === pin.pinId;
-            const pinKey = `spider-${pin.pinId || idx}`;
-            const pos = positions[idx];
-            return (
-              <Marker
-                key={pinKey}
-                coordinate={pos}
-                tracksViewChanges={isDeleteMode || (markerTracksViewChanges[pinKey] ?? true)}
-                anchor={isLiveNews ? { x: 0.5, y: 0.5 } : { x: 0.5, y: 0.68 }}
-                zIndex={1000}
-                onPress={() => {
-                  if (deleteModePinId) {
-                    setDeleteModePinId(null);
-                    return;
-                  }
-                  setReelsFeedPins([pin]);
-                }}
-                // @ts-ignore
-                onLongPress={() => {
-                  if (currentUserId && pin.userId === currentUserId) {
-                    setDeleteModePinId(pin.pinId || null);
-                  }
-                }}
-              >
-                {/* ปุ่มลบสีแดง */}
-                {isDeleteMode && (
-                  <View style={{ position: 'absolute', top: '50%', left: '50%', marginTop: -20, marginLeft: -18, zIndex: 100, elevation: 20 }}>
-                    <TouchableOpacity
-                      onPress={(e) => {
-                        e.stopPropagation();
-                        if (onDeletePin) onDeletePin(pin);
-                        setDeleteModePinId(null);
-                        setSpreadCluster(prev => prev ? { ...prev, pins: prev.pins.filter(p => p.pinId !== pin.pinId) } : null);
-                      }}
-                      style={{ backgroundColor: '#FFFFFF', borderRadius: 20, padding: 2 }}
-                    >
-                      <Ionicons name="remove-circle" size={32} color="#FF3B30" />
-                    </TouchableOpacity>
-                  </View>
-                )}
-
-                {isLiveNews ? (
-                  <View style={[styles.customMarkerContainer, { transform: [{ scale: 0.85 * zoomScale }] }]}>
-                    <View style={{ alignItems: 'center', justifyContent: 'center' }}>
-                      <View style={{ width: 62, height: 62, borderRadius: 31, backgroundColor: "#FFFFFF", padding: 3, borderWidth: 2, borderColor: PincTheme.colors.crowdRed, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 6, elevation: 10, justifyContent: "center", alignItems: "center" }}>
-                        <View style={styles.liveImageWrapper}>
-                          <Image
-                            key={photoUrl}
-                            source={{ uri: photoUrl }}
-                            style={[styles.photoPinImage, { width: 52, height: 52, borderRadius: 26 }]}
-                            resizeMode="cover"
-                            onLoadEnd={() => setMarkerTracksViewChanges(prev => ({ ...prev, [pinKey]: false }))}
-                          />
-                        </View>
-                      </View>
-                    </View>
-                  </View>
-                ) : (
-                  <View style={[styles.customMarkerContainer, { transform: [{ scale: 0.85 * zoomScale }] }]}>
-                    <View style={{ alignItems: 'center', justifyContent: 'center' }}>
-                      <View style={{ width: 60, height: 60, borderRadius: 8, backgroundColor: "#FFFFFF", padding: 3, borderWidth: 1.5, borderColor: "#FFFFFF", shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 6, elevation: 10, justifyContent: "center", alignItems: "center" }}>
-                        <View style={styles.imageWrapper}>
-                          <Image
-                            key={photoUrl}
-                            source={{ uri: photoUrl }}
-                            style={[styles.photoPinImage, { width: 54, height: 54, borderRadius: 4 }]}
-                            resizeMode="cover"
-                            onLoadEnd={() => setMarkerTracksViewChanges(prev => ({ ...prev, [pinKey]: false }))}
-                          />
-                        </View>
-                      </View>
-                    </View>
-                  </View>
-                )}
-              </Marker>
-            );
-          });
-        })()}
-
-        {/* Render Custom Red Pin for Selected Memory */}
         {selectedMemoryPin && (
           <Marker
             coordinate={{ latitude: selectedMemoryPin.latitude, longitude: selectedMemoryPin.longitude }}

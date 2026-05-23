@@ -266,32 +266,33 @@ export const ReelsFeedModal: React.FC<ReelsFeedModalProps> = ({
           <FlatList
             ref={flatListRef}
             data={pins}
-          keyExtractor={(item) => item.pinId || Math.random().toString()}
-          renderItem={({ item, index }) => (
-            <FeedItem 
-              item={item} 
-              isVisible={index === currentIndex} 
-              onCommentPress={() => setActiveCommentPinId(item.pinId || null)}
-            />
-          )}
-          pagingEnabled
-          showsVerticalScrollIndicator={false}
-          onViewableItemsChanged={handleViewableItemsChanged}
-          viewabilityConfig={viewabilityConfig}
-          snapToAlignment="start"
-          decelerationRate="fast"
-          initialScrollIndex={initialIndex}
-          getItemLayout={(data, index) => ({
-            length: windowHeight,
-            offset: windowHeight * index,
-            index,
-          })}
-          onScrollToIndexFailed={(info) => {
-            setTimeout(() => {
-              flatListRef.current?.scrollToIndex({ index: info.index, animated: false });
-            }, 100);
-          }}
-        />
+            keyExtractor={(item) => item.pinId || Math.random().toString()}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            renderItem={({ item, index }) => (
+              <FeedItem 
+                item={item} 
+                isVisible={index === currentIndex} 
+                onCommentPress={() => setActiveCommentPinId(item.pinId || null)}
+              />
+            )}
+            pagingEnabled
+            onViewableItemsChanged={handleViewableItemsChanged}
+            viewabilityConfig={viewabilityConfig}
+            snapToAlignment="start"
+            decelerationRate="fast"
+            initialScrollIndex={initialIndex}
+            getItemLayout={(data, index) => ({
+              length: windowWidth,
+              offset: windowWidth * index,
+              index,
+            })}
+            onScrollToIndexFailed={(info) => {
+              setTimeout(() => {
+                flatListRef.current?.scrollToIndex({ index: info.index, animated: false });
+              }, 100);
+            }}
+          />
         )}
 
         {/* Global Close Button */}

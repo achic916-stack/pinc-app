@@ -35,7 +35,7 @@ const MOCK_TRACKS = [
 ];
 
 
-interface PincButtonProps {
+export interface PincButtonProps {
   venues: Venue[];
   userLocation: { latitude: number; longitude: number } | null;
   onPinCreated: () => void;
@@ -47,6 +47,8 @@ interface PincButtonProps {
     role?: "USER" | "ADMIN" | "PREMIUM_STORE";
   };
   locationTrackingEnabled?: boolean;
+  onPincSuccess?: () => void;
+  currentUserId?: string;
 }
 
 export const PincButton: React.FC<PincButtonProps> = ({
