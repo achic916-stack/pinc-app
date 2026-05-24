@@ -27,7 +27,7 @@ const Audio = { Sound: { createAsync: async () => ({ sound: { playAsync: async (
 
 import { CachedVideo } from "../components/CachedVideo";
 import { PincTheme } from "../styles/theme";
-import { Venue, Pin, auth } from "../services/firebase";
+import { Venue, Pin, auth, getUserStats } from "../services/firebase";
 import { useTranslation } from 'react-i18next';
 import { ReelsFeedModal } from "../components/ReelsFeedModal";
 
@@ -161,6 +161,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
   const [markerTracksViewChanges, setMarkerTracksViewChanges] = useState<Record<string, boolean>>({});
   const [reelsFeedPins, setReelsFeedPins] = useState<Pin[]>([]);
   const [deleteModePinId, setDeleteModePinId] = useState<string | null>(null);
+  const [followerStatsCache, setFollowerStatsCache] = useState<Record<string, number>>({});
 
   // Effect to autofocus search bar on trigger
   useEffect(() => {
@@ -224,6 +225,38 @@ export const MapScreen: React.FC<MapScreenProps> = ({
       }
     });
   }, [allPins]);
+
+  // Fetch follower stats for validPins
+  useEffect(() => {
+    const fetchFollowerStats = async () => {
+      const uniqueUserIds = Array.from(new Set(validPins.map(p => p.userId).filter(Boolean)));
+      const uncachedIds = uniqueUserIds.filter(id => followerStatsCache[id] === undefined);
+      
+      if (uncachedIds.length > 0) {
+        const newStats: Record<string, number> = {};
+        await Promise.all(
+          uncachedIds.map(async (uid) => {
+            try {
+              const stats = await getUserStats(uid);
+              newStats[uid] = stats.followersCount || 0;
+            } catch (error) {
+              newStats[uid] = 0; // Default to 0 on error
+            }
+          })
+        );
+        setFollowerStatsCache(prev => ({ ...prev, ...newStats }));
+      }
+    };
+    fetchFollowerStats();
+  }, [validPins]);
+
+  // Helper for determining tier color
+  const getTierColor = (followersCount: number = 0) => {
+    if (followersCount >= 10000) return '#f1c40f'; // Gold
+    if (followersCount >= 1000) return '#9b59b6'; // Purple
+    if (followersCount >= 100) return '#3498db'; // Blue
+    return '#E0E0E0'; // Gray (Default)
+  };
 
   // Lifted helper: find latest pin + photo URL for a venue
   const getVenueLatestPhoto = React.useCallback((v: Venue) => {
@@ -439,7 +472,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
           const centerLat = geometry.coordinates[1];
           const centerLng = geometry.coordinates[0];
 
-          let nearestPin: Pin | null = null;
+          let nearestPin: any = null;
           let minDistance = Infinity;
           validPins.forEach(p => {
             const d = Math.pow(p.latitude - centerLat, 2) + Math.pow(p.longitude - centerLng, 2);
@@ -452,18 +485,24 @@ export const MapScreen: React.FC<MapScreenProps> = ({
           // ใช้รูปโปรไฟล์ (user_profile_pic) แทนรูปภาพในโพสต์
           const profilePicUrl = (nearestPin as any)?.user_profile_pic || null;
           const clusterKey = `cluster-${id}`;
+          const tierColor = nearestPin ? getTierColor(followerStatsCache[nearestPin.userId] || 0) : '#E0E0E0';
+          const displayName = nearestPin?.username || "";
 
           return (
             <Marker key={clusterKey} coordinate={{ latitude: centerLat, longitude: centerLng }} onPress={onPress} tracksViewChanges={markerTracksViewChanges[clusterKey] ?? true}>
-              <View style={{ width: 68, height: 68, borderRadius: 34, padding: 3, backgroundColor: '#FFF', ...PincTheme.shadows.md }}>
-                {profilePicUrl ? (
-                  <Image source={{ uri: profilePicUrl }} style={{ width: '100%', height: '100%', borderRadius: 31 }} resizeMode="cover" onLoadEnd={() => setMarkerTracksViewChanges(prev => prev[clusterKey] === false ? prev : { ...prev, [clusterKey]: false })} />
-                ) : (
-                  <View style={{ width: '100%', height: '100%', borderRadius: 31, backgroundColor: PincTheme.colors.card }} />
-                )}
-                <View style={{ position: 'absolute', top: -2, right: -2, backgroundColor: PincTheme.colors.primary, borderRadius: 12, minWidth: 24, paddingHorizontal: 6, paddingVertical: 2, alignItems: 'center' }}>
-                  <Text style={{ color: '#FFF', fontSize: 12, fontWeight: 'bold' }}>{points}</Text>
+              <View style={{ alignItems: 'center' }}>
+                <View style={{ width: 68, height: 68, borderRadius: 34, padding: 3, backgroundColor: tierColor, ...PincTheme.shadows.md }}>
+                  {profilePicUrl ? (
+                    <Image source={{ uri: profilePicUrl }} style={{ width: '100%', height: '100%', borderRadius: 31 }} resizeMode="cover" onLoadEnd={() => setMarkerTracksViewChanges(prev => prev[clusterKey] === false ? prev : { ...prev, [clusterKey]: false })} />
+                  ) : (
+                    <View style={{ width: '100%', height: '100%', borderRadius: 31, backgroundColor: PincTheme.colors.card }} />
+                  )}
                 </View>
+                {displayName ? (
+                  <Text style={{ marginTop: 4, fontSize: 11, fontWeight: '800', color: PincTheme.colors.textPrimary, textShadowColor: '#FFF', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 }}>
+                    {displayName}
+                  </Text>
+                ) : null}
               </View>
             </Marker>
           );
@@ -544,99 +583,27 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                 </View>
               )}
 
-              {isLiveNews ? (
-                /* PINC STORY (formerly LIVE NEWS): Render Custom Circular Photo Pin */
-                <View style={[styles.customMarkerContainer, { transform: [{ scale: zoomScale }] }]}>
-                  <BlinkingLiveNewsBadge />
-
-                  <View style={{ alignItems: "center", justifyContent: "center" }}>
-                    <View style={styles.livePhotoPinCard}>
-                      <View style={styles.liveImageWrapper}>
-                        {pin.media_type === "video" || isVideoUrl(photoUrl) ? (
-                          <View style={{ width: 62, height: 62, borderRadius: 31, overflow: 'hidden' }}>
-                            {photoUrl && !isVideoUrl(photoUrl) ? (
-                              <Image source={{ uri: photoUrl }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
-                            ) : (
-                              <View style={{ width: '100%', height: '100%', backgroundColor: PincTheme.colors.card }} />
-                            )}
-                            <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)' }}>
-                              <Ionicons name="play" size={20} color={PincTheme.colors.primary} />
-                            </View>
-                          </View>
-                        ) : (
-                          <Image 
-                            key={photoUrl}
-                            source={{ uri: photoUrl }} 
-                            style={[styles.photoPinImage, { width: 62, height: 62, borderRadius: 31 }]} 
-                            resizeMode="cover" 
-                            onLoadEnd={() => setMarkerTracksViewChanges(prev => prev[pinKey] === false ? prev : { ...prev, [pinKey]: false })} 
-                          />
-                        )}
-                      </View>
-                    </View>
-                  </View>
+              {/* Unified Profile Marker */}
+              <View style={{ alignItems: 'center' }}>
+                {isLiveNews && <BlinkingLiveNewsBadge />}
+                <View style={{ width: 68, height: 68, borderRadius: 34, padding: 3, backgroundColor: getTierColor(followerStatsCache[pin.userId] || 0), ...PincTheme.shadows.md }}>
+                  {pin.user_profile_pic ? (
+                    <Image 
+                      source={{ uri: pin.user_profile_pic }} 
+                      style={{ width: '100%', height: '100%', borderRadius: 31 }} 
+                      resizeMode="cover" 
+                      onLoadEnd={() => setMarkerTracksViewChanges(prev => prev[pinKey] === false ? prev : { ...prev, [pinKey]: false })} 
+                    />
+                  ) : (
+                    <View style={{ width: '100%', height: '100%', borderRadius: 31, backgroundColor: PincTheme.colors.card }} />
+                  )}
                 </View>
-              ) : (
-                /* STANDARD (Permanent): Render Custom white-bordered Photo Pin */
-                <View style={[styles.customMarkerContainer, { transform: [{ scale: zoomScale }] }]}>
-                  <View style={{ alignItems: "center", justifyContent: "center", paddingBottom: 15 }}>
-                    {(() => {
-                      const showName = !!pin.username;
-                      const displayName = pin.username || "";
-                      const cardPaddingTop = showName ? 17 : 3;
-
-                      return (
-                        <>
-                          <View style={[styles.photoPinCard, { paddingTop: cardPaddingTop, paddingBottom: 3, justifyContent: "flex-end" }]}>
-                            {showName && (
-                              <View style={{ position: "absolute", top: 0, left: 0, right: 0, height: cardPaddingTop, justifyContent: "center", alignItems: "center" }}>
-                                <Text 
-                                  style={{ 
-                                    fontSize: 11, 
-                                    fontWeight: "800", 
-                                    color: PincTheme.colors.textPrimary, 
-                                    width: "95%", 
-                                    textAlign: "center",
-                                    includeFontPadding: false
-                                  }} 
-                                  numberOfLines={1}
-                                >
-                                  {displayName}
-                                </Text>
-                              </View>
-                            )}
-
-                            <View style={styles.imageWrapper}>
-                              {pin.media_type === "video" || isVideoUrl(photoUrl) ? (
-                                <View style={{ width: 68, height: 68, borderRadius: 4, overflow: 'hidden' }}>
-                                  {photoUrl && !isVideoUrl(photoUrl) ? (
-                                    <Image source={{ uri: photoUrl }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
-                                  ) : (
-                                    <View style={{ width: '100%', height: '100%', backgroundColor: PincTheme.colors.card }} />
-                                  )}
-                                  <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)' }}>
-                                    <Ionicons name="play" size={24} color={PincTheme.colors.primary} />
-                                  </View>
-                                </View>
-                              ) : (
-                                <Image 
-                                  key={photoUrl}
-                                  source={{ uri: photoUrl }} 
-                                  style={[styles.photoPinImage, { width: 68, height: 68, borderRadius: 4 }]} 
-                                  resizeMode="cover" 
-                                  onLoadEnd={() => setMarkerTracksViewChanges(prev => prev[pinKey] === false ? prev : { ...prev, [pinKey]: false })} 
-                                />
-                              )}
-                            </View>
-                          </View>
-                        </>
-                      );
-                    })()}
-                  </View>
-                  
-                  <View style={styles.photoPinPointer} />
-                </View>
-              )}
+                {pin.username ? (
+                  <Text style={{ marginTop: 4, fontSize: 11, fontWeight: '800', color: PincTheme.colors.textPrimary, textShadowColor: '#FFF', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 }}>
+                    {pin.username}
+                  </Text>
+                ) : null}
+              </View>
             </Marker>
           );
         })}

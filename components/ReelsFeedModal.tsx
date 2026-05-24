@@ -280,11 +280,8 @@ export const ReelsFeedModal: React.FC<ReelsFeedModalProps> = ({
                 onCommentPress={() => setActiveCommentPinId(item.pinId || null)}
               />
             )}
-            pagingEnabled
             onViewableItemsChanged={handleViewableItemsChanged}
             viewabilityConfig={viewabilityConfig}
-            snapToAlignment="start"
-            decelerationRate="fast"
             initialScrollIndex={initialIndex}
             getItemLayout={(data, index) => ({
               length: windowWidth,
