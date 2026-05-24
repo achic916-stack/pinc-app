@@ -578,16 +578,16 @@ export const MapScreen: React.FC<MapScreenProps> = ({
 
               {/* Unified Profile Marker */}
               <View style={{ alignItems: 'center' }}>
-                <View style={{ width: getMarkerSize(zoomScale), height: getMarkerSize(zoomScale), borderRadius: getMarkerSize(zoomScale)/2, padding: isLiveNews ? 4 : 3, backgroundColor: isLiveNews ? PincTheme.colors.crowdRed : getTierColor(followerStatsCache[pin.userId] || 0), overflow: 'hidden', ...PincTheme.shadows.md }}>
+                <View style={{ width: getMarkerSize(zoomScale), height: getMarkerSize(zoomScale), borderRadius: getMarkerSize(zoomScale)/2, padding: 3, backgroundColor: isLiveNews ? PincTheme.colors.crowdRed : getTierColor(followerStatsCache[pin.userId] || 0), overflow: 'hidden', ...PincTheme.shadows.md }}>
                   {pin.user_profile_pic ? (
                     <RNImage 
                       source={{ uri: pin.user_profile_pic }} 
-                      style={{ width: getMarkerSize(zoomScale)-(isLiveNews ? 8 : 6), height: getMarkerSize(zoomScale)-(isLiveNews ? 8 : 6), borderRadius: (getMarkerSize(zoomScale)-(isLiveNews ? 8 : 6))/2, overflow: 'hidden' }} 
+                      style={{ width: getMarkerSize(zoomScale)-6, height: getMarkerSize(zoomScale)-6, borderRadius: (getMarkerSize(zoomScale)-6)/2, overflow: 'hidden' }} 
                       resizeMode="cover" 
                       onLoadEnd={() => setMarkerTracksViewChanges(prev => prev[pinKey] === false ? prev : { ...prev, [pinKey]: false })} 
                     />
                   ) : (
-                    <View style={{ width: getMarkerSize(zoomScale)-(isLiveNews ? 8 : 6), height: getMarkerSize(zoomScale)-(isLiveNews ? 8 : 6), borderRadius: (getMarkerSize(zoomScale)-(isLiveNews ? 8 : 6))/2, backgroundColor: PincTheme.colors.card }} />
+                    <View style={{ width: getMarkerSize(zoomScale)-6, height: getMarkerSize(zoomScale)-6, borderRadius: (getMarkerSize(zoomScale)-6)/2, backgroundColor: PincTheme.colors.card }} />
                   )}
                 </View>
                 {pin.username ? (

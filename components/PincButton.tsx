@@ -65,6 +65,7 @@ export const PincButton: React.FC<PincButtonProps> = ({
   const [text, setText] = useState("");
   const [postType, setPostType] = useState<"standard" | "live_news">("standard");
   const [postDuration, setPostDuration] = useState<"24h" | "permanent">("permanent");
+  const [postDelay, setPostDelay] = useState<number>(0);
   const [capturedBase64, setCapturedBase64] = useState<string | null>(null);
   
   const [currentGPSLocation, setCurrentGPSLocation] = useState<{ latitude: number; longitude: number } | null>(null);
@@ -310,7 +311,8 @@ export const PincButton: React.FC<PincButtonProps> = ({
         mediaType: capturedMediaType,
         musicTitle: selectedTrack.id !== "original" ? selectedTrack.title : "",
         musicUrl: selectedTrack.id !== "original" ? selectedTrack.url : "",
-        thumbnailUri: thumbnailUri
+        thumbnailUri: thumbnailUri,
+        postDelayMins: postDelay
       });
 
       await closeMusicPicker();
@@ -321,6 +323,7 @@ export const PincButton: React.FC<PincButtonProps> = ({
       setText("");
       setPostType("standard");
       setPostDuration("permanent");
+      setPostDelay(0);
       setSelectedTrack(MOCK_TRACKS[0]);
       onPinCreated();
     } catch (error: any) {
@@ -511,6 +514,23 @@ export const PincButton: React.FC<PincButtonProps> = ({
                 </View>
               </TouchableOpacity>
             </View>
+
+            {/* Delay Selector for Permanent Posts */}
+            {postType === "standard" && (
+              <View style={{ flexDirection: 'row', justifyContent: 'space-around', marginTop: 4, marginBottom: 12, backgroundColor: PincTheme.colors.card, borderRadius: 12, padding: 4, borderWidth: 1, borderColor: '#f0f0f0' }}>
+                {[0, 15, 30].map(delay => (
+                  <TouchableOpacity
+                    key={delay}
+                    style={{ paddingVertical: 8, paddingHorizontal: 16, borderRadius: 8, backgroundColor: postDelay === delay ? PincTheme.colors.primary : 'transparent' }}
+                    onPress={() => setPostDelay(delay)}
+                  >
+                    <Text style={{ fontSize: 12, color: postDelay === delay ? '#fff' : PincTheme.colors.textSecondary, fontWeight: postDelay === delay ? '800' : '500' }}>
+                      {delay === 0 ? "โพสเลย" : `Delay ${delay} นาที`}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
 
             {/* Text Input (Caption / Description) */}
             <TextInput

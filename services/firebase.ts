@@ -627,6 +627,7 @@ export async function createPin(params: {
   musicUrl?: string;
   postDuration?: "permanent" | "24h";
   thumbnailUri?: string | null;
+  postDelayMins?: number;
 }): Promise<string> {
   const { 
     userId, 
@@ -692,6 +693,10 @@ export async function createPin(params: {
     }
   }
 
+  const finalTimestamp = params.postDelayMins 
+    ? Timestamp.fromDate(new Date(Date.now() + params.postDelayMins * 60000))
+    : serverTimestamp();
+
   // 3. Create document properties
   const geohash = encodeGeohash(userCoords.latitude, userCoords.longitude, 9);
   
@@ -702,7 +707,7 @@ export async function createPin(params: {
     venueId,
     image_url: imageUrl,
     text_content: textContent,
-    timestamp: serverTimestamp(),
+    timestamp: finalTimestamp,
     latitude: userCoords.latitude,
     longitude: userCoords.longitude,
     geohash,
