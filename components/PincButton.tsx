@@ -375,7 +375,7 @@ export const PincButton: React.FC<PincButtonProps> = ({
             </View>
           ) : (
             <View style={[styles.fabImage, { backgroundColor: PincTheme.colors.primary, borderRadius: 26, alignItems: "center", justifyContent: "center" }]}>
-               <Image source={require("../assets/logo.png")} style={{ width: 80, height: 32 }} resizeMode="contain" />
+               <Image source={require("../assets/logo.png")} style={{ width: 95, height: 26 }} resizeMode="contain" />
             </View>
           )}
         </TouchableOpacity>
