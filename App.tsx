@@ -15,6 +15,7 @@ import {
   Platform
 } from "react-native";
 import { Image } from "expo-image";
+import * as Location from "expo-location";
 import { Ionicons } from "@expo/vector-icons";
 import { MapScreen } from "./screens/MapScreen";
 import { VenueDetailsSheet } from "./components/VenueDetailsSheet";
@@ -272,11 +273,34 @@ export default function App() {
 
   // 2. Fetch User GPS Location
   useEffect(() => {
-    // Bangkok Thonglor area location (Café district) as default starting position
-    setUserLocation({
-      latitude: 13.736717,
-      longitude: 100.560481
-    });
+    (async () => {
+      // Set initial default (Bangkok Thonglor) in case permission fails
+      setUserLocation({
+        latitude: 13.736717,
+        longitude: 100.560481
+      });
+
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') return;
+
+      try {
+        let location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        setUserLocation({
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude
+        });
+
+        // Track location in the background while app is active
+        Location.watchPositionAsync({ accuracy: Location.Accuracy.Balanced, distanceInterval: 10 }, (loc) => {
+          setUserLocation({
+            latitude: loc.coords.latitude,
+            longitude: loc.coords.longitude
+          });
+        });
+      } catch (error) {
+        console.warn("Could not fetch location in App.tsx", error);
+      }
+    })();
   }, []);
 
   // 3. Subscribe to Venues list real-time (Only when logged in!)
