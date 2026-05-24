@@ -549,9 +549,6 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                   <BlinkingLiveNewsBadge />
 
                   <View style={{ alignItems: "center", justifyContent: "center" }}>
-                    <View style={[styles.livePhotoPinCard, styles.concentricShadow1]} />
-                    <View style={[styles.livePhotoPinCard, styles.concentricShadow2]} />
-
                     <View style={styles.livePhotoPinCard}>
                       <View style={styles.liveImageWrapper}>
                         {pin.media_type === "video" || isVideoUrl(photoUrl) ? (
@@ -589,9 +586,6 @@ export const MapScreen: React.FC<MapScreenProps> = ({
 
                       return (
                         <>
-                          <View style={[styles.photoPinCard, styles.concentricShadow1, { paddingTop: cardPaddingTop }]} />
-                          <View style={[styles.photoPinCard, styles.concentricShadow2, { paddingTop: cardPaddingTop }]} />
-
                           <View style={[styles.photoPinCard, { paddingTop: cardPaddingTop, paddingBottom: 3, justifyContent: "flex-end" }]}>
                             {showName && (
                               <View style={{ position: "absolute", top: 0, left: 0, right: 0, height: cardPaddingTop, justifyContent: "center", alignItems: "center" }}>
