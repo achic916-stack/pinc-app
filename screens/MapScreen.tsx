@@ -28,7 +28,7 @@ const Audio = { Sound: { createAsync: async () => ({ sound: { playAsync: async (
 
 import { CachedVideo } from "../components/CachedVideo";
 import { PincTheme } from "../styles/theme";
-import { Venue, Pin, auth, getUserStats } from "../services/firebase";
+import { Venue, Pin, auth, getUserStats, calculateDistance } from "../services/firebase";
 import { useTranslation } from 'react-i18next';
 import { ReelsFeedModal } from "../components/ReelsFeedModal";
 
@@ -211,6 +211,29 @@ export const MapScreen: React.FC<MapScreenProps> = ({
       }
     });
   }, [allPins]);
+
+  // Group pins within 100 meters
+  const groupedValidPins = useMemo(() => {
+    const groups: Pin[][] = [];
+    const processed = new Set<string>();
+
+    for (const pin of validPins) {
+      if (processed.has(pin.pinId!)) continue;
+      const currentGroup = [pin];
+      processed.add(pin.pinId!);
+
+      for (const otherPin of validPins) {
+        if (processed.has(otherPin.pinId!)) continue;
+        const distance = calculateDistance(pin.latitude, pin.longitude, otherPin.latitude, otherPin.longitude);
+        if (distance <= 100) {
+          currentGroup.push(otherPin);
+          processed.add(otherPin.pinId!);
+        }
+      }
+      groups.push(currentGroup);
+    }
+    return groups;
+  }, [validPins]);
 
   // Fetch follower stats for validPins
   useEffect(() => {
@@ -529,7 +552,8 @@ export const MapScreen: React.FC<MapScreenProps> = ({
           }
         }}
       >
-        {validPins.map((pin) => {
+        {groupedValidPins.map((group) => {
+          const pin = group[0];
           const photoUrl = pin.media_type === "video" && pin.thumbnail_url ? pin.thumbnail_url : pin.image_url;
           const isLiveNews = pin.post_type === "live_news";
           const isDeleteMode = deleteModePinId === pin.pinId;
@@ -540,11 +564,21 @@ export const MapScreen: React.FC<MapScreenProps> = ({
               key={pinKey}
               coordinate={{ latitude: pin.latitude, longitude: pin.longitude }}
               onPress={() => {
-                if (deleteModePinId) {
-                  setDeleteModePinId(null);
-                  return;
+                if (isDeleteMode) return;
+                
+                if (group.length > 1) {
+                  // If it's a grouped pin, show all pins in the ReelsFeedModal
+                  setReelsFeedPins(group);
+                } else {
+                  if (onSelectVenue) {
+                    onSelectVenue(null as any);
+                  }
+                  if (pin.pinId) {
+                    // Navigate camera to selected individual pin
+                    // (Assuming cameraTarget logic is handled externally)
+                    setReelsFeedPins([pin]);
+                  }
                 }
-                setReelsFeedPins([pin]);
               }}
               // @ts-ignore
               onLongPress={() => {
@@ -590,6 +624,12 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                     <View style={{ width: getMarkerSize(zoomScale)-6, height: getMarkerSize(zoomScale)-6, borderRadius: (getMarkerSize(zoomScale)-6)/2, backgroundColor: PincTheme.colors.card }} />
                   )}
                 </View>
+                {/* Group Count Badge */}
+                {group.length > 1 && (
+                  <View style={{ position: 'absolute', top: -6, right: -6, backgroundColor: '#FF3B30', borderRadius: 10, minWidth: 20, height: 20, alignItems: 'center', justifyContent: 'center', zIndex: 10, borderWidth: 1.5, borderColor: '#FFF' }}>
+                    <Text style={{ color: '#FFF', fontSize: 10, fontWeight: 'bold' }}>{group.length}</Text>
+                  </View>
+                )}
                 {pin.username ? (
                   <Text style={{ marginTop: 0, fontSize: Math.max(9, Math.floor(11 * zoomScale)), fontWeight: '800', color: PincTheme.colors.textPrimary, textShadowColor: '#FFF', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 }}>
                     {pin.username}
