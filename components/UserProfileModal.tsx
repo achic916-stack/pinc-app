@@ -28,6 +28,8 @@ import {
 import { t } from "../services/localization";
 import * as ImagePicker from "expo-image-picker";
 import { BusinessPackagesModal } from "./BusinessPackagesModal";
+import { UserListModal } from "./UserListModal";
+import { ChatModal } from "./ChatModal";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -38,6 +40,9 @@ interface UserProfileModalProps {
   onClose: () => void;
   onSelectMemory?: (pin: Pin) => void;
   locale?: "en" | "th";
+  setLocale?: (locale: "en" | "th") => void;
+  onDeletePin?: (pin: Pin) => void;
+  setUserId?: (userId: string) => void;
 }
 
 export const UserProfileModal: React.FC<UserProfileModalProps> = ({
@@ -46,7 +51,10 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   currentUserId,
   onClose,
   onSelectMemory,
-  locale = "en"
+  locale = "en",
+  setLocale,
+  onDeletePin,
+  setUserId
 }) => {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [pins, setPins] = useState<Pin[]>([]);
@@ -63,6 +71,10 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const [editPreviewPic, setEditPreviewPic] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [showBusinessPackages, setShowBusinessPackages] = useState(false);
+  
+  // New States for Follower Lists and Chat
+  const [userListType, setUserListType] = useState<"followers" | "following" | null>(null);
+  const [isChatVisible, setIsChatVisible] = useState(false);
 
   useEffect(() => {
     if (!visible || !userId) {
@@ -232,7 +244,13 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     >
       <View style={styles.modalOverlay}>
         <SafeAreaView style={styles.modalContent}>
-          <View style={styles.modalHeader}>
+          <View style={[styles.modalHeader, { justifyContent: 'space-between' }]}>
+            <TouchableOpacity 
+              onPress={() => setLocale && setLocale(locale === 'en' ? 'th' : 'en')} 
+              style={[styles.closeButton, { backgroundColor: '#F0F0F0', borderRadius: 16, paddingHorizontal: 12, paddingVertical: 4 }]}
+            >
+              <Text style={[styles.closeButtonText, { fontSize: 14 }]}>{locale === 'en' ? 'TH' : 'EN'}</Text>
+            </TouchableOpacity>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
               <Text style={styles.closeButtonText}>✕</Text>
             </TouchableOpacity>
@@ -282,14 +300,14 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                       <Text style={styles.statNumber}>{pins.length}</Text>
                       <Text style={styles.statLabel}>Posts</Text>
                     </View>
-                    <View style={styles.statItem}>
+                    <TouchableOpacity style={styles.statItem} onPress={() => setUserListType("followers")} activeOpacity={0.7}>
                       <Text style={styles.statNumber}>{stats.followersCount}</Text>
                       <Text style={styles.statLabel}>Followers</Text>
-                    </View>
-                    <View style={styles.statItem}>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.statItem} onPress={() => setUserListType("following")} activeOpacity={0.7}>
                       <Text style={styles.statNumber}>{stats.followingCount}</Text>
                       <Text style={styles.statLabel}>Following</Text>
-                    </View>
+                    </TouchableOpacity>
                   </View>
 
                   {userId === currentUserId ? (
@@ -313,34 +331,44 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                       */}
                     </View>
                   ) : (
-                        <TouchableOpacity
-                          style={[
-                            styles.followBtn,
-                            isFollowing && styles.followingBtnActive,
-                            (!isFollowing && isFollowedBy) && styles.followBackBtn
-                          ]}
-                          onPress={handleToggleFollow}
-                          disabled={isTogglingFollow}
-                        >
-                          {isTogglingFollow ? (
-                            <ActivityIndicator size="small" color={isFollowing ? PincTheme.colors.primary : "#FFF"} />
-                          ) : (
-                            <Text
-                              style={[
-                                styles.followBtnText,
-                                isFollowing && styles.followingBtnTextActive,
-                                (!isFollowing && isFollowedBy) && styles.followBackBtnText
-                              ]}
-                            >
-                              {isFollowing 
-                                ? t(locale, "following") 
-                                : isFollowedBy 
-                                  ? t(locale, "followBack") 
-                                  : t(locale, "follow")}
-                            </Text>
-                          )}
-                        </TouchableOpacity>
-                    )}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginTop: 16 }}>
+                      <TouchableOpacity
+                        style={[
+                          styles.followBtn,
+                          { marginTop: 0, minWidth: 120 },
+                          isFollowing && styles.followingBtnActive,
+                          (!isFollowing && isFollowedBy) && styles.followBackBtn
+                        ]}
+                        onPress={handleToggleFollow}
+                        disabled={isTogglingFollow}
+                      >
+                        {isTogglingFollow ? (
+                          <ActivityIndicator size="small" color={isFollowing ? PincTheme.colors.primary : "#FFF"} />
+                        ) : (
+                          <Text
+                            style={[
+                              styles.followBtnText,
+                              isFollowing && styles.followingBtnTextActive,
+                              (!isFollowing && isFollowedBy) && styles.followBackBtnText
+                            ]}
+                          >
+                            {isFollowing 
+                              ? t(locale, "following") 
+                              : isFollowedBy 
+                                ? t(locale, "followBack") 
+                                : t(locale, "follow")}
+                          </Text>
+                        )}
+                      </TouchableOpacity>
+
+                      <TouchableOpacity 
+                        style={[styles.followBtn, { marginTop: 0, minWidth: 100, backgroundColor: '#F0F0F0', borderWidth: 1, borderColor: '#E0E0E0' }]} 
+                        onPress={() => setIsChatVisible(true)}
+                      >
+                        <Text style={[styles.followBtnText, { color: PincTheme.colors.textPrimary }]}>Message</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
                   
                   <View style={styles.gridHeader}>
                     <Text style={styles.gridHeaderTitle}>
@@ -364,6 +392,25 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                     style={styles.memoryCard} 
                     activeOpacity={0.85}
                     onPress={() => onSelectMemory && onSelectMemory(pin)}
+                    onLongPress={() => {
+                      if (userId === currentUserId) {
+                        Alert.alert(
+                          locale === "th" ? "ลบโพสต์" : "Delete Post",
+                          locale === "th" ? "คุณแน่ใจหรือไม่ว่าต้องการลบโพสต์นี้?" : "Are you sure you want to delete this post?",
+                          [
+                            { text: locale === "th" ? "ยกเลิก" : "Cancel", style: "cancel" },
+                            { 
+                              text: locale === "th" ? "ลบ" : "Delete", 
+                              style: "destructive",
+                              onPress: () => {
+                                if (onDeletePin) onDeletePin(pin);
+                                setPins(prev => prev.filter(p => p.pinId !== pin.pinId));
+                              }
+                            }
+                          ]
+                        );
+                      }
+                    }}
                   >
                     <Image 
                       source={{ uri: pin.thumbnail_url || pin.image_url }} 
@@ -463,6 +510,30 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         visible={showBusinessPackages} 
         onClose={() => setShowBusinessPackages(false)} 
       />
+
+      {/* User List Modal (Followers / Following) */}
+      <UserListModal
+        visible={userListType !== null}
+        userId={userId!}
+        type={userListType}
+        onClose={() => setUserListType(null)}
+        onSelectUser={(newUserId) => {
+          if (setUserId) setUserId(newUserId);
+        }}
+        locale={locale}
+      />
+
+      {/* Chat / DM Modal */}
+      {profile && (
+        <ChatModal
+          visible={isChatVisible}
+          currentUserId={currentUserId}
+          targetUserId={userId!}
+          targetUsername={profile.username}
+          targetProfilePic={profile.profile_pic}
+          onClose={() => setIsChatVisible(false)}
+        />
+      )}
     </Modal>
   );
 };

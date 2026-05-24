@@ -817,6 +817,25 @@ export async function getFollowingList(followerId: string): Promise<UserProfile[
 }
 
 /**
+ * Retrieves the profiles list of users who follow the given user.
+ */
+export async function getFollowersList(userId: string): Promise<UserProfile[]> {
+  const q = query(collection(db, "follows"), where("followingId", "==", userId));
+  const querySnapshot = await withTimeout(getDocs(q), 3000, "Fetching followers IDs list timed out.");
+  const followerIds: string[] = [];
+  querySnapshot.forEach((doc) => {
+    followerIds.push(doc.data().followerId);
+  });
+  
+  if (followerIds.length === 0) return [];
+  
+  // Fetch profiles in parallel
+  const fetchPromises = followerIds.map(id => fetchUserProfile(id));
+  const fetchedProfiles = await Promise.all(fetchPromises);
+  return fetchedProfiles.filter((p): p is UserProfile => p !== null);
+}
+
+/**
  * Subscribes to the list of user IDs that followerId is following in real-time.
  */
 export function subscribeToFollowingIds(followerId: string, onUpdate: (ids: string[]) => void, onError?: (error: any) => void) {
@@ -1081,3 +1100,38 @@ export async function getActiveSponsoredVenues(): Promise<Venue[]> {
   return activeVenues;
 }
 
+
+// ==========================================
+// CHAT & DIRECT MESSAGES LOGIC
+// ==========================================
+
+export interface ChatMessage {
+  id: string;
+  senderId: string;
+  text: string;
+  timestamp: number;
+}
+
+export function getChatId(userId1: string, userId2: string): string {
+  return userId1 < userId2 ? `${userId1}_${userId2}` : `${userId2}_${userId1}`;
+}
+
+export async function sendMessage(chatId: string, senderId: string, text: string) {
+  const messagesRef = collection(db, "chats", chatId, "messages");
+  await addDoc(messagesRef, {
+    senderId,
+    text,
+    timestamp: Date.now()
+  });
+}
+
+export function subscribeToMessages(chatId: string, onUpdate: (messages: ChatMessage[]) => void) {
+  const q = query(collection(db, "chats", chatId, "messages"), orderBy("timestamp", "asc"));
+  return onSnapshot(q, (snapshot) => {
+    const messages: ChatMessage[] = [];
+    snapshot.forEach(doc => {
+      messages.push({ id: doc.id, ...doc.data() } as ChatMessage);
+    });
+    onUpdate(messages);
+  });
+}

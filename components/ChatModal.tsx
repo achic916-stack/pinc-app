@@ -1,0 +1,205 @@
+import React, { useEffect, useState } from "react";
+import { View, Text, StyleSheet, Modal, FlatList, TouchableOpacity, SafeAreaView, TextInput, KeyboardAvoidingView, Platform } from "react-native";
+import { Image } from "expo-image";
+import { ChatMessage, getChatId, subscribeToMessages, sendMessage } from "../services/firebase";
+import { PincTheme } from "../styles/theme";
+
+interface ChatModalProps {
+  visible: boolean;
+  currentUserId: string;
+  targetUserId: string;
+  targetUsername: string;
+  targetProfilePic: string;
+  onClose: () => void;
+}
+
+export const ChatModal: React.FC<ChatModalProps> = ({
+  visible,
+  currentUserId,
+  targetUserId,
+  targetUsername,
+  targetProfilePic,
+  onClose
+}) => {
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [inputText, setInputText] = useState("");
+  const chatId = getChatId(currentUserId, targetUserId);
+
+  useEffect(() => {
+    if (!visible) return;
+
+    const unsubscribe = subscribeToMessages(chatId, (newMessages) => {
+      setMessages(newMessages);
+    });
+
+    return () => unsubscribe();
+  }, [visible, chatId]);
+
+  const handleSend = async () => {
+    const trimmed = inputText.trim();
+    if (!trimmed) return;
+
+    setInputText(""); // Optimistic clear
+    try {
+      await sendMessage(chatId, currentUserId, trimmed);
+    } catch (err) {
+      console.warn("Failed to send message:", err);
+    }
+  };
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent={true} onRequestClose={onClose}>
+      <View style={styles.modalOverlay}>
+        <SafeAreaView style={styles.modalContent}>
+          <View style={styles.header}>
+            <TouchableOpacity onPress={onClose} style={styles.backBtn}>
+              <Text style={styles.backBtnText}>‹ Back</Text>
+            </TouchableOpacity>
+            <View style={styles.headerTitleContainer}>
+              <Image source={{ uri: targetProfilePic }} style={styles.headerAvatar} />
+              <Text style={styles.headerTitle}>@{targetUsername}</Text>
+            </View>
+            <View style={{ width: 60 }} /> {/* spacer */}
+          </View>
+
+          <KeyboardAvoidingView 
+            style={{ flex: 1 }} 
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+          >
+            <FlatList
+              data={messages}
+              keyExtractor={item => item.id}
+              contentContainerStyle={styles.messageList}
+              renderItem={({ item }) => {
+                const isMe = item.senderId === currentUserId;
+                return (
+                  <View style={[styles.messageBubble, isMe ? styles.messageMe : styles.messageThem]}>
+                    <Text style={[styles.messageText, isMe ? styles.messageTextMe : styles.messageTextThem]}>
+                      {item.text}
+                    </Text>
+                  </View>
+                );
+              }}
+            />
+
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={styles.input}
+                placeholder="Message..."
+                value={inputText}
+                onChangeText={setInputText}
+                onSubmitEditing={handleSend}
+              />
+              <TouchableOpacity style={styles.sendBtn} onPress={handleSend} disabled={!inputText.trim()}>
+                <Text style={[styles.sendBtnText, !inputText.trim() && { opacity: 0.5 }]}>Send</Text>
+              </TouchableOpacity>
+            </View>
+          </KeyboardAvoidingView>
+        </SafeAreaView>
+      </View>
+    </Modal>
+  );
+};
+
+const styles = StyleSheet.create({
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "#F8F8F8"
+  },
+  modalContent: {
+    flex: 1,
+    backgroundColor: "#F8F8F8"
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: "#FFFFFF",
+    borderBottomWidth: 1,
+    borderColor: "#E0E0E0"
+  },
+  backBtn: {
+    width: 60
+  },
+  backBtnText: {
+    fontSize: 16,
+    color: PincTheme.colors.primary,
+    fontWeight: "bold"
+  },
+  headerTitleContainer: {
+    flexDirection: "row",
+    alignItems: "center"
+  },
+  headerAvatar: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    marginRight: 8
+  },
+  headerTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: PincTheme.colors.textPrimary
+  },
+  messageList: {
+    padding: 16,
+    paddingBottom: 24
+  },
+  messageBubble: {
+    maxWidth: "75%",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    marginBottom: 8
+  },
+  messageMe: {
+    alignSelf: "flex-end",
+    backgroundColor: PincTheme.colors.primary,
+    borderBottomRightRadius: 4
+  },
+  messageThem: {
+    alignSelf: "flex-start",
+    backgroundColor: "#E0E0E0",
+    borderBottomLeftRadius: 4
+  },
+  messageText: {
+    fontSize: 15,
+    lineHeight: 20
+  },
+  messageTextMe: {
+    color: "#FFFFFF"
+  },
+  messageTextThem: {
+    color: "#333333"
+  },
+  inputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    backgroundColor: "#FFFFFF",
+    borderTopWidth: 1,
+    borderColor: "#E0E0E0"
+  },
+  input: {
+    flex: 1,
+    minHeight: 40,
+    maxHeight: 100,
+    backgroundColor: "#F0F0F0",
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 10,
+    fontSize: 15
+  },
+  sendBtn: {
+    marginLeft: 12,
+    padding: 8
+  },
+  sendBtnText: {
+    color: PincTheme.colors.primary,
+    fontWeight: "bold",
+    fontSize: 16
+  }
+});

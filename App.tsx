@@ -187,7 +187,9 @@ export default function App() {
 
   const handleProfileTabPress = () => {
     setActiveTab("profile");
-    setSettingsModalVisible(true);
+    if (currentUser) {
+      setSelectedUserProfileId(currentUser.userId);
+    }
   };
 
   // Filter current user's uploaded pins, newest first
@@ -606,6 +608,9 @@ export default function App() {
               setActiveTab("home");
             }}
             locale={locale}
+            setLocale={setLocale}
+            onDeletePin={handleDeletePin}
+            setUserId={setSelectedUserProfileId}
           />
 
           {/* Reality Check Sliding Shelf (User Pins Photo Drawer) */}
