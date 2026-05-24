@@ -119,7 +119,7 @@ const minimalMapStyle = [
 
 // Removed RadarPulse
 
-const BlinkingLiveNewsBadge: React.FC = () => {
+const BlinkingLiveNewsBadge: React.FC<{ zoomScale?: number }> = ({ zoomScale = 1 }) => {
   const opacityVal = useRef(new Animated.Value(1)).current;
   useEffect(() => {
     Animated.loop(
@@ -129,9 +129,30 @@ const BlinkingLiveNewsBadge: React.FC = () => {
       ])
     ).start();
   }, []);
+  
+  const topOffset = Math.floor(-10 * zoomScale);
+  const paddingH = Math.max(4, Math.floor(8 * zoomScale));
+  const paddingV = Math.max(1, Math.floor(2 * zoomScale));
+  const borderRadius = Math.max(5, Math.floor(10 * zoomScale));
+  const fontSize = Math.max(5, Math.floor(8 * zoomScale));
+  const borderWidth = Math.max(0.5, 1.5 * zoomScale);
+  const minWidth = Math.floor(60 * zoomScale);
+
   return (
-    <Animated.View style={[styles.liveNewsBadge, { opacity: opacityVal }]}>
-      <Text style={styles.liveNewsBadgeText}>PINC STORY</Text>
+    <Animated.View style={[
+      styles.liveNewsBadge, 
+      { 
+        opacity: opacityVal,
+        top: topOffset,
+        paddingHorizontal: paddingH,
+        paddingVertical: paddingV,
+        borderRadius: borderRadius,
+        borderWidth: borderWidth,
+        minWidth: minWidth,
+        alignItems: 'center'
+      }
+    ]}>
+      <Text style={[styles.liveNewsBadgeText, { fontSize: fontSize }]} numberOfLines={1}>PINC STORY</Text>
     </Animated.View>
   );
 };
@@ -593,7 +614,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
 
               {/* Unified Profile Marker */}
               <View style={{ alignItems: 'center' }}>
-                {isLiveNews && <BlinkingLiveNewsBadge />}
+                {isLiveNews && <BlinkingLiveNewsBadge zoomScale={zoomScale} />}
                 <View style={{ width: Math.floor(Math.max(34, 68 * zoomScale)), height: Math.floor(Math.max(34, 68 * zoomScale)), borderRadius: Math.floor(Math.max(34, 68 * zoomScale))/2, padding: 3, backgroundColor: getTierColor(followerStatsCache[pin.userId] || 0), overflow: 'hidden', ...PincTheme.shadows.md }}>
                   {pin.user_profile_pic ? (
                     <RNImage 
