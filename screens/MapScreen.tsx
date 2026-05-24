@@ -507,7 +507,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                   )}
                 </View>
                 {displayName ? (
-                  <Text style={{ marginTop: 4, fontSize: textSize, fontWeight: '800', color: PincTheme.colors.textPrimary, textShadowColor: '#FFF', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 }}>
+                  <Text style={{ marginTop: 0, fontSize: textSize, fontWeight: '800', color: PincTheme.colors.textPrimary, textShadowColor: '#FFF', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 }}>
                     {displayName}
                   </Text>
                 ) : null}
@@ -607,7 +607,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                   )}
                 </View>
                 {pin.username ? (
-                  <Text style={{ marginTop: 4, fontSize: Math.max(9, Math.floor(11 * zoomScale)), fontWeight: '800', color: PincTheme.colors.textPrimary, textShadowColor: '#FFF', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 }}>
+                  <Text style={{ marginTop: 0, fontSize: Math.max(9, Math.floor(11 * zoomScale)), fontWeight: '800', color: PincTheme.colors.textPrimary, textShadowColor: '#FFF', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 }}>
                     {pin.username}
                   </Text>
                 ) : null}
@@ -1121,20 +1121,20 @@ const styles = StyleSheet.create({
   },
   liveNewsBadge: {
     position: "absolute",
-    top: 8,
+    top: -10,
     backgroundColor: PincTheme.colors.crowdRed,
-    paddingHorizontal: 6,
+    paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: 6,
-    borderWidth: 1,
+    borderRadius: 10,
+    borderWidth: 1.5,
     borderColor: "#FFF",
-    zIndex: 11,
+    zIndex: 100,
     ...PincTheme.shadows.sm
   },
   liveNewsBadgeText: {
     color: "#FFF",
     fontSize: 8,
-    fontWeight: "900",
+    fontWeight: "bold",
     letterSpacing: 0.5
   },
   liveSituationLabel: {
