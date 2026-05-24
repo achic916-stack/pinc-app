@@ -614,7 +614,6 @@ export const MapScreen: React.FC<MapScreenProps> = ({
 
               {/* Unified Profile Marker */}
               <View style={{ alignItems: 'center' }}>
-                {isLiveNews && <BlinkingLiveNewsBadge zoomScale={zoomScale} />}
                 <View style={{ width: Math.floor(Math.max(34, 68 * zoomScale)), height: Math.floor(Math.max(34, 68 * zoomScale)), borderRadius: Math.floor(Math.max(34, 68 * zoomScale))/2, padding: 3, backgroundColor: getTierColor(followerStatsCache[pin.userId] || 0), overflow: 'hidden', ...PincTheme.shadows.md }}>
                   {pin.user_profile_pic ? (
                     <RNImage 
@@ -627,6 +626,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                     <View style={{ width: Math.floor(Math.max(34, 68 * zoomScale))-6, height: Math.floor(Math.max(34, 68 * zoomScale))-6, borderRadius: (Math.floor(Math.max(34, 68 * zoomScale))-6)/2, backgroundColor: PincTheme.colors.card }} />
                   )}
                 </View>
+                {isLiveNews && <BlinkingLiveNewsBadge zoomScale={zoomScale} />}
                 {pin.username ? (
                   <Text style={{ marginTop: 0, fontSize: Math.max(9, Math.floor(11 * zoomScale)), fontWeight: '800', color: PincTheme.colors.textPrimary, textShadowColor: '#FFF', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 }}>
                     {pin.username}
@@ -1150,6 +1150,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: "#FFF",
     zIndex: 100,
+    elevation: 100,
     ...PincTheme.shadows.sm
   },
   liveNewsBadgeText: {

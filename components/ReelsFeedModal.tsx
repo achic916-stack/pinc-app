@@ -118,28 +118,20 @@ const FeedItem = ({
       {/* Media Background */}
       {item.media_type === "video" ? (
         <View style={[styles.media, { backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' }]}>
-          {isVisible ? (
-            <Video
-              source={{ uri: item.image_url }}
+          <Video
+            source={{ uri: item.image_url }}
+            style={[styles.media, { position: 'absolute' }]}
+            resizeMode={ResizeMode.CONTAIN}
+            shouldPlay={isVisible}
+            isLooping
+            useNativeControls={false}
+          />
+          {(!isVisible && item.thumbnail_url) && (
+            <Image
+              source={{ uri: item.thumbnail_url }}
               style={[styles.media, { position: 'absolute' }]}
-              resizeMode={ResizeMode.CONTAIN}
-              shouldPlay={isVisible}
-              isLooping
-              useNativeControls={false}
+              resizeMode="contain"
             />
-          ) : (
-            <>
-              {item.thumbnail_url ? (
-                <Image
-                  source={{ uri: item.thumbnail_url }}
-                  style={[styles.media, { position: 'absolute' }]}
-                  resizeMode="contain"
-                />
-              ) : null}
-              <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', zIndex: 2 }}>
-                <Ionicons name="play" size={40} color="#FFF" style={{ marginLeft: 6 }} />
-              </View>
-            </>
           )}
         </View>
       ) : (
