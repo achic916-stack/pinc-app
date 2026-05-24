@@ -33,10 +33,12 @@ interface ReelsFeedModalProps {
 const FeedItem = ({ 
   item, 
   isVisible,
+  shouldMountVideo = true,
   onCommentPress
 }: { 
   item: Pin; 
   isVisible: boolean;
+  shouldMountVideo?: boolean;
   onCommentPress: () => void;
 }) => {
   const [liked, setLiked] = useState(item.likes?.includes("currentUserId") || false);
@@ -125,14 +127,16 @@ const FeedItem = ({
               resizeMode="contain"
             />
           )}
-          <Video
-            source={{ uri: item.image_url }}
-            style={[styles.media, { position: 'absolute' }]}
-            resizeMode={ResizeMode.CONTAIN}
-            shouldPlay={isVisible}
-            isLooping
-            useNativeControls={false}
-          />
+          {shouldMountVideo && (
+            <Video
+              source={{ uri: item.image_url }}
+              style={[styles.media, { position: 'absolute' }]}
+              resizeMode={ResizeMode.CONTAIN}
+              shouldPlay={isVisible}
+              isLooping
+              useNativeControls={false}
+            />
+          )}
         </View>
       ) : (
         <Image
@@ -265,10 +269,14 @@ export const ReelsFeedModal: React.FC<ReelsFeedModalProps> = ({
             snapToAlignment="center"
             decelerationRate="fast"
             showsHorizontalScrollIndicator={false}
+            initialNumToRender={1}
+            maxToRenderPerBatch={2}
+            windowSize={5}
             renderItem={({ item, index }) => (
               <FeedItem 
                 item={item} 
                 isVisible={index === currentIndex} 
+                shouldMountVideo={Math.abs(index - currentIndex) <= 1}
                 onCommentPress={() => setActiveCommentPinId(item.pinId || null)}
               />
             )}
