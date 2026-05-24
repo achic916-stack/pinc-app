@@ -611,6 +611,7 @@ export default function App() {
             setLocale={setLocale}
             onDeletePin={handleDeletePin}
             setUserId={setSelectedUserProfileId}
+            currentUserProfile={currentUser}
           />
 
           {/* Reality Check Sliding Shelf (User Pins Photo Drawer) */}

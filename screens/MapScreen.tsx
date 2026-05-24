@@ -624,12 +624,6 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                     <View style={{ width: getMarkerSize(zoomScale)-6, height: getMarkerSize(zoomScale)-6, borderRadius: (getMarkerSize(zoomScale)-6)/2, backgroundColor: PincTheme.colors.card }} />
                   )}
                 </View>
-                {/* Group Count Badge */}
-                {group.length > 1 && (
-                  <View style={{ position: 'absolute', top: -6, right: -6, backgroundColor: '#FF3B30', borderRadius: 10, minWidth: 20, height: 20, alignItems: 'center', justifyContent: 'center', zIndex: 10, borderWidth: 1.5, borderColor: '#FFF' }}>
-                    <Text style={{ color: '#FFF', fontSize: 10, fontWeight: 'bold' }}>{group.length}</Text>
-                  </View>
-                )}
                 {pin.username ? (
                   <Text style={{ marginTop: 0, fontSize: Math.max(9, Math.floor(11 * zoomScale)), fontWeight: '800', color: PincTheme.colors.textPrimary, textShadowColor: '#FFF', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 }}>
                     {pin.username}

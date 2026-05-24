@@ -43,6 +43,7 @@ interface UserProfileModalProps {
   setLocale?: (locale: "en" | "th") => void;
   onDeletePin?: (pin: Pin) => void;
   setUserId?: (userId: string) => void;
+  currentUserProfile?: UserProfile | null;
 }
 
 export const UserProfileModal: React.FC<UserProfileModalProps> = ({
@@ -54,7 +55,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   locale = "en",
   setLocale,
   onDeletePin,
-  setUserId
+  setUserId,
+  currentUserProfile
 }) => {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [pins, setPins] = useState<Pin[]>([]);
@@ -88,11 +90,25 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
     const loadData = async () => {
       setIsLoadingProfile(true);
+      
+      // Optimistic load to prevent "User Not Found" if network fails
+      if (userId === currentUserId && currentUserProfile) {
+        setProfile(currentUserProfile);
+      }
+
       try {
         const userProfile = await fetchUserProfile(userId);
-        setProfile(userProfile);
+        if (userProfile) {
+          setProfile(userProfile);
+        } else if (userId === currentUserId && currentUserProfile) {
+          setProfile(currentUserProfile);
+        } else {
+          setProfile(null);
+        }
 
-        if (userProfile && userId !== currentUserId) {
+        const effectiveProfile = userProfile || (userId === currentUserId ? currentUserProfile : null);
+
+        if (effectiveProfile && userId !== currentUserId) {
           const followStatus = await checkIsFollowing(currentUserId, userId);
           setIsFollowing(followStatus);
 
@@ -100,7 +116,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           setIsFollowedBy(followedByStatus);
         }
 
-        if (userProfile) {
+        if (effectiveProfile) {
           const userStats = await getUserStats(userId);
           setStats(userStats);
         }
