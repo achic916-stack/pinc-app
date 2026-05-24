@@ -490,10 +490,10 @@ export const MapScreen: React.FC<MapScreenProps> = ({
 
           return (
             <Marker key={clusterKey} coordinate={{ latitude: centerLat, longitude: centerLng }} onPress={onPress} tracksViewChanges={markerTracksViewChanges[clusterKey] ?? true}>
-              <View style={{ alignItems: 'center' }}>
-                <View style={{ width: 68, height: 68, borderRadius: 34, padding: 3, backgroundColor: tierColor, ...PincTheme.shadows.md }}>
+              <View style={{ alignItems: 'center', transform: [{ scale: zoomScale }] }}>
+                <View style={{ width: 68, height: 68, borderRadius: 34, padding: 3, backgroundColor: tierColor, overflow: 'hidden', ...PincTheme.shadows.md }}>
                   {profilePicUrl ? (
-                    <Image source={{ uri: profilePicUrl }} style={{ width: '100%', height: '100%', borderRadius: 31 }} resizeMode="cover" onLoadEnd={() => setMarkerTracksViewChanges(prev => prev[clusterKey] === false ? prev : { ...prev, [clusterKey]: false })} />
+                    <Image source={{ uri: profilePicUrl }} style={{ width: '100%', height: '100%', borderRadius: 31, overflow: 'hidden' }} resizeMode="cover" onLoadEnd={() => setMarkerTracksViewChanges(prev => prev[clusterKey] === false ? prev : { ...prev, [clusterKey]: false })} />
                   ) : (
                     <View style={{ width: '100%', height: '100%', borderRadius: 31, backgroundColor: PincTheme.colors.card }} />
                   )}
@@ -584,13 +584,13 @@ export const MapScreen: React.FC<MapScreenProps> = ({
               )}
 
               {/* Unified Profile Marker */}
-              <View style={{ alignItems: 'center' }}>
+              <View style={{ alignItems: 'center', transform: [{ scale: zoomScale }] }}>
                 {isLiveNews && <BlinkingLiveNewsBadge />}
-                <View style={{ width: 68, height: 68, borderRadius: 34, padding: 3, backgroundColor: getTierColor(followerStatsCache[pin.userId] || 0), ...PincTheme.shadows.md }}>
+                <View style={{ width: 68, height: 68, borderRadius: 34, padding: 3, backgroundColor: getTierColor(followerStatsCache[pin.userId] || 0), overflow: 'hidden', ...PincTheme.shadows.md }}>
                   {pin.user_profile_pic ? (
                     <Image 
                       source={{ uri: pin.user_profile_pic }} 
-                      style={{ width: '100%', height: '100%', borderRadius: 31 }} 
+                      style={{ width: '100%', height: '100%', borderRadius: 31, overflow: 'hidden' }} 
                       resizeMode="cover" 
                       onLoadEnd={() => setMarkerTracksViewChanges(prev => prev[pinKey] === false ? prev : { ...prev, [pinKey]: false })} 
                     />
