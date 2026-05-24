@@ -118,6 +118,13 @@ const FeedItem = ({
       {/* Media Background */}
       {item.media_type === "video" ? (
         <View style={[styles.media, { backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' }]}>
+          {item.thumbnail_url && (
+            <Image
+              source={{ uri: item.thumbnail_url }}
+              style={[styles.media, { position: 'absolute' }]}
+              resizeMode="contain"
+            />
+          )}
           <Video
             source={{ uri: item.image_url }}
             style={[styles.media, { position: 'absolute' }]}
@@ -126,13 +133,6 @@ const FeedItem = ({
             isLooping
             useNativeControls={false}
           />
-          {(!isVisible && item.thumbnail_url) && (
-            <Image
-              source={{ uri: item.thumbnail_url }}
-              style={[styles.media, { position: 'absolute' }]}
-              resizeMode="contain"
-            />
-          )}
         </View>
       ) : (
         <Image

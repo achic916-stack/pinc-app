@@ -374,9 +374,8 @@ export const PincButton: React.FC<PincButtonProps> = ({
               <ActivityIndicator size="small" color="#FFF" />
             </View>
           ) : (
-            <View style={[styles.fabImage, { backgroundColor: PincTheme.colors.primary, borderRadius: 26, alignItems: "center", justifyContent: "center", flexDirection: 'row' }]}>
-               <Text style={{ fontSize: 22, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.5 }}>pinc</Text>
-               <Text style={{ fontSize: 22, fontWeight: '400', color: '#1A1A1A', letterSpacing: -0.5, marginLeft: 2 }}>story</Text>
+            <View style={[styles.fabImage, { alignItems: "center", justifyContent: "center" }]}>
+               <Image source={require("../assets/pinc_story_btn.png")} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
             </View>
           )}
         </TouchableOpacity>
