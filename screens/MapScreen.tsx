@@ -46,6 +46,8 @@ const isVideoUrl = (url: string | null | undefined): boolean => {
   );
 };
 
+const getMarkerSize = (scale: number) => Math.floor(Math.max(34, Math.min(54, 44 * scale)));
+
 interface MapScreenProps {
   venues: Venue[]; // To be deprecated later
   allPins: Pin[];
@@ -473,7 +475,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
           const tierColor = nearestPin ? getTierColor(followerStatsCache[nearestPin.userId] || 0) : '#E0E0E0';
           const displayName = nearestPin?.username || "";
 
-          const scaledSize = Math.floor(Math.max(34, 68 * zoomScale));
+          const scaledSize = getMarkerSize(zoomScale);
           const scaledRadius = scaledSize / 2;
           const innerSize = scaledSize - 6;
           const innerRadius = innerSize / 2;
@@ -556,7 +558,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                 isVideoUrl(photoUrl) ||
                 (markerTracksViewChanges[pinKey] ?? true)
               }
-              anchor={isLiveNews ? { x: 0.5, y: 0.5 } : { x: 0.5, y: 0.68 }}
+              anchor={{ x: 0.5, y: 0.5 }}
             >
               {/* Red Minus Delete Badge Overlay */}
               {isDeleteMode && (
@@ -576,16 +578,16 @@ export const MapScreen: React.FC<MapScreenProps> = ({
 
               {/* Unified Profile Marker */}
               <View style={{ alignItems: 'center' }}>
-                <View style={{ width: Math.floor(Math.max(34, 68 * zoomScale)), height: Math.floor(Math.max(34, 68 * zoomScale)), borderRadius: Math.floor(Math.max(34, 68 * zoomScale))/2, padding: isLiveNews ? 4 : 3, backgroundColor: isLiveNews ? PincTheme.colors.crowdRed : getTierColor(followerStatsCache[pin.userId] || 0), overflow: 'hidden', ...PincTheme.shadows.md }}>
+                <View style={{ width: getMarkerSize(zoomScale), height: getMarkerSize(zoomScale), borderRadius: getMarkerSize(zoomScale)/2, padding: isLiveNews ? 4 : 3, backgroundColor: isLiveNews ? PincTheme.colors.crowdRed : getTierColor(followerStatsCache[pin.userId] || 0), overflow: 'hidden', ...PincTheme.shadows.md }}>
                   {pin.user_profile_pic ? (
                     <RNImage 
                       source={{ uri: pin.user_profile_pic }} 
-                      style={{ width: Math.floor(Math.max(34, 68 * zoomScale))-(isLiveNews ? 8 : 6), height: Math.floor(Math.max(34, 68 * zoomScale))-(isLiveNews ? 8 : 6), borderRadius: (Math.floor(Math.max(34, 68 * zoomScale))-(isLiveNews ? 8 : 6))/2, overflow: 'hidden' }} 
+                      style={{ width: getMarkerSize(zoomScale)-(isLiveNews ? 8 : 6), height: getMarkerSize(zoomScale)-(isLiveNews ? 8 : 6), borderRadius: (getMarkerSize(zoomScale)-(isLiveNews ? 8 : 6))/2, overflow: 'hidden' }} 
                       resizeMode="cover" 
                       onLoadEnd={() => setMarkerTracksViewChanges(prev => prev[pinKey] === false ? prev : { ...prev, [pinKey]: false })} 
                     />
                   ) : (
-                    <View style={{ width: Math.floor(Math.max(34, 68 * zoomScale))-(isLiveNews ? 8 : 6), height: Math.floor(Math.max(34, 68 * zoomScale))-(isLiveNews ? 8 : 6), borderRadius: (Math.floor(Math.max(34, 68 * zoomScale))-(isLiveNews ? 8 : 6))/2, backgroundColor: PincTheme.colors.card }} />
+                    <View style={{ width: getMarkerSize(zoomScale)-(isLiveNews ? 8 : 6), height: getMarkerSize(zoomScale)-(isLiveNews ? 8 : 6), borderRadius: (getMarkerSize(zoomScale)-(isLiveNews ? 8 : 6))/2, backgroundColor: PincTheme.colors.card }} />
                   )}
                 </View>
                 {pin.username ? (
