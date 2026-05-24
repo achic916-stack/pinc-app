@@ -12,7 +12,8 @@ import {
   Keyboard,
   Modal,
   PanResponder,
-  Platform
+  Platform,
+  Image as RNImage
 } from "react-native";
 import * as Location from "expo-location";
 import { Image } from "expo-image";
@@ -489,18 +490,24 @@ export const MapScreen: React.FC<MapScreenProps> = ({
           const tierColor = nearestPin ? getTierColor(followerStatsCache[nearestPin.userId] || 0) : '#E0E0E0';
           const displayName = nearestPin?.username || "";
 
+          const scaledSize = Math.floor(Math.max(34, 68 * zoomScale));
+          const scaledRadius = scaledSize / 2;
+          const innerSize = scaledSize - 6;
+          const innerRadius = innerSize / 2;
+          const textSize = Math.max(9, Math.floor(11 * zoomScale));
+
           return (
             <Marker key={clusterKey} coordinate={{ latitude: centerLat, longitude: centerLng }} onPress={onPress} tracksViewChanges={markerTracksViewChanges[clusterKey] ?? true}>
-              <View style={{ alignItems: 'center', transform: [{ scale: zoomScale }] }}>
-                <View style={{ width: 68, height: 68, borderRadius: 34, padding: 3, backgroundColor: tierColor, overflow: 'hidden', ...PincTheme.shadows.md }}>
+              <View style={{ alignItems: 'center' }}>
+                <View style={{ width: scaledSize, height: scaledSize, borderRadius: scaledRadius, padding: 3, backgroundColor: tierColor, overflow: 'hidden', ...PincTheme.shadows.md }}>
                   {profilePicUrl ? (
-                    <Image source={{ uri: profilePicUrl }} style={{ width: '100%', height: '100%', borderRadius: 31, overflow: 'hidden' }} resizeMode="cover" onLoadEnd={() => setMarkerTracksViewChanges(prev => prev[clusterKey] === false ? prev : { ...prev, [clusterKey]: false })} />
+                    <RNImage source={{ uri: profilePicUrl }} style={{ width: innerSize, height: innerSize, borderRadius: innerRadius, overflow: 'hidden' }} resizeMode="cover" onLoadEnd={() => setMarkerTracksViewChanges(prev => prev[clusterKey] === false ? prev : { ...prev, [clusterKey]: false })} />
                   ) : (
-                    <View style={{ width: '100%', height: '100%', borderRadius: 31, backgroundColor: PincTheme.colors.card }} />
+                    <View style={{ width: innerSize, height: innerSize, borderRadius: innerRadius, backgroundColor: PincTheme.colors.card }} />
                   )}
                 </View>
                 {displayName ? (
-                  <Text style={{ marginTop: 4, fontSize: 11, fontWeight: '800', color: PincTheme.colors.textPrimary, textShadowColor: '#FFF', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 }}>
+                  <Text style={{ marginTop: 4, fontSize: textSize, fontWeight: '800', color: PincTheme.colors.textPrimary, textShadowColor: '#FFF', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 }}>
                     {displayName}
                   </Text>
                 ) : null}
@@ -585,22 +592,22 @@ export const MapScreen: React.FC<MapScreenProps> = ({
               )}
 
               {/* Unified Profile Marker */}
-              <View style={{ alignItems: 'center', transform: [{ scale: zoomScale }] }}>
+              <View style={{ alignItems: 'center' }}>
                 {isLiveNews && <BlinkingLiveNewsBadge />}
-                <View style={{ width: 68, height: 68, borderRadius: 34, padding: 3, backgroundColor: getTierColor(followerStatsCache[pin.userId] || 0), overflow: 'hidden', ...PincTheme.shadows.md }}>
+                <View style={{ width: Math.floor(Math.max(34, 68 * zoomScale)), height: Math.floor(Math.max(34, 68 * zoomScale)), borderRadius: Math.floor(Math.max(34, 68 * zoomScale))/2, padding: 3, backgroundColor: getTierColor(followerStatsCache[pin.userId] || 0), overflow: 'hidden', ...PincTheme.shadows.md }}>
                   {pin.user_profile_pic ? (
-                    <Image 
+                    <RNImage 
                       source={{ uri: pin.user_profile_pic }} 
-                      style={{ width: '100%', height: '100%', borderRadius: 31, overflow: 'hidden' }} 
+                      style={{ width: Math.floor(Math.max(34, 68 * zoomScale))-6, height: Math.floor(Math.max(34, 68 * zoomScale))-6, borderRadius: (Math.floor(Math.max(34, 68 * zoomScale))-6)/2, overflow: 'hidden' }} 
                       resizeMode="cover" 
                       onLoadEnd={() => setMarkerTracksViewChanges(prev => prev[pinKey] === false ? prev : { ...prev, [pinKey]: false })} 
                     />
                   ) : (
-                    <View style={{ width: '100%', height: '100%', borderRadius: 31, backgroundColor: PincTheme.colors.card }} />
+                    <View style={{ width: Math.floor(Math.max(34, 68 * zoomScale))-6, height: Math.floor(Math.max(34, 68 * zoomScale))-6, borderRadius: (Math.floor(Math.max(34, 68 * zoomScale))-6)/2, backgroundColor: PincTheme.colors.card }} />
                   )}
                 </View>
                 {pin.username ? (
-                  <Text style={{ marginTop: 4, fontSize: 11, fontWeight: '800', color: PincTheme.colors.textPrimary, textShadowColor: '#FFF', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 }}>
+                  <Text style={{ marginTop: 4, fontSize: Math.max(9, Math.floor(11 * zoomScale)), fontWeight: '800', color: PincTheme.colors.textPrimary, textShadowColor: '#FFF', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 }}>
                     {pin.username}
                   </Text>
                 ) : null}
