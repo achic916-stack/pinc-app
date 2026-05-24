@@ -152,7 +152,7 @@ const FeedItem = ({
       {item.post_type === "live_news" && (
         <View style={styles.liveNewsHeader}>
           <View style={styles.liveNewsBadge}>
-            <Text style={styles.liveNewsText}>LIVE NEWS</Text>
+            <Text style={styles.liveNewsText}>STORY</Text>
           </View>
         </View>
       )}

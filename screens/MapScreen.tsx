@@ -119,44 +119,6 @@ const minimalMapStyle = [
 
 // Removed RadarPulse
 
-const BlinkingLiveNewsBadge: React.FC<{ zoomScale?: number }> = ({ zoomScale = 1 }) => {
-  const opacityVal = useRef(new Animated.Value(1)).current;
-  useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(opacityVal, { toValue: 0.3, duration: 600, useNativeDriver: true }),
-        Animated.timing(opacityVal, { toValue: 1, duration: 600, useNativeDriver: true })
-      ])
-    ).start();
-  }, []);
-  
-  const topOffset = Math.floor(-10 * zoomScale);
-  const paddingH = Math.max(4, Math.floor(8 * zoomScale));
-  const paddingV = Math.max(1, Math.floor(2 * zoomScale));
-  const borderRadius = Math.max(5, Math.floor(10 * zoomScale));
-  const fontSize = Math.max(5, Math.floor(8 * zoomScale));
-  const borderWidth = Math.max(0.5, 1.5 * zoomScale);
-  const minWidth = Math.floor(60 * zoomScale);
-
-  return (
-    <Animated.View style={[
-      styles.liveNewsBadge, 
-      { 
-        opacity: opacityVal,
-        top: topOffset,
-        paddingHorizontal: paddingH,
-        paddingVertical: paddingV,
-        borderRadius: borderRadius,
-        borderWidth: borderWidth,
-        minWidth: minWidth,
-        alignItems: 'center'
-      }
-    ]}>
-      <Text style={[styles.liveNewsBadgeText, { fontSize: fontSize }]} numberOfLines={1}>PINC STORY</Text>
-    </Animated.View>
-  );
-};
-
 export const MapScreen: React.FC<MapScreenProps> = ({
   venues,
   allPins = [],
@@ -614,19 +576,18 @@ export const MapScreen: React.FC<MapScreenProps> = ({
 
               {/* Unified Profile Marker */}
               <View style={{ alignItems: 'center' }}>
-                <View style={{ width: Math.floor(Math.max(34, 68 * zoomScale)), height: Math.floor(Math.max(34, 68 * zoomScale)), borderRadius: Math.floor(Math.max(34, 68 * zoomScale))/2, padding: 3, backgroundColor: getTierColor(followerStatsCache[pin.userId] || 0), overflow: 'hidden', ...PincTheme.shadows.md }}>
+                <View style={{ width: Math.floor(Math.max(34, 68 * zoomScale)), height: Math.floor(Math.max(34, 68 * zoomScale)), borderRadius: Math.floor(Math.max(34, 68 * zoomScale))/2, padding: isLiveNews ? 4 : 3, backgroundColor: isLiveNews ? PincTheme.colors.crowdRed : getTierColor(followerStatsCache[pin.userId] || 0), overflow: 'hidden', ...PincTheme.shadows.md }}>
                   {pin.user_profile_pic ? (
                     <RNImage 
                       source={{ uri: pin.user_profile_pic }} 
-                      style={{ width: Math.floor(Math.max(34, 68 * zoomScale))-6, height: Math.floor(Math.max(34, 68 * zoomScale))-6, borderRadius: (Math.floor(Math.max(34, 68 * zoomScale))-6)/2, overflow: 'hidden' }} 
+                      style={{ width: Math.floor(Math.max(34, 68 * zoomScale))-(isLiveNews ? 8 : 6), height: Math.floor(Math.max(34, 68 * zoomScale))-(isLiveNews ? 8 : 6), borderRadius: (Math.floor(Math.max(34, 68 * zoomScale))-(isLiveNews ? 8 : 6))/2, overflow: 'hidden' }} 
                       resizeMode="cover" 
                       onLoadEnd={() => setMarkerTracksViewChanges(prev => prev[pinKey] === false ? prev : { ...prev, [pinKey]: false })} 
                     />
                   ) : (
-                    <View style={{ width: Math.floor(Math.max(34, 68 * zoomScale))-6, height: Math.floor(Math.max(34, 68 * zoomScale))-6, borderRadius: (Math.floor(Math.max(34, 68 * zoomScale))-6)/2, backgroundColor: PincTheme.colors.card }} />
+                    <View style={{ width: Math.floor(Math.max(34, 68 * zoomScale))-(isLiveNews ? 8 : 6), height: Math.floor(Math.max(34, 68 * zoomScale))-(isLiveNews ? 8 : 6), borderRadius: (Math.floor(Math.max(34, 68 * zoomScale))-(isLiveNews ? 8 : 6))/2, backgroundColor: PincTheme.colors.card }} />
                   )}
                 </View>
-                {isLiveNews && <BlinkingLiveNewsBadge zoomScale={zoomScale} />}
                 {pin.username ? (
                   <Text style={{ marginTop: 0, fontSize: Math.max(9, Math.floor(11 * zoomScale)), fontWeight: '800', color: PincTheme.colors.textPrimary, textShadowColor: '#FFF', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 }}>
                     {pin.username}
@@ -1140,25 +1101,7 @@ const styles = StyleSheet.create({
     borderRadius: 31,
     backgroundColor: "#FDFBF7"
   },
-  liveNewsBadge: {
-    position: "absolute",
-    top: -10,
-    backgroundColor: PincTheme.colors.crowdRed,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
-    borderWidth: 1.5,
-    borderColor: "#FFF",
-    zIndex: 100,
-    elevation: 100,
-    ...PincTheme.shadows.sm
-  },
-  liveNewsBadgeText: {
-    color: "#FFF",
-    fontSize: 8,
-    fontWeight: "bold",
-    letterSpacing: 0.5
-  },
+
   liveSituationLabel: {
     position: "absolute",
     left: 65,
