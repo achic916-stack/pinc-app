@@ -252,10 +252,11 @@ export const MapScreen: React.FC<MapScreenProps> = ({
 
   // Helper for determining tier color
   const getTierColor = (followersCount: number = 0) => {
-    if (followersCount >= 10000) return '#f1c40f'; // Gold
+    if (followersCount >= 100000) return '#f1c40f'; // Gold
+    if (followersCount >= 10000) return '#FF2E63'; // Pink
     if (followersCount >= 1000) return '#9b59b6'; // Purple
     if (followersCount >= 100) return '#3498db'; // Blue
-    return '#E0E0E0'; // Gray (Default)
+    return '#E0E0E0'; // Light Gray (Default)
   };
 
   // Lifted helper: find latest pin + photo URL for a venue
