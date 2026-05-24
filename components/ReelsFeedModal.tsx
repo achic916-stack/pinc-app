@@ -269,6 +269,7 @@ export const ReelsFeedModal: React.FC<ReelsFeedModalProps> = ({
             keyExtractor={(item) => item.pinId || Math.random().toString()}
             horizontal
             pagingEnabled
+            snapToInterval={windowWidth}
             snapToAlignment="center"
             decelerationRate="fast"
             showsHorizontalScrollIndicator={false}

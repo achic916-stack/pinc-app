@@ -427,6 +427,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
         customMapStyle={minimalMapStyle}
         showsUserLocation
         showsMyLocationButton={false}
+        spiralEnabled={false}
         onRegionChange={handleRegionChange}
         onRegionChangeComplete={handleRegionChangeComplete}
         clusterColor={PincTheme.colors.primary}
