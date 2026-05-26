@@ -66,6 +66,7 @@ export const CachedVideo: React.FC<CachedVideoProps> = ({ source, ...props }) =>
         ${props.shouldPlay ? "autoplay" : ""} 
         ${props.isLooping ? "loop" : ""} 
         ${props.useNativeControls ? "controls" : ""} 
+        preload="auto"
         playsinline 
         webkit-playsinline
       ></video>

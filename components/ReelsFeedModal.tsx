@@ -128,10 +128,10 @@ const FeedItem = ({
             />
           )}
           {shouldMountVideo && (
-            <Video
+            <CachedVideo
               source={{ uri: item.image_url }}
               style={[styles.media, { position: 'absolute' }]}
-              resizeMode={ResizeMode.CONTAIN}
+              resizeMode="contain"
               shouldPlay={isVisible}
               isLooping
               useNativeControls={false}
@@ -276,7 +276,7 @@ export const ReelsFeedModal: React.FC<ReelsFeedModalProps> = ({
               <FeedItem 
                 item={item} 
                 isVisible={index === currentIndex} 
-                shouldMountVideo={Math.abs(index - currentIndex) <= 1}
+                shouldMountVideo={Math.abs(index - currentIndex) <= 2}
                 onCommentPress={() => setActiveCommentPinId(item.pinId || null)}
               />
             )}

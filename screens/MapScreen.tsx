@@ -24,7 +24,7 @@ import RNMapClustering from "react-native-map-clustering";
 const Marker = Platform.OS === 'web' ? View : RNMaps.Marker;
 const PROVIDER_GOOGLE = Platform.OS === 'web' ? null : RNMaps.PROVIDER_GOOGLE;
 const MapView = Platform.OS === 'web' ? View : RNMapClustering;
-const Audio = { Sound: { createAsync: async () => ({ sound: { playAsync: async () => {}, stopAsync: async () => {}, unloadAsync: async () => {} } }) }, setAudioModeAsync: async () => {} }; const Video = () => null; const ResizeMode = { COVER: 'cover', CONTAIN: 'contain' };
+const Audio = { Sound: { createAsync: async () => ({ sound: { playAsync: async () => { }, stopAsync: async () => { }, unloadAsync: async () => { } } }) }, setAudioModeAsync: async () => { } }; const Video = () => null; const ResizeMode = { COVER: 'cover', CONTAIN: 'contain' };
 
 import { CachedVideo } from "../components/CachedVideo";
 import { PincTheme } from "../styles/theme";
@@ -36,9 +36,9 @@ const isVideoUrl = (url: string | null | undefined): boolean => {
   if (!url) return false;
   const urlLower = url.toLowerCase();
   return (
-    urlLower.endsWith(".mp4") || 
-    urlLower.endsWith(".mov") || 
-    urlLower.endsWith(".m4v") || 
+    urlLower.endsWith(".mp4") ||
+    urlLower.endsWith(".mov") ||
+    urlLower.endsWith(".m4v") ||
     urlLower.endsWith(".3gp") ||
     urlLower.includes("video") ||
     urlLower.includes(".mp4?") ||
@@ -66,6 +66,7 @@ interface MapScreenProps {
 }
 
 // Detailed Light Lifestyle Map Styling for Google Maps
+// All POI labels (restaurants, shops, services, etc.) are hidden for a clean look
 const minimalMapStyle = [
   {
     featureType: "all",
@@ -88,20 +89,88 @@ const minimalMapStyle = [
     stylers: [{ color: "#E0E9ED" }]
   },
   {
+    featureType: "water",
+    elementType: "labels",
+    stylers: [{ visibility: "off" }]
+  },
+  {
     featureType: "landscape",
     elementType: "geometry.fill",
     stylers: [{ color: "#FAF6EF" }]
   },
   {
+    featureType: "landscape.man_made",
+    elementType: "all",
+    stylers: [{ visibility: "off" }]
+  },
+  // === ซ่อน POI ทั้งหมด (ร้านอาหาร, ร้านค้า, สถานบริการ, ฯลฯ) ===
+  {
     featureType: "poi",
+    elementType: "all",
+    stylers: [{ visibility: "off" }]
+  },
+  {
+    featureType: "poi",
+    elementType: "labels",
+    stylers: [{ visibility: "off" }]
+  },
+  {
+    featureType: "poi",
+    elementType: "labels.text",
+    stylers: [{ visibility: "off" }]
+  },
+  {
+    featureType: "poi",
+    elementType: "labels.icon",
+    stylers: [{ visibility: "off" }]
+  },
+  {
+    featureType: "poi.business",
+    elementType: "all",
+    stylers: [{ visibility: "off" }]
+  },
+  {
+    featureType: "poi.attraction",
     elementType: "all",
     stylers: [{ visibility: "on" }]
   },
+  {
+    featureType: "poi.government",
+    elementType: "all",
+    stylers: [{ visibility: "off" }]
+  },
+  {
+    featureType: "poi.medical",
+    elementType: "all",
+    stylers: [{ visibility: "off" }]
+  },
+  {
+    featureType: "poi.school",
+    elementType: "all",
+    stylers: [{ visibility: "off" }]
+  },
+  {
+    featureType: "poi.place_of_worship",
+    elementType: "all",
+    stylers: [{ visibility: "off" }]
+  },
+  {
+    featureType: "poi.sports_complex",
+    elementType: "all",
+    stylers: [{ visibility: "off" }]
+  },
+  // สวนสาธารณะ: เก็บพื้นที่สีเขียวไว้แต่ซ่อนชื่อ
   {
     featureType: "poi.park",
     elementType: "geometry.fill",
     stylers: [{ color: "#E8F0E6" }, { visibility: "on" }]
   },
+  {
+    featureType: "poi.park",
+    elementType: "labels",
+    stylers: [{ visibility: "off" }]
+  },
+  // ถนน: แสดง geometry แต่ซ่อนชื่อถนนเพื่อความสะอาด
   {
     featureType: "road",
     elementType: "geometry",
@@ -110,12 +179,39 @@ const minimalMapStyle = [
   {
     featureType: "road",
     elementType: "labels",
-    stylers: [{ visibility: "on" }]
+    stylers: [{ visibility: "off" }]
   },
+  {
+    featureType: "road.highway",
+    elementType: "labels",
+    stylers: [{ visibility: "off" }]
+  },
+  {
+    featureType: "road.arterial",
+    elementType: "labels",
+    stylers: [{ visibility: "off" }]
+  },
+  {
+    featureType: "road.local",
+    elementType: "labels",
+    stylers: [{ visibility: "off" }]
+  },
+  // ซ่อนระบบขนส่ง
   {
     featureType: "transit",
     elementType: "all",
-    stylers: [{ visibility: "on" }]
+    stylers: [{ visibility: "off" }]
+  },
+  // ซ่อน labels ชุมชนและที่ดิน
+  {
+    featureType: "administrative.neighborhood",
+    elementType: "labels",
+    stylers: [{ visibility: "off" }]
+  },
+  {
+    featureType: "administrative.land_parcel",
+    elementType: "labels",
+    stylers: [{ visibility: "off" }]
   }
 ];
 
@@ -176,12 +272,12 @@ export const MapScreen: React.FC<MapScreenProps> = ({
   useEffect(() => {
     if (selectedMemoryPin && mapRef.current) {
       setIsMemorySheetVisible(false);
-      
-      const coordinate = { 
-        latitude: selectedMemoryPin.latitude, 
-        longitude: selectedMemoryPin.longitude 
+
+      const coordinate = {
+        latitude: selectedMemoryPin.latitude,
+        longitude: selectedMemoryPin.longitude
       };
-      
+
       // Fly to animation
       (mapRef.current as any).animateCamera({
         center: coordinate,
@@ -240,7 +336,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
     const fetchFollowerStats = async () => {
       const uniqueUserIds = Array.from(new Set(validPins.map(p => p.userId).filter(Boolean)));
       const uncachedIds = uniqueUserIds.filter(id => followerStatsCache[id] === undefined);
-      
+
       if (uncachedIds.length > 0) {
         const newStats: Record<string, number> = {};
         await Promise.all(
@@ -275,15 +371,15 @@ export const MapScreen: React.FC<MapScreenProps> = ({
     let latestPin = venuePins.length > 0 ? venuePins[0] : null;
 
     if (latestPin) {
-      photoUrl = (latestPin.media_type === "video" && latestPin.thumbnail_url) 
-        ? latestPin.thumbnail_url 
+      photoUrl = (latestPin.media_type === "video" && latestPin.thumbnail_url)
+        ? latestPin.thumbnail_url
         : latestPin.image_url;
     }
 
     const timestamp = latestPin ? new Date(latestPin.timestamp).getTime() : 0;
     return { photoUrl, timestamp, latestPin };
   }, [validPins]);
-  
+
   // Dynamic zoom scale and region delta tracking
   const [zoomScale, setZoomScale] = useState(1.0);
   const [regionDelta, setRegionDelta] = useState({ latitudeDelta: 0.015, longitudeDelta: 0.015 });
@@ -301,7 +397,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
     const calculatedScale = baseDelta / (region.latitudeDelta || baseDelta);
     // Clamp scale to keep icons legible (between 0.4 and 1.8)
     const clampedScale = Math.max(0.4, Math.min(1.8, calculatedScale));
-    
+
     setZoomScale(clampedScale);
     setRegionDelta({
       latitudeDelta: region.latitudeDelta || 0.015,
@@ -324,10 +420,10 @@ export const MapScreen: React.FC<MapScreenProps> = ({
 
   const initialRegion = userLocation
     ? {
-        ...userLocation,
-        latitudeDelta: 0.015,
-        longitudeDelta: 0.015
-      }
+      ...userLocation,
+      latitudeDelta: 0.015,
+      longitudeDelta: 0.015
+    }
     : defaultRegion;
 
   // Filter venues based on isFilterFriends state
@@ -342,9 +438,9 @@ export const MapScreen: React.FC<MapScreenProps> = ({
   const searchResults = useMemo(() => {
     if (!searchQuery.trim()) return [];
     const queryStr = searchQuery.toLowerCase().trim();
-    
-    const matched = displayedVenues.filter((venue) => 
-      venue.name.toLowerCase().includes(queryStr) || 
+
+    const matched = displayedVenues.filter((venue) =>
+      venue.name.toLowerCase().includes(queryStr) ||
       venue.category.toLowerCase().includes(queryStr)
     );
 
@@ -390,12 +486,12 @@ export const MapScreen: React.FC<MapScreenProps> = ({
               }, 200);
             }}
           />
-          <TouchableOpacity 
+          <TouchableOpacity
             onPress={() => {
               setSearchQuery("");
               setIsSearchVisible(false);
               Keyboard.dismiss();
-            }} 
+            }}
             style={styles.clearButton}
           >
             <Text style={styles.clearButtonText}>✕</Text>
@@ -410,7 +506,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                 <Text style={styles.emptyResultText}>No cafes found</Text>
               </View>
             ) : (
-              <ScrollView 
+              <ScrollView
                 keyboardShouldPersistTaps="handled"
                 style={styles.dropdownScroll}
               >
@@ -424,7 +520,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                       <View style={styles.resultCategoryPlaceholder}>
                         <Text style={{ fontSize: 14 }}>☕</Text>
                       </View>
-                      
+
                       <View style={styles.resultTextContainer}>
                         <Text style={styles.resultName}>{venue.name}</Text>
                         <Text style={styles.resultCategory}>{venue.category.toUpperCase()}</Text>
@@ -468,6 +564,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
         style={styles.map}
         initialRegion={initialRegion}
         customMapStyle={minimalMapStyle}
+        showsPointsOfInterest={false}
         showsUserLocation
         showsMyLocationButton={false}
         spiralEnabled={false}
@@ -558,14 +655,14 @@ export const MapScreen: React.FC<MapScreenProps> = ({
           const isLiveNews = pin.post_type === "live_news";
           const isDeleteMode = deleteModePinId === pin.pinId;
           const pinKey = pin.pinId || `${pin.latitude}-${pin.longitude}-${pin.timestamp}`;
-          
+
           return (
             <Marker
               key={pinKey}
               coordinate={{ latitude: pin.latitude, longitude: pin.longitude }}
               onPress={() => {
                 if (isDeleteMode) return;
-                
+
                 if (group.length > 1) {
                   // If it's a grouped pin, show all pins in the ReelsFeedModal
                   setReelsFeedPins(group);
@@ -587,8 +684,8 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                 }
               }}
               tracksViewChanges={
-                tracksViewChangesDuringZoom || 
-                pin.media_type === "video" || 
+                tracksViewChangesDuringZoom ||
+                pin.media_type === "video" ||
                 isVideoUrl(photoUrl) ||
                 (markerTracksViewChanges[pinKey] ?? true)
               }
@@ -597,7 +694,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
               {/* Red Minus Delete Badge Overlay */}
               {isDeleteMode && (
                 <View style={{ position: 'absolute', top: '50%', left: '50%', marginTop: -20, marginLeft: -18, zIndex: 100, elevation: 20 }}>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     onPress={(e) => {
                       e.stopPropagation();
                       if (onDeletePin) onDeletePin(pin);
@@ -612,16 +709,16 @@ export const MapScreen: React.FC<MapScreenProps> = ({
 
               {/* Unified Profile Marker */}
               <View style={{ alignItems: 'center' }}>
-                <View style={{ width: getMarkerSize(zoomScale), height: getMarkerSize(zoomScale), borderRadius: getMarkerSize(zoomScale)/2, padding: 3, backgroundColor: isLiveNews ? PincTheme.colors.crowdRed : getTierColor(followerStatsCache[pin.userId] || 0), overflow: 'hidden', ...PincTheme.shadows.md }}>
+                <View style={{ width: getMarkerSize(zoomScale), height: getMarkerSize(zoomScale), borderRadius: getMarkerSize(zoomScale) / 2, padding: 3, backgroundColor: isLiveNews ? PincTheme.colors.crowdRed : getTierColor(followerStatsCache[pin.userId] || 0), overflow: 'hidden', ...PincTheme.shadows.md }}>
                   {pin.user_profile_pic ? (
-                    <RNImage 
-                      source={{ uri: pin.user_profile_pic }} 
-                      style={{ width: getMarkerSize(zoomScale)-6, height: getMarkerSize(zoomScale)-6, borderRadius: (getMarkerSize(zoomScale)-6)/2, overflow: 'hidden' }} 
-                      resizeMode="cover" 
-                      onLoadEnd={() => setMarkerTracksViewChanges(prev => prev[pinKey] === false ? prev : { ...prev, [pinKey]: false })} 
+                    <RNImage
+                      source={{ uri: pin.user_profile_pic }}
+                      style={{ width: getMarkerSize(zoomScale) - 6, height: getMarkerSize(zoomScale) - 6, borderRadius: (getMarkerSize(zoomScale) - 6) / 2, overflow: 'hidden' }}
+                      resizeMode="cover"
+                      onLoadEnd={() => setMarkerTracksViewChanges(prev => prev[pinKey] === false ? prev : { ...prev, [pinKey]: false })}
                     />
                   ) : (
-                    <View style={{ width: getMarkerSize(zoomScale)-6, height: getMarkerSize(zoomScale)-6, borderRadius: (getMarkerSize(zoomScale)-6)/2, backgroundColor: PincTheme.colors.card }} />
+                    <View style={{ width: getMarkerSize(zoomScale) - 6, height: getMarkerSize(zoomScale) - 6, borderRadius: (getMarkerSize(zoomScale) - 6) / 2, backgroundColor: PincTheme.colors.card }} />
                   )}
                 </View>
                 {pin.username ? (
@@ -660,7 +757,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
       />
 
       {/* Main Bottom Dashboard Tab Bar Overlay */}
-      <TouchableOpacity 
+      <TouchableOpacity
         style={styles.gpsButton}
         onPress={async () => {
           try {
@@ -710,7 +807,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
       </TouchableOpacity>
 
       {/* IG Reels-Style Feed */}
-      <ReelsFeedModal 
+      <ReelsFeedModal
         visible={reelsFeedPins.length > 0}
         pins={reelsFeedPins}
         onClose={() => setReelsFeedPins([])}
@@ -891,7 +988,7 @@ const styles = StyleSheet.create({
     width: 250,
     height: 250
   },
-    floatingUsernameText: {
+  floatingUsernameText: {
     position: "absolute",
     top: 12,
     color: "#000000",
