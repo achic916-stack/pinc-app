@@ -743,6 +743,34 @@ export const MapScreen: React.FC<MapScreenProps> = ({
           </Marker>
         )}
 
+        {/* Advertiser Pins */}
+        {displayedVenues.filter(venue => venue.is_sponsored).map(venue => {
+          const sponsorKey = `sponsor-${venue.venueId}`;
+          return (
+            <Marker
+              key={sponsorKey}
+              coordinate={{ latitude: venue.latitude, longitude: venue.longitude }}
+              onPress={() => onSelectVenue(venue)}
+              tracksViewChanges={markerTracksViewChanges[sponsorKey] ?? true}
+              zIndex={998}
+            >
+              <View style={styles.sponsorMarkerContainer}>
+                {venue.custom_icon_url || venue.cover_image ? (
+                  <RNImage
+                    source={{ uri: venue.custom_icon_url || venue.cover_image }}
+                    style={styles.sponsorMarkerImage}
+                    resizeMode="cover"
+                    onLoadEnd={() => setMarkerTracksViewChanges(prev => prev[sponsorKey] === false ? prev : { ...prev, [sponsorKey]: false })}
+                  />
+                ) : null}
+                <Text style={styles.sponsorMarkerText} numberOfLines={1}>
+                  {venue.name}
+                </Text>
+              </View>
+            </Marker>
+          );
+        })}
+
       </MapView>
 
       {/* Memory Timeline Modal */}
@@ -1333,5 +1361,28 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 24,
     fontFamily: PincTheme.fonts.body
+  },
+  sponsorMarkerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 2,
+    borderColor: '#90EE90', // Light green
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    ...PincTheme.shadows.md,
+  },
+  sponsorMarkerImage: {
+    width: 24,
+    height: 24,
+    borderRadius: 4,
+    marginRight: 6,
+  },
+  sponsorMarkerText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: PincTheme.colors.textPrimary,
+    maxWidth: 100,
   }
 });

@@ -50,8 +50,8 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
             <View style={[styles.packageCard, { borderColor: "#A6A6A6" }]}>
               <View style={[styles.packageHeader, { backgroundColor: "rgba(166, 166, 166, 0.1)" }]}>
                 <View>
-                  <Text style={[styles.packageName, { color: "#777777" }]}>Silver Starter</Text>
-                  <Text style={styles.packageTagline}>เริ่มต้นสร้างตัวตนบนแผนที่</Text>
+                  <Text style={[styles.packageName, { color: "#777777" }]}>Essential</Text>
+                  <Text style={styles.packageTagline}>เรียบง่าย แต่มีตัวตน</Text>
                 </View>
                 <View style={[styles.iconPlaceholder, { borderColor: "#A6A6A6" }]} />
               </View>
@@ -83,8 +83,8 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
               
               <View style={[styles.packageHeader, { backgroundColor: "rgba(255, 193, 7, 0.1)" }]}>
                 <View>
-                  <Text style={[styles.packageName, { color: "#D4A000" }]}>Gold Premium</Text>
-                  <Text style={styles.packageTagline}>โดดเด่น ดึงดูดสายตาลูกค้า</Text>
+                  <Text style={[styles.packageName, { color: "#D4A000" }]}>Signature</Text>
+                  <Text style={styles.packageTagline}>สร้างภาพจำแบรนด์</Text>
                 </View>
                 <View style={[styles.iconPlaceholder, { borderColor: "#FFC107", borderWidth: 2 }]} />
               </View>
@@ -112,8 +112,8 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
             <View style={[styles.packageCard, { borderColor: "#FF4B72", borderWidth: 2.5 }]}>
               <View style={[styles.packageHeader, { backgroundColor: "rgba(255, 75, 114, 0.1)" }]}>
                 <View>
-                  <Text style={[styles.packageName, { color: "#FF4B72" }]}>Pink Ultimate</Text>
-                  <Text style={styles.packageTagline}>ครองพื้นที่ ดึงดูดสูงสุด</Text>
+                  <Text style={[styles.packageName, { color: "#FF4B72" }]}>Destination</Text>
+                  <Text style={styles.packageTagline}>เปลี่ยนยอดวิวเป็นยอดขาย</Text>
                 </View>
                 <View style={[styles.iconPlaceholder, { borderColor: "#FF4B72", borderWidth: 2.5 }]} />
               </View>

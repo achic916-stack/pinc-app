@@ -336,7 +336,6 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                         <Text style={styles.editProfileBtnText}>✏️  Edit Profile</Text>
                       </TouchableOpacity>
 
-                      {/* Hiding business package for v1.0 to comply with Play Store policies
                       <TouchableOpacity
                         style={[styles.editProfileBtn, { backgroundColor: "#FFF0F4", borderColor: "#FF4B72", marginTop: 10 }]}
                         onPress={() => setShowBusinessPackages(true)}
@@ -344,7 +343,6 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                       >
                         <Text style={[styles.editProfileBtnText, { color: "#FF4B72" }]}>🏪 สำหรับร้านค้า</Text>
                       </TouchableOpacity>
-                      */}
                     </View>
                   ) : (
                     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginTop: 16 }}>
