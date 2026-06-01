@@ -18,12 +18,9 @@ export async function compressVideo(
     const result = await Video.compress(
       uri,
       {
-        compressionMethod: 'manual',
-        quality: 'medium',
-        maxWidth: 720,   // Scale width down to max 720 for vertical 720p
-        maxHeight: 1280, // Scale height down to max 1280 for vertical 720p
+        compressionMethod: 'auto',
       },
-      (progress) => {
+      (progress: number) => {
         if (onProgress) {
           onProgress(progress);
         }
