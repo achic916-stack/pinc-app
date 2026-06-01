@@ -10,16 +10,16 @@ export const MapScreen = () => {
         {"\n\n"}
         แผนที่จะไม่แสดงบน Web Browser ครับ
         {"\n\n"}
-        รบกวนคุณลูกค้า **กดปุ่ม + ด้านล่าง** 
+        รบกวนคุณลูกค้า **กดปุ่ม + ด้านล่าง**
         เพื่อดูหน้าต่างที่มีปุ่ม "Pinc Story" และ "ถาวร" ที่เราทำเสร็จไปแล้วได้เลยครับ!
       </Text>
-      
-      <PincButton 
-        onPincSuccess={() => {}}
+
+      <PincButton
+        onPincSuccess={() => { }}
         currentUserId="test_user"
         venues={[]}
         userLocation={null}
-        onPinCreated={() => {}}
+        onPinCreated={() => { }}
         currentUser={{ userId: "test", username: "test", profile_pic: "", bio: "" }}
       />
     </View>

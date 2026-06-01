@@ -25,6 +25,10 @@ import { PincTheme } from "../styles/theme";
 import { Venue, createPin, calculateDistance, db } from "../services/firebase";
 import { collection, addDoc } from "firebase/firestore";
 import { useTranslation } from 'react-i18next';
+import { compressImage } from "../services/imageCompressor";
+import { compressVideo, generateThumbnail } from "../services/videoCompressor";
+
+
 
 const MOCK_TRACKS = [
   { id: "original", title: "Original Audio 🔇", url: "" },
@@ -70,6 +74,8 @@ export const PincButton: React.FC<PincButtonProps> = ({
   
   const [currentGPSLocation, setCurrentGPSLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [processingMessage, setProcessingMessage] = useState<string | null>(null);
+  const [compressionProgress, setCompressionProgress] = useState<number>(0);
   const [isSensorsLoading, setIsSensorsLoading] = useState(false);
   const [isMediaSelectorVisible, setIsMediaSelectorVisible] = useState(false);
 
@@ -79,9 +85,6 @@ export const PincButton: React.FC<PincButtonProps> = ({
   const [playingTrackId, setPlayingTrackId] = useState<string | null>(null);
   const [soundObject, setSoundObject] = useState<Audio.Sound | null>(null);
 
-  // Check role for permanent posting
-  const userRole = currentUser?.role || "USER";
-  const canPostPermanent = userRole === "ADMIN" || userRole === "PREMIUM_STORE";
 
   // Preview Music Logic
   const handlePlayPreview = async (track: typeof MOCK_TRACKS[0]) => {
@@ -274,25 +277,40 @@ export const PincButton: React.FC<PincButtonProps> = ({
 
     setIsSubmitting(true);
     try {
-      // 1. Run AI Safety Check first (Skip for video currently)
+      let mediaToUpload = capturedPhoto;
+      let thumbnailUri = null;
+
+      if (capturedPhoto) {
+        if (capturedMediaType === "image") {
+          setProcessingMessage("Optimizing image...");
+          mediaToUpload = await compressImage(capturedPhoto);
+        } else if (capturedMediaType === "video") {
+          setProcessingMessage("Compressing video... 0%");
+          setCompressionProgress(0);
+          mediaToUpload = await compressVideo(capturedPhoto, (progress) => {
+            const pct = Math.round(progress * 100);
+            setCompressionProgress(progress);
+            setProcessingMessage(`Compressing video... ${pct}%`);
+          });
+
+          setProcessingMessage("Generating video thumbnail...");
+          try {
+            thumbnailUri = await generateThumbnail(mediaToUpload);
+          } catch (e) {
+            console.warn("Could not generate video thumbnail", e);
+          }
+        }
+      }
+
+      // 1.5 Run AI Safety Check first (Skip for video currently)
       if (capturedBase64 && capturedMediaType === "image") {
+        setProcessingMessage("Checking safety guidelines...");
         const { checkImageSafety } = require("../services/firebase");
         await checkImageSafety(capturedBase64);
       }
 
+      setProcessingMessage("Uploading to Pinc...");
       const loc = currentGPSLocation || userLocation || { latitude: 0, longitude: 0 };
-      
-      let thumbnailUri = null;
-      if (capturedMediaType === "video" && capturedPhoto) {
-        try {
-          const { uri } = await VideoThumbnails.getThumbnailAsync(capturedPhoto, {
-            time: 1000, // 1 second in
-          });
-          thumbnailUri = uri;
-        } catch (e) {
-          console.warn("Could not generate video thumbnail", e);
-        }
-      }
       
       // Save Pin to Firebase Firestore & Storage
       await createPin({
@@ -301,12 +319,12 @@ export const PincButton: React.FC<PincButtonProps> = ({
         user_profile_pic: currentUser.profile_pic,
         venueId: finalVenue!.venueId,
         venueCoords: { latitude: finalVenue!.latitude, longitude: finalVenue!.longitude },
-        imageUri: capturedPhoto,
+        imageUri: mediaToUpload,
         textContent: text,
         userCoords: loc,
         reportType: "live_status",
         postType,
-        postDuration: canPostPermanent ? postDuration : "24h",
+        postDuration: postDuration,
         situationDetails: postType === "live_news" ? text : "",
         mediaType: capturedMediaType,
         musicTitle: selectedTrack.id !== "original" ? selectedTrack.title : "",
@@ -331,6 +349,8 @@ export const PincButton: React.FC<PincButtonProps> = ({
       Alert.alert("Submission Failed", error.message || t("errorSubmission"));
     } finally {
       setIsSubmitting(false);
+      setProcessingMessage(null);
+      setCompressionProgress(0);
     }
   };
 
@@ -594,6 +614,29 @@ export const PincButton: React.FC<PincButtonProps> = ({
           </ScrollView>
           </KeyboardAvoidingView>
         </SafeAreaView>
+      </Modal>
+
+      {/* Standalone Fullscreen Loading Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={isSubmitting}
+        onRequestClose={() => {}}
+      >
+        <View style={styles.processingOverlay}>
+          <ActivityIndicator size="large" color="#FFFFFF" style={{ marginBottom: 20 }} />
+          <Text style={styles.processingTitle}>
+            {processingMessage || "Compressing Video... Please wait"}
+          </Text>
+          {compressionProgress > 0 && compressionProgress < 1 && (
+            <View style={styles.progressBarBg}>
+              <View style={[styles.progressBarFill, { width: `${Math.round(compressionProgress * 100)}%` }]} />
+            </View>
+          )}
+          <Text style={styles.processingSubtitle}>
+            Please do not close the app or lock your screen
+          </Text>
+        </View>
       </Modal>
     </>
   );
@@ -1012,5 +1055,39 @@ const styles = StyleSheet.create({
   },
   playPauseBtnInline: {
     marginBottom: 4
+  },
+  processingOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.65)",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 32,
+  },
+  processingTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#FFFFFF",
+    textAlign: "center",
+    marginBottom: 16,
+    fontFamily: PincTheme.fonts.heading,
+  },
+  processingSubtitle: {
+    fontSize: 13,
+    color: "rgba(255, 255, 255, 0.7)",
+    textAlign: "center",
+    fontFamily: PincTheme.fonts.body,
+    marginTop: 16,
+  },
+  progressBarBg: {
+    width: "80%",
+    height: 6,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    borderRadius: 3,
+    overflow: "hidden",
+  },
+  progressBarFill: {
+    height: "100%",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 3,
   }
 });

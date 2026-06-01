@@ -215,7 +215,46 @@ const minimalMapStyle = [
   }
 ];
 
-// Removed RadarPulse
+const RadarPulse: React.FC = () => {
+  const scale = useRef(new Animated.Value(0.8)).current;
+  const opacity = useRef(new Animated.Value(0.6)).current;
+
+  useEffect(() => {
+    const pulseAnimation = Animated.loop(
+      Animated.parallel([
+        Animated.timing(scale, {
+          toValue: 2.2,
+          duration: 2000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacity, {
+          toValue: 0,
+          duration: 2000,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    pulseAnimation.start();
+    return () => pulseAnimation.stop();
+  }, [scale, opacity]);
+
+  return (
+    <Animated.View
+      style={{
+        position: "absolute",
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        borderWidth: 2,
+        borderColor: "#FF4B72",
+        backgroundColor: "rgba(255, 75, 114, 0.15)",
+        transform: [{ scale }],
+        opacity,
+        zIndex: -1,
+      }}
+    />
+  );
+};
 
 export const MapScreen: React.FC<MapScreenProps> = ({
   venues,
@@ -308,20 +347,22 @@ export const MapScreen: React.FC<MapScreenProps> = ({
     });
   }, [allPins]);
 
-  // Group pins within 100 meters
+  // Group pins within 500 meters. The representative pin (group[0]) is the oldest (first posted) pin.
   const groupedValidPins = useMemo(() => {
+    // Sort pins oldest first so that the seed pin for each cluster is the earliest posted pin
+    const sortedPins = [...validPins].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
     const groups: Pin[][] = [];
     const processed = new Set<string>();
 
-    for (const pin of validPins) {
+    for (const pin of sortedPins) {
       if (processed.has(pin.pinId!)) continue;
       const currentGroup = [pin];
       processed.add(pin.pinId!);
 
-      for (const otherPin of validPins) {
+      for (const otherPin of sortedPins) {
         if (processed.has(otherPin.pinId!)) continue;
         const distance = calculateDistance(pin.latitude, pin.longitude, otherPin.latitude, otherPin.longitude);
-        if (distance <= 100) {
+        if (distance <= 500) {
           currentGroup.push(otherPin);
           processed.add(otherPin.pinId!);
         }
@@ -664,8 +705,9 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                 if (isDeleteMode) return;
 
                 if (group.length > 1) {
-                  // If it's a grouped pin, show all pins in the ReelsFeedModal
-                  setReelsFeedPins(group);
+                  // If it's a grouped pin, show all pins in the ReelsFeedModal (newest first for browsing)
+                  const sortedNewestFirst = [...group].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+                  setReelsFeedPins(sortedNewestFirst);
                 } else {
                   if (onSelectVenue) {
                     onSelectVenue(null as any);
@@ -746,6 +788,23 @@ export const MapScreen: React.FC<MapScreenProps> = ({
         {/* Advertiser Pins */}
         {displayedVenues.filter(venue => venue.is_sponsored).map(venue => {
           const sponsorKey = `sponsor-${venue.venueId}`;
+          const isTier1 = venue.sponsor_tier === 1;
+          const isTier2 = venue.sponsor_tier === 2;
+          const isTier3 = venue.sponsor_tier === 3;
+          
+          let borderColor = '#A6A6A6'; // Silver default for Tier 1
+          let borderWidth = 3;
+          if (isTier2) {
+            borderColor = '#FFC107'; // Gold for Tier 2
+            borderWidth = 3;
+          } else if (isTier3) {
+            borderColor = '#FF4B72'; // Pink for Tier 3
+            borderWidth = 3;
+          }
+
+          const markerSize = getMarkerSize(zoomScale);
+          const innerSize = markerSize - 6;
+
           return (
             <Marker
               key={sponsorKey}
@@ -754,16 +813,44 @@ export const MapScreen: React.FC<MapScreenProps> = ({
               tracksViewChanges={markerTracksViewChanges[sponsorKey] ?? true}
               zIndex={998}
             >
-              <View style={styles.sponsorMarkerContainer}>
-                {venue.custom_icon_url || venue.cover_image ? (
-                  <RNImage
-                    source={{ uri: venue.custom_icon_url || venue.cover_image }}
-                    style={styles.sponsorMarkerImage}
-                    resizeMode="cover"
-                    onLoadEnd={() => setMarkerTracksViewChanges(prev => prev[sponsorKey] === false ? prev : { ...prev, [sponsorKey]: false })}
-                  />
-                ) : null}
-                <Text style={styles.sponsorMarkerText} numberOfLines={1}>
+              <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+                {isTier3 && <RadarPulse />}
+                <View style={{
+                  width: markerSize,
+                  height: markerSize,
+                  borderRadius: 6, // Square with softened premium edges
+                  borderWidth: borderWidth,
+                  borderColor: borderColor,
+                  backgroundColor: '#FFFFFF',
+                  padding: 2,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  ...PincTheme.shadows.md,
+                }}>
+                  {venue.custom_icon_url || venue.cover_image ? (
+                    <RNImage
+                      source={{ uri: venue.custom_icon_url || venue.cover_image }}
+                      style={{
+                        width: innerSize,
+                        height: innerSize,
+                        borderRadius: 4,
+                      }}
+                      resizeMode="cover"
+                      onLoadEnd={() => setMarkerTracksViewChanges(prev => prev[sponsorKey] === false ? prev : { ...prev, [sponsorKey]: false })}
+                    />
+                  ) : null}
+                </View>
+                <Text style={{
+                  marginTop: 4,
+                  fontSize: Math.max(9, Math.floor(11 * zoomScale)),
+                  fontWeight: '800',
+                  color: PincTheme.colors.textPrimary,
+                  textShadowColor: '#FFF',
+                  textShadowOffset: { width: 0, height: 1 },
+                  textShadowRadius: 3,
+                  maxWidth: 100,
+                  textAlign: 'center',
+                }} numberOfLines={1}>
                   {venue.name}
                 </Text>
               </View>
