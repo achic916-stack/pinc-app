@@ -13,6 +13,7 @@ import {
   TextInput,
   Dimensions
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { PincTheme } from "../styles/theme";
 import {
   UserProfile,
@@ -445,7 +446,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                         onPress={() => setSharePin(pin)}
                         activeOpacity={0.8}
                       >
-                        <Text style={{ fontSize: 16 }}>🔗</Text>
+                        <Ionicons name="paper-plane-outline" size={20} color={PincTheme.colors.primary} />
                       </TouchableOpacity>
                     </View>
                   </TouchableOpacity>
@@ -985,8 +986,17 @@ const styles = StyleSheet.create({
     fontFamily: PincTheme.fonts.body,
   },
   gridShareBtn: {
-    padding: 6,
+    padding: 8,
     justifyContent: "center",
-    alignItems: "center"
+    alignItems: "center",
+    backgroundColor: PincTheme.colors.background,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: PincTheme.colors.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   }
 });

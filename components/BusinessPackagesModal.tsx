@@ -233,7 +233,7 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
 
   // ────────── Generic Package Upload Screen ──────────
   const renderEssentialUpload = () => {
-    const maxImages = selectedPackage === 'essential' ? 3 : 1;
+    const maxImages = getMaxImages();
     
     const getPackageTitle = () => {
       if (selectedPackage === 'essential') return "📸 Essential Package";
