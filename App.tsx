@@ -576,8 +576,7 @@ export default function App() {
             locationTrackingEnabled={locationTrackingEnabled}
           />
 
-          {/* Reality Check Sliding Sheet (Deprecated, kept for reference or legacy data) */}
-          {/* 
+          {/* Reality Check Sliding Sheet (For Advertiser/Business Packages) */}
           {selectedVenue && (
             <View style={styles.sheetOverlay}>
               <VenueDetailsSheet
@@ -594,7 +593,6 @@ export default function App() {
               />
             </View>
           )} 
-          */}
 
           {/* User Profile Modal */}
           <UserProfileModal

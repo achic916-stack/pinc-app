@@ -812,6 +812,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
               onPress={() => onSelectVenue(venue)}
               tracksViewChanges={markerTracksViewChanges[sponsorKey] ?? true}
               zIndex={998}
+              anchor={{ x: 0.5, y: 0.5 }}
             >
               <View style={{ alignItems: 'center', justifyContent: 'center' }}>
                 {isTier3 && <RadarPulse />}
