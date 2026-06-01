@@ -19,6 +19,7 @@ import { db, auth, uploadPinImage, encodeGeohash } from "../services/firebase";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import * as Location from "expo-location";
 import { compressImage } from "../services/imageCompressor";
+import { SocialLinksInput, SocialLinksData } from "./SocialLinks";
 
 const { width } = Dimensions.get("window");
 const IMAGE_SIZE = (width - 24 * 2 - 12 * 2) / 3; // 3 columns with gaps
@@ -39,6 +40,7 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
   const [shopName, setShopName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [description, setDescription] = useState("");
+  const [socialLinks, setSocialLinks] = useState<SocialLinksData>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const getMaxImages = () => {
@@ -166,6 +168,7 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
         custom_icon_url: uploadedUrls[0], // Use the first uploaded image as custom icon/logo
         images: uploadedUrls,
         description: description.trim() + (phoneNumber.trim() ? `\nโทร: ${phoneNumber.trim()}` : ""),
+        socialLinks: Object.keys(socialLinks).length > 0 ? socialLinks : undefined,
         is_sponsored: true,
         sponsor_tier: tier,
         subscription_status: 'ACTIVE',
@@ -190,6 +193,7 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
               setShopName("");
               setPhoneNumber("");
               setDescription("");
+              setSocialLinks({});
               setSelectedPackage(null);
               onClose();
             },
@@ -216,6 +220,7 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
             setShopName("");
             setPhoneNumber("");
             setDescription("");
+            setSocialLinks({});
             setSelectedPackage(null);
           },
         },
@@ -310,6 +315,8 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
                   multiline={true}
                   maxLength={200}
                 />
+
+                <SocialLinksInput socialLinks={socialLinks} onChange={setSocialLinks} />
               </View>
 
               {/* ── Image Upload Section ── */}

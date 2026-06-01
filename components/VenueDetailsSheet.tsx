@@ -18,6 +18,9 @@ import { t } from "../services/localization";
 import { Ionicons } from "@expo/vector-icons";
 import { CommentsDrawer } from "./CommentsDrawer";
 import { CachedVideo } from "./CachedVideo";
+import { SocialLinksDisplay } from "./SocialLinks";
+import { WatermarkShare } from "./WatermarkShare";
+import { Modal } from "react-native";
 const Audio = { Sound: { createAsync: async () => ({ sound: { playAsync: async () => {}, stopAsync: async () => {}, unloadAsync: async () => {} } }) }, setAudioModeAsync: async () => {} }; const Video = () => null; const ResizeMode = { COVER: 'cover', CONTAIN: 'contain' };
 
 
@@ -64,11 +67,12 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
   onOpenUserProfile,
   currentUser
 }) => {
-  const [activeTab, setActiveTab] = useState<"aesthetic" | "reality">("aesthetic");
-  const [localLikes, setLocalLikes] = useState<{ [pinId: string]: { liked: boolean; count: number } }>({});
-  const [activeCommentsPinId, setActiveCommentsPinId] = useState<string | null>(null);
-  const [commentsCounts, setCommentsCounts] = useState<{ [pinId: string]: number }>({});
+  const [activeTab, setActiveTab] = useState<"aesthetic" | "reality">("reality");
   const [activeVideoId, setActiveVideoId] = useState<string | null>(null);
+  const [activeCommentsPinId, setActiveCommentsPinId] = useState<string | null>(null);
+  const [sharePin, setSharePin] = useState<Pin | null>(null);
+  const [localLikes, setLocalLikes] = useState<{ [pinId: string]: { liked: boolean; count: number } }>({});
+  const [commentsCounts, setCommentsCounts] = useState<{ [pinId: string]: number }>({});
 
   // Subscribe to comments count for each pin reactively
   useEffect(() => {
@@ -320,6 +324,16 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
             <Text style={styles.directionsText}>{locale === "th" ? "ขอเส้นทาง" : "Get Directions"}</Text>
           </TouchableOpacity>
         )}
+
+        {!!venue.description && (
+          <Text style={styles.venueDescription}>{venue.description}</Text>
+        )}
+
+        {!!venue.socialLinks && (
+          <View style={styles.socialLinksWrapper}>
+            <SocialLinksDisplay socialLinks={venue.socialLinks} size={32} />
+          </View>
+        )}
       </View>
  
       {/* Premium Sliding Navigation Tabs */}
@@ -555,6 +569,18 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                             {commentCount}
                           </Text>
                         </TouchableOpacity>
+
+                        {/* Share Button */}
+                        {pin.image_url && (
+                          <TouchableOpacity 
+                            style={styles.actionButton} 
+                            onPress={() => setSharePin(pin)}
+                            activeOpacity={0.7}
+                          >
+                            <Text style={styles.actionIcon}>🔗</Text>
+                            <Text style={styles.actionCount}>แชร์</Text>
+                          </TouchableOpacity>
+                        )}
                         
                         {/* Delete Button (Only for own posts) */}
                         {pin.userId === currentUser.userId && (
@@ -585,6 +611,22 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
         locale={locale}
         onOpenUserProfile={onOpenUserProfile}
       />
+
+      {/* Watermark Share Modal */}
+      {sharePin && sharePin.image_url && (
+        <Modal
+          visible={true}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setSharePin(null)}
+        >
+          <WatermarkShare 
+            photoUri={sharePin.image_url} 
+            locationName={venue.name} 
+            onClose={() => setSharePin(null)} 
+          />
+        </Modal>
+      )}
     </View>
   );
 };
@@ -689,6 +731,17 @@ const styles = StyleSheet.create({
     fontFamily: PincTheme.fonts.heading,
     fontWeight: "bold",
     fontSize: 14
+  },
+  venueDescription: {
+    fontFamily: PincTheme.fonts.body,
+    fontSize: 13,
+    color: PincTheme.colors.textSecondary,
+    marginTop: 12,
+    lineHeight: 20,
+  },
+  socialLinksWrapper: {
+    marginTop: 12,
+    alignItems: 'flex-start',
   },
   crowdBadge: {
     flexDirection: "row",

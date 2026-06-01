@@ -69,6 +69,11 @@ export interface UserProfile {
   bio: string;
   role?: "USER" | "ADMIN" | "PREMIUM_STORE";
   created_at: Date;
+  socialLinks?: {
+    instagramUrl?: string;
+    facebookUrl?: string;
+    tiktokUrl?: string;
+  };
 }
 
 export interface Venue {
@@ -95,6 +100,11 @@ export interface Venue {
   stripeSubscriptionId?: string;
   images?: string[];
   description?: string;
+  socialLinks?: {
+    instagramUrl?: string;
+    facebookUrl?: string;
+    tiktokUrl?: string;
+  };
 }
 
 
@@ -127,6 +137,11 @@ export interface Pin {
   music_url?: string;
   post_duration?: "permanent" | "24h";
   thumbnail_url?: string;
+  socialLinks?: {
+    instagramUrl?: string;
+    facebookUrl?: string;
+    tiktokUrl?: string;
+  };
 }
 
 export interface Comment {
