@@ -14,7 +14,8 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { PincTheme } from "../styles/theme";
-import { Venue, Pin, UserProfile, toggleLikePin, subscribeToComments, deletePin } from "../services/firebase";
+import { Venue, Pin, UserProfile, toggleLikePin, subscribeToComments, deletePin, db } from "../services/firebase";
+import { doc, updateDoc } from "firebase/firestore";
 import { t } from "../services/localization";
 import { Ionicons } from "@expo/vector-icons";
 import { CommentsDrawer } from "./CommentsDrawer";
@@ -77,6 +78,54 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
   const [localLikes, setLocalLikes] = useState<{ [pinId: string]: { liked: boolean; count: number } }>({});
   const [commentsCounts, setCommentsCounts] = useState<{ [pinId: string]: number }>({});
   const [selectedFullScreenImage, setSelectedFullScreenImage] = useState<string | null>(null);
+
+  const handleLongPressImage = (imageUri: string) => {
+    Alert.alert(
+      locale === "th" ? "ลบรูปภาพร้านค้า" : "Delete Shop Image",
+      locale === "th" 
+        ? "คุณแน่ใจหรือไม่ว่าต้องการลบรูปภาพนี้ออกจากร้านค้าของคุณ?" 
+        : "Are you sure you want to delete this image from your shop?",
+      [
+        { text: locale === "th" ? "ยกเลิก" : "Cancel", style: "cancel" },
+        { 
+          text: locale === "th" ? "ลบ" : "Delete", 
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const updatedImages = (venue.images || []).filter(img => img !== imageUri);
+              
+              let updatedCoverImage = venue.cover_image;
+              if (venue.cover_image === imageUri) {
+                updatedCoverImage = updatedImages.length > 0 ? updatedImages[0] : "";
+              }
+
+              const venueDocRef = doc(db, "venues", venue.venueId);
+              await updateDoc(venueDocRef, {
+                images: updatedImages,
+                cover_image: updatedCoverImage,
+                custom_icon_url: updatedCoverImage
+              });
+
+              venue.images = updatedImages;
+              venue.cover_image = updatedCoverImage;
+              venue.custom_icon_url = updatedCoverImage;
+
+              Alert.alert(
+                locale === "th" ? "สำเร็จ" : "Success", 
+                locale === "th" ? "ลบรูปภาพเรียบร้อยแล้ว" : "Image deleted successfully"
+              );
+            } catch (err) {
+              console.error("Failed to delete shop image:", err);
+              Alert.alert(
+                locale === "th" ? "เกิดข้อผิดพลาด" : "Error", 
+                locale === "th" ? "ไม่สามารถลบรูปภาพได้ในขณะนี้" : "Could not delete image at this time"
+              );
+            }
+          }
+        }
+      ]
+    );
+  };
 
   // Subscribe to comments count for each pin reactively
   useEffect(() => {
@@ -403,6 +452,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                 style={styles.gridImageWrapper}
                 activeOpacity={0.9}
                 onPress={() => setSelectedFullScreenImage(uri)}
+                onLongPress={() => handleLongPressImage(uri)}
               >
                 <Image source={{ uri }} style={styles.gridImage} contentFit="cover" />
               </TouchableOpacity>
