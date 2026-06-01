@@ -9,7 +9,8 @@ import {
   Dimensions,
   ActivityIndicator,
   Alert,
-  Linking
+  Linking,
+  Platform
 } from "react-native";
 import { Image } from "expo-image";
 import { PincTheme } from "../styles/theme";
@@ -53,6 +54,7 @@ interface VenueDetailsSheetProps {
   followingIds?: string[];
   onOpenUserProfile?: (userId: string) => void;
   currentUser: UserProfile;
+  isFullScreen?: boolean;
 }
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -65,7 +67,8 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
   locale = "en",
   followingIds = [],
   onOpenUserProfile,
-  currentUser
+  currentUser,
+  isFullScreen = false
 }) => {
   const [activeTab, setActiveTab] = useState<"aesthetic" | "reality">("reality");
   const [activeVideoId, setActiveVideoId] = useState<string | null>(null);
@@ -73,6 +76,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
   const [sharePin, setSharePin] = useState<Pin | null>(null);
   const [localLikes, setLocalLikes] = useState<{ [pinId: string]: { liked: boolean; count: number } }>({});
   const [commentsCounts, setCommentsCounts] = useState<{ [pinId: string]: number }>({});
+  const [selectedFullScreenImage, setSelectedFullScreenImage] = useState<string | null>(null);
 
   // Subscribe to comments count for each pin reactively
   useEffect(() => {
@@ -255,16 +259,41 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
     };
   };
 
+  const isShopPackage = venue.is_sponsored === true || (venue.sponsor_tier && venue.sponsor_tier >= 1);
+  const shopImages = venue.images && venue.images.length > 0 
+    ? venue.images 
+    : [venue.cover_image].filter(Boolean);
+
   const widget = getWidgetSummary();
 
   return (
-    <View style={styles.sheetContainer}>
+    <View style={[
+      styles.sheetContainer, 
+      isFullScreen && { 
+        height: '100%', 
+        borderTopLeftRadius: 0, 
+        borderTopRightRadius: 0,
+        paddingTop: Platform.OS === 'ios' ? 0 : 12
+      }
+    ]}>
       {/* Drag Indicator / Header */}
-      <View style={styles.header}>
-        <View style={styles.dragIndicator} />
-        <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-          <Text style={styles.closeText}>✕</Text>
+      <View style={[styles.header, isFullScreen && { borderBottomWidth: 0, paddingVertical: 16 }]}>
+        {!isFullScreen && <View style={styles.dragIndicator} />}
+        <TouchableOpacity 
+          style={[styles.closeButton, isFullScreen && { left: 16, top: 12, right: undefined }]} 
+          onPress={onClose}
+        >
+          {isFullScreen ? (
+            <Ionicons name="arrow-back" size={24} color={PincTheme.colors.textPrimary} />
+          ) : (
+            <Text style={styles.closeText}>✕</Text>
+          )}
         </TouchableOpacity>
+        {isFullScreen && (
+          <Text style={{ fontSize: 16, fontWeight: '700', fontFamily: PincTheme.fonts.heading, color: PincTheme.colors.textPrimary }}>
+            {venue.name}
+          </Text>
+        )}
       </View>
 
       {/* Venue Header Info */}
@@ -337,33 +366,49 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
       </View>
  
       {/* Premium Sliding Navigation Tabs */}
-      <View style={styles.tabsContainer}>
-        <TouchableOpacity
-          style={[styles.tabButton, activeTab === "aesthetic" && styles.activeTabButton]}
-          onPress={() => setActiveTab("aesthetic")}
-        >
-          <Text style={[styles.tabLabel, activeTab === "aesthetic" && styles.activeTabLabel]}>
-            {t(locale, "aestheticTab")}
-          </Text>
-          <Text style={styles.tabSubLabel}>{t(locale, "aestheticSub")}</Text>
-          {activeTab === "aesthetic" && <View style={styles.tabIndicator} />}
-        </TouchableOpacity>
+      {!isShopPackage && (
+        <View style={styles.tabsContainer}>
+          <TouchableOpacity
+            style={[styles.tabButton, activeTab === "aesthetic" && styles.activeTabButton]}
+            onPress={() => setActiveTab("aesthetic")}
+          >
+            <Text style={[styles.tabLabel, activeTab === "aesthetic" && styles.activeTabLabel]}>
+              {t(locale, "aestheticTab")}
+            </Text>
+            <Text style={styles.tabSubLabel}>{t(locale, "aestheticSub")}</Text>
+            {activeTab === "aesthetic" && <View style={styles.tabIndicator} />}
+          </TouchableOpacity>
  
-        <TouchableOpacity
-          style={[styles.tabButton, activeTab === "reality" && styles.activeTabButton]}
-          onPress={() => setActiveTab("reality")}
-        >
-          <Text style={[styles.tabLabel, activeTab === "reality" && styles.activeTabLabel]}>
-            {t(locale, "realityTab")}
-          </Text>
-          <Text style={styles.tabSubLabel}>{t(locale, "realitySub")}</Text>
-          {activeTab === "reality" && <View style={styles.tabIndicator} />}
-        </TouchableOpacity>
-      </View>
+          <TouchableOpacity
+            style={[styles.tabButton, activeTab === "reality" && styles.activeTabButton]}
+            onPress={() => setActiveTab("reality")}
+          >
+            <Text style={[styles.tabLabel, activeTab === "reality" && styles.activeTabLabel]}>
+              {t(locale, "realityTab")}
+            </Text>
+            <Text style={styles.tabSubLabel}>{t(locale, "realitySub")}</Text>
+            {activeTab === "reality" && <View style={styles.tabIndicator} />}
+          </TouchableOpacity>
+        </View>
+      )}
  
       {/* Tab View Contents */}
       <View style={styles.contentContainer}>
-        {activeTab === "aesthetic" ? (
+        {isShopPackage ? (
+          /* Shop Uploaded Images Grid */
+          <ScrollView contentContainerStyle={styles.gridContainer} showsVerticalScrollIndicator={false}>
+            {shopImages.map((uri, index) => (
+              <TouchableOpacity 
+                key={index} 
+                style={styles.gridImageWrapper}
+                activeOpacity={0.9}
+                onPress={() => setSelectedFullScreenImage(uri)}
+              >
+                <Image source={{ uri }} style={styles.gridImage} contentFit="cover" />
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        ) : activeTab === "aesthetic" ? (
           /* Tab 1: Aesthetic (Polished IG Grid) */
           <ScrollView contentContainerStyle={styles.gridContainer} showsVerticalScrollIndicator={false}>
             {aestheticPins.length > 0 ? (
@@ -658,6 +703,31 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
             locationName={venue.name} 
             onClose={() => setSharePin(null)} 
           />
+        </Modal>
+      )}
+
+      {/* Full Screen Image Preview Modal */}
+      {selectedFullScreenImage && (
+        <Modal
+          visible={true}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setSelectedFullScreenImage(null)}
+        >
+          <View style={styles.fullScreenOverlay}>
+            <TouchableOpacity 
+              style={styles.fullScreenCloseBtn} 
+              onPress={() => setSelectedFullScreenImage(null)}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="close" size={32} color="#FFF" />
+            </TouchableOpacity>
+            <Image 
+              source={{ uri: selectedFullScreenImage }} 
+              style={styles.fullScreenImage} 
+              contentFit="contain" 
+            />
+          </View>
         </Modal>
       )}
     </View>
@@ -1095,5 +1165,25 @@ const styles = StyleSheet.create({
   },
   actionCountLiked: {
     color: "#FF4B72"
+  },
+  fullScreenOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.95)",
+    justifyContent: "center",
+    alignItems: "center",
+    position: "relative"
+  },
+  fullScreenCloseBtn: {
+    position: "absolute",
+    top: Platform.OS === 'ios' ? 44 : 24,
+    right: 20,
+    zIndex: 10,
+    padding: 10,
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
+    borderRadius: 22
+  },
+  fullScreenImage: {
+    width: "100%",
+    height: "100%"
   }
 });

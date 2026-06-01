@@ -578,20 +578,45 @@ export default function App() {
 
           {/* Reality Check Sliding Sheet (For Advertiser/Business Packages) */}
           {selectedVenue && (
-            <View style={styles.sheetOverlay}>
-              <VenueDetailsSheet
-                venue={selectedVenue}
-                pins={activePins}
-                isLoadingPins={isLoadingPins}
-                onClose={handleCloseBottomSheet}
-                locale={locale}
-                followingIds={followingIds}
-                onOpenUserProfile={(userId) => {
-                  setSelectedUserProfileId(userId);
-                }}
-                currentUser={currentUser}
-              />
-            </View>
+            selectedVenue.is_sponsored || (selectedVenue.sponsor_tier && selectedVenue.sponsor_tier >= 1) ? (
+              <Modal
+                visible={true}
+                animationType="slide"
+                onRequestClose={handleCloseBottomSheet}
+              >
+                <SafeAreaView style={{ flex: 1, backgroundColor: PincTheme.colors.background }}>
+                  <VenueDetailsSheet
+                    venue={selectedVenue}
+                    pins={activePins}
+                    isLoadingPins={isLoadingPins}
+                    onClose={handleCloseBottomSheet}
+                    locale={locale}
+                    followingIds={followingIds}
+                    onOpenUserProfile={(userId) => {
+                      setSelectedUserProfileId(userId);
+                    }}
+                    currentUser={currentUser}
+                    isFullScreen={true}
+                  />
+                </SafeAreaView>
+              </Modal>
+            ) : (
+              <View style={styles.sheetOverlay}>
+                <VenueDetailsSheet
+                  venue={selectedVenue}
+                  pins={activePins}
+                  isLoadingPins={isLoadingPins}
+                  onClose={handleCloseBottomSheet}
+                  locale={locale}
+                  followingIds={followingIds}
+                  onOpenUserProfile={(userId) => {
+                    setSelectedUserProfileId(userId);
+                  }}
+                  currentUser={currentUser}
+                  isFullScreen={false}
+                />
+              </View>
+            )
           )} 
 
           {/* User Profile Modal */}
