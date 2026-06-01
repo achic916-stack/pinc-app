@@ -93,6 +93,8 @@ export interface Venue {
   gracePeriodEnd?: Date | Timestamp | null;
   cancelAtPeriodEnd?: boolean;
   stripeSubscriptionId?: string;
+  images?: string[];
+  description?: string;
 }
 
 

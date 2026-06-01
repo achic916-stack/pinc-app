@@ -18,6 +18,7 @@ import { PincTheme } from "../styles/theme";
 import { db, auth, uploadPinImage, encodeGeohash } from "../services/firebase";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import * as Location from "expo-location";
+import { compressImage } from "../services/imageCompressor";
 
 const { width } = Dimensions.get("window");
 const IMAGE_SIZE = (width - 24 * 2 - 12 * 2) / 3; // 3 columns with gaps
@@ -37,16 +38,22 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
   const [essentialImages, setEssentialImages] = useState<string[]>([]);
   const [shopName, setShopName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
+  const [description, setDescription] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const getMaxImages = () => {
+    if (selectedPackage === 'essential') return 3;
+    if (selectedPackage === 'signature') return 5;
+    if (selectedPackage === 'destination') return 10;
+    return 1;
+  };
+
   const handlePickImage = async () => {
-    const maxImages = selectedPackage === 'essential' ? 3 : 1;
+    const maxImages = getMaxImages();
     if (essentialImages.length >= maxImages) {
       Alert.alert(
         "ครบแล้ว", 
-        selectedPackage === 'essential' 
-          ? "อัปโหลดได้สูงสุด 3 รูปสำหรับแพ็กเกจ Essential"
-          : "อัปโหลดได้สูงสุด 1 รูปสำหรับโลโก้ร้านค้า"
+        `อัปโหลดได้สูงสุด ${maxImages} รูปสำหรับแพ็กเกจนี้`
       );
       return;
     }
@@ -62,7 +69,6 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
           }
           const result = await ImagePicker.launchCameraAsync({
             allowsEditing: true,
-            aspect: selectedPackage === 'essential' ? [4, 3] : [1, 1], // Square aspect ratio for logo/avatar
             quality: 0.85,
           });
           if (!result.canceled && result.assets?.length > 0) {
@@ -85,7 +91,6 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
           const result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ImagePicker.MediaTypeOptions.Images,
             allowsEditing: true,
-            aspect: selectedPackage === 'essential' ? [4, 3] : [1, 1],
             quality: 0.85,
           });
           if (!result.canceled && result.assets?.length > 0) {
@@ -103,29 +108,28 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
 
   const handleSubmitPackage = async () => {
     if (essentialImages.length === 0) {
-      Alert.alert(
-        selectedPackage === 'essential' ? "กรุณาอัปโหลดรูปภาพ" : "กรุณาอัปโหลดโลโก้ร้านค้า",
-        "จำเป็นต้องอัปโหลดอย่างน้อย 1 รูป"
-      );
+      Alert.alert("กรุณาอัปโหลดรูปภาพ", "จำเป็นต้องอัปโหลดอย่างน้อย 1 รูป");
       return;
     }
     if (!shopName.trim()) {
       Alert.alert("กรุณากรอกชื่อร้าน", "ชื่อร้านค้าจำเป็นต้องกรอก");
       return;
     }
-    if (!phoneNumber.trim()) {
-      Alert.alert("กรุณากรอกเบอร์โทร", "เบอร์โทรศัพท์จำเป็นต้องกรอก");
-      return;
-    }
 
     setIsSubmitting(true);
     try {
-      // 1. Upload first image to Firebase Storage using real service
-      const imageUri = essentialImages[0];
       const currentUserId = auth.currentUser?.uid || "mock_owner";
-      const uploadedUrl = await uploadPinImage(imageUri, currentUserId);
 
-      // 2. Fetch current Location or default coordinates
+      // 1. Compress all images
+      const compressedUris = await Promise.all(
+        essentialImages.map(uri => compressImage(uri))
+      );
+
+      // 2. Upload all images to Firebase Storage
+      const uploadPromises = compressedUris.map(uri => uploadPinImage(uri, currentUserId));
+      const uploadedUrls = await Promise.all(uploadPromises);
+
+      // 3. Fetch current Location or default coordinates
       let latitude = 13.736717;
       let longitude = 100.560481;
       try {
@@ -158,8 +162,10 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
         category: "café",
         aesthetic_rating: parseFloat((4.7 + Math.random() * 0.3).toFixed(1)), // 4.7 to 5.0
         crowd_status: "Green",
-        cover_image: uploadedUrl,
-        custom_icon_url: uploadedUrl, // Use the uploaded image as custom icon/logo too!
+        cover_image: uploadedUrls[0],
+        custom_icon_url: uploadedUrls[0], // Use the first uploaded image as custom icon/logo
+        images: uploadedUrls,
+        description: description.trim() + (phoneNumber.trim() ? `\nโทร: ${phoneNumber.trim()}` : ""),
         is_sponsored: true,
         sponsor_tier: tier,
         subscription_status: 'ACTIVE',
@@ -167,7 +173,7 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
         campaign_end_date: new Date(Date.now() + 30 * 24 * 3600 * 1000)
       };
 
-      // 3. Write to Firestore database!
+      // 4. Write to Firestore database!
       const venuesRef = collection(db, "venues");
       await addDoc(venuesRef, venueData);
 
@@ -183,6 +189,7 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
               setEssentialImages([]);
               setShopName("");
               setPhoneNumber("");
+              setDescription("");
               setSelectedPackage(null);
               onClose();
             },
@@ -208,6 +215,7 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
             setEssentialImages([]);
             setShopName("");
             setPhoneNumber("");
+            setDescription("");
             setSelectedPackage(null);
           },
         },
@@ -230,14 +238,11 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
     };
 
     const getPackageSubtitle = () => {
-      if (selectedPackage === 'essential') return "อัปโหลดรูปภาพร้านค้า (สูงสุด 3 รูป)";
-      return "อัปโหลดโลโก้แบรนด์ร้านค้า (สูงสุด 1 รูป)";
+      return `อัปโหลดรูปภาพร้านค้า (สูงสุด ${maxImages} รูป)`;
     };
 
     const getImageSectionTitle = () => {
-      return selectedPackage === 'essential' 
-        ? `รูปภาพร้านค้า (${essentialImages.length}/${maxImages})` 
-        : `โลโก้ร้านค้า (${essentialImages.length}/${maxImages})`;
+      return `รูปภาพร้านค้า (${essentialImages.length}/${maxImages})`;
     };
 
     return (
@@ -284,7 +289,7 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
                   maxLength={40}
                 />
 
-                <Text style={uploadStyles.inputLabel}>เบอร์โทรศัพท์</Text>
+                <Text style={uploadStyles.inputLabel}>เบอร์โทรศัพท์ (ถ้ามี)</Text>
                 <TextInput
                   style={uploadStyles.textInput}
                   value={phoneNumber}
@@ -293,6 +298,17 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
                   placeholderTextColor={PincTheme.colors.textTertiary}
                   keyboardType="phone-pad"
                   maxLength={15}
+                />
+
+                <Text style={uploadStyles.inputLabel}>รายละเอียด / ที่อยู่ / โปรโมชั่น</Text>
+                <TextInput
+                  style={[uploadStyles.textInput, { height: 80, textAlignVertical: 'top' }]}
+                  value={description}
+                  onChangeText={setDescription}
+                  placeholder="พิมพ์รายละเอียดของร้านค้า โปรโมชั่น หรือที่อยู่ที่นี่..."
+                  placeholderTextColor={PincTheme.colors.textTertiary}
+                  multiline={true}
+                  maxLength={200}
                 />
               </View>
 
@@ -307,10 +323,7 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
                     { marginBottom: 12, marginTop: 0 },
                   ]}
                 >
-                  {selectedPackage === 'essential' 
-                    ? "ชื่อร้านและเบอร์โทรจะแสดงบนรูปภาพ" 
-                    : "โลโก้นี้จะแสดงผลในรูปหมุดสี่เหลี่ยมบนแผนที่หลัก"
-                  }
+                  รูปภาพแรกที่เลือก จะถูกนำไปใช้เป็น "หน้าปก" หรือ "โลโก้" บนแผนที่
                 </Text>
 
                 <View style={uploadStyles.imageGrid}>
@@ -360,7 +373,7 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
                     >
                       <Text style={uploadStyles.addImageIcon}>＋</Text>
                       <Text style={uploadStyles.addImageText}>
-                        {selectedPackage === 'essential' ? "เพิ่มรูป" : "เพิ่มโลโก้"}
+                        เพิ่มรูป
                       </Text>
                     </TouchableOpacity>
                   )}
@@ -414,16 +427,14 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
                 style={[
                   uploadStyles.submitBtn,
                   (essentialImages.length === 0 ||
-                    !shopName.trim() ||
-                    !phoneNumber.trim()) &&
+                    !shopName.trim()) &&
                   uploadStyles.submitBtnDisabled,
                 ]}
                 onPress={handleSubmitPackage}
                 disabled={
                   isSubmitting ||
                   essentialImages.length === 0 ||
-                  !shopName.trim() ||
-                  !phoneNumber.trim()
+                  !shopName.trim()
                 }
                 activeOpacity={0.8}
               >
