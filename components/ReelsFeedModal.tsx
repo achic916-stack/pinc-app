@@ -19,6 +19,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Pin, auth } from "../services/firebase";
 import { PincTheme } from "../styles/theme";
 import { CommentsDrawer } from "./CommentsDrawer";
+import { WatermarkShare } from "./WatermarkShare";
 
 const { height: windowHeight, width: windowWidth } = Dimensions.get("window");
 
@@ -34,12 +35,14 @@ const FeedItem = ({
   item, 
   isVisible,
   shouldMountVideo = true,
-  onCommentPress
+  onCommentPress,
+  onSharePress
 }: { 
   item: Pin; 
   isVisible: boolean;
   shouldMountVideo?: boolean;
   onCommentPress: () => void;
+  onSharePress: () => void;
 }) => {
   const [liked, setLiked] = useState(item.likes?.includes("currentUserId") || false);
   const [likesCount, setLikesCount] = useState(item.likesCount || 0);
@@ -98,21 +101,6 @@ const FeedItem = ({
   const handleLike = () => {
     setLiked(!liked);
     setLikesCount(liked ? likesCount - 1 : likesCount + 1);
-  };
-
-  const handleShare = async () => {
-    try {
-      const shareMessage = item.text_content
-        ? `"${item.text_content}" - Check out this live reality check from @${item.username} on Pinc!`
-        : `Check out this live reality check from @${item.username} on Pinc!`;
-        
-      await Share.share({
-        message: shareMessage,
-        url: item.image_url
-      });
-    } catch (error) {
-      console.warn("Failed to share:", error);
-    }
   };
 
   return (
@@ -195,7 +183,7 @@ const FeedItem = ({
           <Text style={styles.actionText}>{item.commentsCount || 0}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.actionButton} onPress={handleShare}>
+        <TouchableOpacity style={styles.actionButton} onPress={onSharePress}>
           <Ionicons name="paper-plane-outline" size={32} color="#FFF" />
           <Text style={styles.actionText}>Share</Text>
         </TouchableOpacity>
@@ -217,6 +205,7 @@ export const ReelsFeedModal: React.FC<ReelsFeedModalProps> = ({
 }) => {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [activeCommentPinId, setActiveCommentPinId] = useState<string | null>(null);
+  const [sharePin, setSharePin] = useState<Pin | null>(null);
   const flatListRef = useRef<FlatList>(null);
 
   useEffect(() => {
@@ -278,6 +267,7 @@ export const ReelsFeedModal: React.FC<ReelsFeedModalProps> = ({
                 isVisible={index === currentIndex} 
                 shouldMountVideo={Math.abs(index - currentIndex) <= 2}
                 onCommentPress={() => setActiveCommentPinId(item.pinId || null)}
+                onSharePress={() => setSharePin(item)}
               />
             )}
             onViewableItemsChanged={handleViewableItemsChanged}
@@ -309,6 +299,22 @@ export const ReelsFeedModal: React.FC<ReelsFeedModalProps> = ({
           onClose={() => setActiveCommentPinId(null)}
           locale="en"
         />
+
+        {/* Watermark Share Modal */}
+        {sharePin && sharePin.image_url && (
+          <Modal
+            visible={true}
+            transparent={true}
+            animationType="slide"
+            onRequestClose={() => setSharePin(null)}
+          >
+            <WatermarkShare 
+              photoUri={sharePin.image_url} 
+              locationName={sharePin.username || "Pinc Memory"} 
+              onClose={() => setSharePin(null)} 
+            />
+          </Modal>
+        )}
       </View>
     </Modal>
   );

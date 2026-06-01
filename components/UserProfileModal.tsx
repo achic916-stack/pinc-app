@@ -30,6 +30,7 @@ import * as ImagePicker from "expo-image-picker";
 import { BusinessPackagesModal } from "./BusinessPackagesModal";
 import { UserListModal } from "./UserListModal";
 import { ChatModal } from "./ChatModal";
+import { WatermarkShare } from "./WatermarkShare";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -73,10 +74,11 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const [editPreviewPic, setEditPreviewPic] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [showBusinessPackages, setShowBusinessPackages] = useState(false);
+  const [isChatVisible, setIsChatVisible] = useState(false);
+  const [sharePin, setSharePin] = useState<Pin | null>(null);
   
   // New States for Follower Lists and Chat
   const [userListType, setUserListType] = useState<"followers" | "following" | null>(null);
-  const [isChatVisible, setIsChatVisible] = useState(false);
 
   useEffect(() => {
     if (!visible || !userId) {
@@ -432,10 +434,19 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                       resizeMode="cover" 
                     />
                     <View style={styles.memoryInfo}>
-                      <Text style={styles.memoryVenue} numberOfLines={1}>
-                        {(pin.username || "Memory") || "Unknown Location"}
-                      </Text>
-                      <Text style={styles.memoryDate}>{pinDate}</Text>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.memoryVenue} numberOfLines={1}>
+                          {(pin.username || "Memory") || "Unknown Location"}
+                        </Text>
+                        <Text style={styles.memoryDate}>{pinDate}</Text>
+                      </View>
+                      <TouchableOpacity
+                        style={styles.gridShareBtn}
+                        onPress={() => setSharePin(pin)}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={{ fontSize: 16 }}>🔗</Text>
+                      </TouchableOpacity>
                     </View>
                   </TouchableOpacity>
                 );
@@ -547,6 +558,22 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           targetProfilePic={profile.profile_pic}
           onClose={() => setIsChatVisible(false)}
         />
+      )}
+
+      {/* Watermark Share Modal */}
+      {sharePin && sharePin.image_url && (
+        <Modal
+          visible={true}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setSharePin(null)}
+        >
+          <WatermarkShare 
+            photoUri={sharePin.image_url} 
+            locationName={sharePin.username || "Pinc Memory"} 
+            onClose={() => setSharePin(null)} 
+          />
+        </Modal>
       )}
     </Modal>
   );
@@ -942,6 +969,8 @@ const styles = StyleSheet.create({
   },
   memoryInfo: {
     padding: 10,
+    flexDirection: 'row',
+    alignItems: 'center'
   },
   memoryVenue: {
     fontSize: 14,
@@ -954,5 +983,10 @@ const styles = StyleSheet.create({
     color: '#888',
     marginTop: 4,
     fontFamily: PincTheme.fonts.body,
+  },
+  gridShareBtn: {
+    padding: 6,
+    justifyContent: "center",
+    alignItems: "center"
   }
 });
