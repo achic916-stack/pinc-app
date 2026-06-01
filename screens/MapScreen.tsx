@@ -833,7 +833,6 @@ export const MapScreen: React.FC<MapScreenProps> = ({
               anchor={{ x: 0.5, y: 0.5 }}
             >
               <View style={{ alignItems: 'center', justifyContent: 'center' }}>
-                {isTier3 && <RadarPulse />}
                 <View style={{
                   width: markerSize,
                   height: markerSize,

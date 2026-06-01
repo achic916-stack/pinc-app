@@ -15,7 +15,7 @@ import {
 import { Image } from "expo-image";
 import { PincTheme } from "../styles/theme";
 import { Venue, Pin, UserProfile, toggleLikePin, subscribeToComments, deletePin, db } from "../services/firebase";
-import { doc, updateDoc } from "firebase/firestore";
+import { doc, updateDoc, deleteDoc } from "firebase/firestore";
 import { t } from "../services/localization";
 import { Ionicons } from "@expo/vector-icons";
 import { CommentsDrawer } from "./CommentsDrawer";
@@ -119,6 +119,47 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
               Alert.alert(
                 locale === "th" ? "เกิดข้อผิดพลาด" : "Error", 
                 locale === "th" ? "ไม่สามารถลบรูปภาพได้ในขณะนี้" : "Could not delete image at this time"
+              );
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleDeleteVenue = () => {
+    Alert.alert(
+      locale === "th" ? "ลบหมุดร้านค้า" : "Delete Shop Pin",
+      locale === "th" 
+        ? `คุณแน่ใจหรือไม่ว่าต้องการลบหมุดร้านค้า "${venue.name}" นี้ออกจากแผนที่อย่างถาวร?` 
+        : `Are you sure you want to permanently delete the shop pin "${venue.name}" from the map?`,
+      [
+        { text: locale === "th" ? "ยกเลิก" : "Cancel", style: "cancel" },
+        { 
+          text: locale === "th" ? "ลบ" : "Delete", 
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const venueDocRef = doc(db, "venues", venue.venueId);
+              await deleteDoc(venueDocRef);
+
+              Alert.alert(
+                locale === "th" ? "สำเร็จ" : "Success", 
+                locale === "th" ? "ลบหมุดร้านค้าเรียบร้อยแล้ว" : "Shop pin deleted successfully",
+                [
+                  {
+                    text: locale === "th" ? "ตกลง" : "OK",
+                    onPress: () => {
+                      onClose();
+                    }
+                  }
+                ]
+              );
+            } catch (err) {
+              console.error("Failed to delete venue:", err);
+              Alert.alert(
+                locale === "th" ? "เกิดข้อผิดพลาด" : "Error", 
+                locale === "th" ? "ไม่สามารถลบหมุดร้านค้าได้ในขณะนี้" : "Could not delete shop pin at this time"
               );
             }
           }
@@ -349,8 +390,19 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
       <View style={styles.venueInfo}>
         <View style={styles.titleRow}>
           <Text style={styles.venueName}>{venue.name}</Text>
-          <View style={styles.ratingBadge}>
-            <Text style={styles.ratingText}>★ {venue.aesthetic_rating.toFixed(1)}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            {isShopPackage && (
+              <TouchableOpacity 
+                style={{ padding: 6, backgroundColor: '#FFEBF0', borderRadius: 8 }}
+                onPress={handleDeleteVenue}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="trash-outline" size={20} color="#FF4B72" />
+              </TouchableOpacity>
+            )}
+            <View style={styles.ratingBadge}>
+              <Text style={styles.ratingText}>★ {venue.aesthetic_rating.toFixed(1)}</Text>
+            </View>
           </View>
         </View>
 
