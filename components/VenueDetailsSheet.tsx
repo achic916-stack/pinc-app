@@ -516,30 +516,63 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                       <Text style={styles.feedText}>{pin.text_content}</Text>
                       
                       {pin.image_url && (
-                        isActuallyVideo(pin) ? (
-                          activeVideoId === pin.pinId ? (
-                            <CachedVideo 
-                              source={{ uri: pin.image_url }} 
-                              style={styles.feedImage} 
-                              resizeMode={ResizeMode.COVER} 
-                              shouldPlay 
-                              useNativeControls
-                            />
+                        <View style={{ position: 'relative' }}>
+                          {isActuallyVideo(pin) ? (
+                            activeVideoId === pin.pinId ? (
+                              <CachedVideo 
+                                source={{ uri: pin.image_url }} 
+                                style={styles.feedImage} 
+                                resizeMode={ResizeMode.COVER} 
+                                shouldPlay 
+                                useNativeControls
+                              />
+                            ) : (
+                              <TouchableOpacity 
+                                style={{ width: '100%', height: 250, borderRadius: 12, overflow: 'hidden', marginTop: 12 }} 
+                                onPress={() => setActiveVideoId(pin.pinId || null)}
+                                activeOpacity={0.8}
+                              >
+                                <Image source={{ uri: getSafeVideoUrl(pin.image_url) }} style={styles.feedImage} contentFit="cover" />
+                                <View style={[StyleSheet.absoluteFill, { justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)' }]}>
+                                  <Text style={{ fontSize: 48 }}>▶️</Text>
+                                </View>
+                              </TouchableOpacity>
+                            )
                           ) : (
-                            <TouchableOpacity 
-                              style={{ width: '100%', height: 250, borderRadius: 12, overflow: 'hidden', marginTop: 12 }} 
-                              onPress={() => setActiveVideoId(pin.pinId || null)}
+                            <Image source={{ uri: pin.image_url }} style={styles.feedImage} contentFit="cover" />
+                          )}
+
+                          {venue.sponsor_tier === 3 && (
+                            <TouchableOpacity
+                              style={{
+                                position: 'absolute',
+                                bottom: 12,
+                                left: 12,
+                                backgroundColor: 'rgba(255, 75, 114, 0.95)',
+                                paddingHorizontal: 12,
+                                paddingVertical: 8,
+                                borderRadius: 20,
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                shadowColor: '#000',
+                                shadowOffset: { width: 0, height: 2 },
+                                shadowOpacity: 0.25,
+                                shadowRadius: 3.84,
+                                elevation: 5,
+                              }}
+                              onPress={() => {
+                                const url = `https://www.google.com/maps/dir/?api=1&destination=${venue.latitude},${venue.longitude}`;
+                                Linking.openURL(url);
+                              }}
                               activeOpacity={0.8}
                             >
-                              <Image source={{ uri: getSafeVideoUrl(pin.image_url) }} style={styles.feedImage} contentFit="cover" />
-                              <View style={[StyleSheet.absoluteFill, { justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)' }]}>
-                                <Text style={{ fontSize: 48 }}>▶️</Text>
-                              </View>
+                              <Ionicons name="navigate" size={16} color="#FFF" />
+                              <Text style={{ color: '#FFF', fontSize: 13, fontWeight: 'bold', marginLeft: 6 }}>
+                                {locale === "th" ? "ขอเส้นทางไปที่นี่" : "Get Directions"}
+                              </Text>
                             </TouchableOpacity>
-                          )
-                        ) : (
-                          <Image source={{ uri: pin.image_url }} style={styles.feedImage} contentFit="cover" />
-                        )
+                          )}
+                        </View>
                       )}
 
                       {/* Social Action Row */}

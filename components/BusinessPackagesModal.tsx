@@ -167,14 +167,18 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
         cover_image: uploadedUrls[0],
         custom_icon_url: uploadedUrls[0], // Use the first uploaded image as custom icon/logo
         images: uploadedUrls,
+        images: uploadedUrls,
         description: description.trim() + (phoneNumber.trim() ? `\nโทร: ${phoneNumber.trim()}` : ""),
-        socialLinks: Object.keys(socialLinks).length > 0 ? socialLinks : undefined,
         is_sponsored: true,
         sponsor_tier: tier,
         subscription_status: 'ACTIVE',
         campaign_start_date: serverTimestamp(),
         campaign_end_date: new Date(Date.now() + 30 * 24 * 3600 * 1000)
       };
+
+      if (Object.keys(socialLinks).length > 0) {
+        (venueData as any).socialLinks = socialLinks;
+      }
 
       // 4. Write to Firestore database!
       const venuesRef = collection(db, "venues");
