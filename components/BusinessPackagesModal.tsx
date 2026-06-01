@@ -145,10 +145,6 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
         console.warn("Could not get location during shop registration, using default.", locErr);
       }
 
-      // Add a tiny random offset so they don't exactly stack at the default point
-      latitude += (Math.random() - 0.5) * 0.003;
-      longitude += (Math.random() - 0.5) * 0.003;
-
       const geohash = encodeGeohash(latitude, longitude, 9);
       
       // Determine sponsor tier based on package
@@ -166,7 +162,6 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
         crowd_status: "Green",
         cover_image: uploadedUrls[0],
         custom_icon_url: uploadedUrls[0], // Use the first uploaded image as custom icon/logo
-        images: uploadedUrls,
         images: uploadedUrls,
         description: description.trim() + (phoneNumber.trim() ? `\nโทร: ${phoneNumber.trim()}` : ""),
         is_sponsored: true,
