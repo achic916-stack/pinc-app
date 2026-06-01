@@ -480,13 +480,31 @@ export const MapScreen: React.FC<MapScreenProps> = ({
     if (!searchQuery.trim()) return [];
     const queryStr = searchQuery.toLowerCase().trim();
 
-    const matched = displayedVenues.filter((venue) =>
-      venue.name.toLowerCase().includes(queryStr) ||
-      venue.category.toLowerCase().includes(queryStr)
-    );
+    const matched = displayedVenues.filter((venue) => {
+      const nameMatch = venue.name.toLowerCase().includes(queryStr);
+      const catMatch = venue.category.toLowerCase().includes(queryStr);
+      
+      let packageMatch = false;
+      if (venue.is_sponsored) {
+        const tierKeywords = venue.sponsor_tier === 3 ? "gold package tier 3 ทอง" :
+                             venue.sponsor_tier === 2 ? "silver package tier 2 เงิน" : 
+                             "bronze package tier 1 ทองแดง";
+        const sponsorKeywords = "แพ็คเกจ ร้านค้า สปอนเซอร์ sponsored package";
+        packageMatch = tierKeywords.includes(queryStr) || sponsorKeywords.includes(queryStr);
+      }
 
-    // Basic sorting (could sort by distance in the future)
-    return matched;
+      return nameMatch || catMatch || packageMatch;
+    });
+
+    // Sort: Sponsored first (by tier descending), then others
+    return matched.sort((a, b) => {
+      if (a.is_sponsored && !b.is_sponsored) return -1;
+      if (!a.is_sponsored && b.is_sponsored) return 1;
+      if (a.is_sponsored && b.is_sponsored) {
+        return (b.sponsor_tier || 0) - (a.sponsor_tier || 0);
+      }
+      return 0;
+    });
   }, [searchQuery, displayedVenues]);
 
   const handleSelectSearchResult = (venue: Venue) => {

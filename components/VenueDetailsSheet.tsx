@@ -8,7 +8,8 @@ import {
   ScrollView,
   Dimensions,
   ActivityIndicator,
-  Alert
+  Alert,
+  Linking
 } from "react-native";
 import { Image } from "expo-image";
 import { PincTheme } from "../styles/theme";
@@ -306,6 +307,19 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
             </Text>
           </View>
         </View>
+
+        {venue.sponsor_tier === 3 && (
+          <TouchableOpacity 
+            style={styles.directionsButton}
+            onPress={() => {
+              const url = `https://www.google.com/maps/dir/?api=1&destination=${venue.latitude},${venue.longitude}`;
+              Linking.openURL(url);
+            }}
+          >
+            <Ionicons name="navigate" size={16} color="#FFF" />
+            <Text style={styles.directionsText}>{locale === "th" ? "ขอเส้นทาง" : "Get Directions"}</Text>
+          </TouchableOpacity>
+        )}
       </View>
  
       {/* Premium Sliding Navigation Tabs */}
@@ -659,6 +673,22 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     backgroundColor: PincTheme.colors.textTertiary,
     marginHorizontal: 8
+  },
+  directionsButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: PincTheme.colors.primary,
+    marginTop: 12,
+    paddingVertical: 10,
+    borderRadius: PincTheme.borderRadius.md,
+    gap: 8
+  },
+  directionsText: {
+    color: "#FFF",
+    fontFamily: PincTheme.fonts.heading,
+    fontWeight: "bold",
+    fontSize: 14
   },
   crowdBadge: {
     flexDirection: "row",
