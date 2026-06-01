@@ -591,7 +591,7 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
 
                 <View style={styles.featuresList}>
                   <Text style={[styles.featureItem, { fontWeight: "700" }]}>
-                    ✓ ใส่โลโก้ร้านบนหมุดแผนที่ได้
+                    ✓ อัปโหลดรูปร้านค้าได้ 5 รูป
                   </Text>
                   <Text style={styles.featureItem}>
                     ✓ โชว์ชื่อร้านบนแผนที่ตลอดเวลา
@@ -663,7 +663,7 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
                     ✨ เอฟเฟกต์วงคลื่นเรดาร์ (Radar Pulse)
                   </Text>
                   <Text style={[styles.featureItem, { fontWeight: "700" }]}>
-                    ✓ ใส่โลโก้ร้านบนหมุดแผนที่ได้
+                    ✓ อัปโหลดรูปร้านค้าได้ 10 รูป
                   </Text>
                   <Text style={styles.featureItem}>
                     ✓ หมุดกรอบสีชมพู (Pink) สุดพรีเมียม
