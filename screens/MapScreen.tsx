@@ -103,63 +103,39 @@ const minimalMapStyle = [
     elementType: "all",
     stylers: [{ visibility: "off" }]
   },
-  // === ซ่อน POI ทั้งหมด (ร้านอาหาร, ร้านค้า, สถานบริการ, ฯลฯ) ===
-  {
-    featureType: "poi",
-    elementType: "all",
-    stylers: [{ visibility: "off" }]
-  },
-  {
-    featureType: "poi",
-    elementType: "labels",
-    stylers: [{ visibility: "off" }]
-  },
-  {
-    featureType: "poi",
-    elementType: "labels.text",
-    stylers: [{ visibility: "off" }]
-  },
-  {
-    featureType: "poi",
-    elementType: "labels.icon",
-    stylers: [{ visibility: "off" }]
-  },
+  
+  // === จัดการคะแนนสถานที่ POI ===
+  // ซ่อนเฉพาะธุรกิจพาณิชย์ (ร้านอาหาร, สถานบริการต่างๆ, โรงแรม, รีสอร์ท, ร้านขายของ, มินิมาร์ท)
   {
     featureType: "poi.business",
     elementType: "all",
     stylers: [{ visibility: "off" }]
   },
+  // แสดงสถานที่ท่องเที่ยวและสถานที่ทางธรรมชาติ
   {
     featureType: "poi.attraction",
     elementType: "all",
     stylers: [{ visibility: "on" }]
   },
+  // แสดงสถานที่ราชการ
   {
     featureType: "poi.government",
     elementType: "all",
-    stylers: [{ visibility: "off" }]
+    stylers: [{ visibility: "on" }]
   },
-  {
-    featureType: "poi.medical",
-    elementType: "all",
-    stylers: [{ visibility: "off" }]
-  },
+  // แสดงโรงเรียน/มหาวิทยาลัย
   {
     featureType: "poi.school",
     elementType: "all",
-    stylers: [{ visibility: "off" }]
+    stylers: [{ visibility: "on" }]
   },
+  // แสดงวัด / ศาสนสถาน
   {
     featureType: "poi.place_of_worship",
     elementType: "all",
-    stylers: [{ visibility: "off" }]
+    stylers: [{ visibility: "on" }]
   },
-  {
-    featureType: "poi.sports_complex",
-    elementType: "all",
-    stylers: [{ visibility: "off" }]
-  },
-  // สวนสาธารณะ: เก็บพื้นที่สีเขียวไว้แต่ซ่อนชื่อ
+  // แสดงสวนสาธารณะ พร้อมชื่อสวนสาธารณะ
   {
     featureType: "poi.park",
     elementType: "geometry.fill",
@@ -168,9 +144,20 @@ const minimalMapStyle = [
   {
     featureType: "poi.park",
     elementType: "labels",
+    stylers: [{ visibility: "on" }]
+  },
+  {
+    featureType: "poi.medical",
+    elementType: "all",
     stylers: [{ visibility: "off" }]
   },
-  // ถนน: แสดง geometry แต่ซ่อนชื่อถนนเพื่อความสะอาด
+  {
+    featureType: "poi.sports_complex",
+    elementType: "all",
+    stylers: [{ visibility: "off" }]
+  },
+
+  // === จัดการถนน (แสดงชื่อถนนหลักเพื่อความสะดวกในการเดินทาง) ===
   {
     featureType: "road",
     elementType: "geometry",
@@ -179,34 +166,44 @@ const minimalMapStyle = [
   {
     featureType: "road",
     elementType: "labels",
-    stylers: [{ visibility: "off" }]
+    stylers: [{ visibility: "on" }]
   },
   {
     featureType: "road.highway",
     elementType: "labels",
-    stylers: [{ visibility: "off" }]
+    stylers: [{ visibility: "on" }]
   },
   {
     featureType: "road.arterial",
     elementType: "labels",
-    stylers: [{ visibility: "off" }]
+    stylers: [{ visibility: "on" }]
   },
   {
     featureType: "road.local",
     elementType: "labels",
-    stylers: [{ visibility: "off" }]
+    stylers: [{ visibility: "on" }]
   },
-  // ซ่อนระบบขนส่ง
   {
     featureType: "transit",
     elementType: "all",
     stylers: [{ visibility: "off" }]
   },
-  // ซ่อน labels ชุมชนและที่ดิน
+
+  // === เปิดแสดงป้ายชื่อ อำเภอ, ตำบล, หมู่บ้าน ===
   {
-    featureType: "administrative.neighborhood",
+    featureType: "administrative.locality", // อำเภอ / เขต / เมือง
     elementType: "labels",
-    stylers: [{ visibility: "off" }]
+    stylers: [{ visibility: "on" }]
+  },
+  {
+    featureType: "administrative.sublocality", // ตำบล / แขวง
+    elementType: "labels",
+    stylers: [{ visibility: "on" }]
+  },
+  {
+    featureType: "administrative.neighborhood", // หมู่บ้าน / ชุมชน
+    elementType: "labels",
+    stylers: [{ visibility: "on" }]
   },
   {
     featureType: "administrative.land_parcel",
@@ -705,10 +702,10 @@ export const MapScreen: React.FC<MapScreenProps> = ({
 
           return (
             <CustomMapMarker key={clusterKey} coordinate={{ latitude: centerLat, longitude: centerLng }} onPress={onPress} zoomScale={zoomScale}>
-              <View style={{ alignItems: 'center' }}>
-                <View style={{ width: scaledSize, height: scaledSize, borderRadius: scaledRadius, padding: 3, backgroundColor: tierColor, ...PincTheme.shadows.md }}>
+              <View style={{ alignItems: 'center', ...PincTheme.shadows.md }}>
+                <View style={{ width: scaledSize, height: scaledSize, borderRadius: scaledRadius, padding: 3, backgroundColor: tierColor, overflow: 'hidden' }}>
                   {profilePicUrl ? (
-                    <Image source={{ uri: profilePicUrl }} style={{ width: innerSize, height: innerSize, borderRadius: innerRadius, overflow: 'hidden' }} contentFit="cover" />
+                    <RNImage source={{ uri: profilePicUrl }} style={{ width: innerSize, height: innerSize, borderRadius: innerRadius }} resizeMode="cover" />
                   ) : (
                     <View style={{ width: innerSize, height: innerSize, borderRadius: innerRadius, backgroundColor: PincTheme.colors.card }} />
                   )}
@@ -820,13 +817,13 @@ export const MapScreen: React.FC<MapScreenProps> = ({
               )}
 
               {/* Unified Profile Marker */}
-              <View style={{ alignItems: 'center' }}>
-                <View style={{ width: getMarkerSize(zoomScale), height: getMarkerSize(zoomScale), borderRadius: getMarkerSize(zoomScale) / 2, padding: 3, backgroundColor: isLiveNews ? PincTheme.colors.crowdRed : getTierColor(followerStatsCache[pin.userId] || 0), ...PincTheme.shadows.md }}>
+              <View style={{ alignItems: 'center', ...PincTheme.shadows.md }}>
+                <View style={{ width: getMarkerSize(zoomScale), height: getMarkerSize(zoomScale), borderRadius: getMarkerSize(zoomScale) / 2, padding: 3, backgroundColor: isLiveNews ? PincTheme.colors.crowdRed : getTierColor(followerStatsCache[pin.userId] || 0), overflow: 'hidden' }}>
                   {pin.user_profile_pic ? (
-                    <Image
+                    <RNImage
                       source={{ uri: pin.user_profile_pic }}
-                      style={{ width: getMarkerSize(zoomScale) - 6, height: getMarkerSize(zoomScale) - 6, borderRadius: (getMarkerSize(zoomScale) - 6) / 2, overflow: 'hidden' }}
-                      contentFit="cover"
+                      style={{ width: getMarkerSize(zoomScale) - 6, height: getMarkerSize(zoomScale) - 6, borderRadius: (getMarkerSize(zoomScale) - 6) / 2 }}
+                      resizeMode="cover"
                     />
                   ) : (
                     <View style={{ width: getMarkerSize(zoomScale) - 6, height: getMarkerSize(zoomScale) - 6, borderRadius: (getMarkerSize(zoomScale) - 6) / 2, backgroundColor: PincTheme.colors.card }} />
