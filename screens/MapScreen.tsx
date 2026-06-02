@@ -661,7 +661,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
           const textSize = Math.max(9, Math.floor(11 * zoomScale));
 
           return (
-            <Marker key={clusterKey} coordinate={{ latitude: centerLat, longitude: centerLng }} onPress={onPress} tracksViewChanges={markerTracksViewChanges[clusterKey] ?? true}>
+            <Marker key={clusterKey} coordinate={{ latitude: centerLat, longitude: centerLng }} onPress={onPress} tracksViewChanges={true}>
               <View style={{ alignItems: 'center' }}>
                 <View style={{ width: scaledSize, height: scaledSize, borderRadius: scaledRadius, padding: 3, backgroundColor: tierColor, overflow: 'hidden', ...PincTheme.shadows.md }}>
                   {profilePicUrl ? (
@@ -743,12 +743,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                   setDeleteModePinId(pin.pinId || null);
                 }
               }}
-              tracksViewChanges={
-                tracksViewChangesDuringZoom ||
-                pin.media_type === "video" ||
-                isVideoUrl(photoUrl) ||
-                (markerTracksViewChanges[pinKey] ?? true)
-              }
+              tracksViewChanges={true}
               anchor={{ x: 0.5, y: 0.5 }}
             >
               {/* Red Minus Delete Badge Overlay */}

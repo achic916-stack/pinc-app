@@ -660,7 +660,7 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
                       { fontWeight: "bold", color: "#FF4B72" },
                     ]}
                   >
-                    ✨ เอฟเฟกต์วงคลื่นเรดาร์ (Radar Pulse)
+                    ✨ ขอเส้นทางได้
                   </Text>
                   <Text style={[styles.featureItem, { fontWeight: "700" }]}>
                     ✓ อัปโหลดรูปร้านค้าได้ 10 รูป

@@ -25,7 +25,7 @@ export const SocialLinksInput: React.FC<SocialLinksInputProps> = ({ socialLinks,
   return (
     <View style={styles.inputContainer}>
       <Text style={styles.sectionTitle}>Social Media Links (Optional)</Text>
-      
+
       {/* Instagram */}
       <View style={styles.inputWrapper}>
         <FontAwesome5 name="instagram" size={20} color="#E1306C" style={styles.inputIcon} />
@@ -124,28 +124,28 @@ export const SocialLinksDisplay: React.FC<SocialLinksDisplayProps> = ({ socialLi
   return (
     <View style={styles.displayContainer}>
       {!!instagramUrl && (
-        <TouchableOpacity 
-          style={[styles.iconButton, { width: size, height: size, borderRadius: size / 2 }]} 
+        <TouchableOpacity
+          style={[styles.iconButton, { width: size, height: size, borderRadius: size / 2 }]}
           onPress={() => handleOpenLink('instagram', instagramUrl)}
           activeOpacity={0.7}
         >
           <FontAwesome5 name="instagram" size={size * 0.55} color="#E1306C" />
         </TouchableOpacity>
       )}
-      
+
       {!!facebookUrl && (
-        <TouchableOpacity 
-          style={[styles.iconButton, { width: size, height: size, borderRadius: size / 2 }]} 
+        <TouchableOpacity
+          style={[styles.iconButton, { width: size, height: size, borderRadius: size / 2 }]}
           onPress={() => handleOpenLink('facebook', facebookUrl)}
           activeOpacity={0.7}
         >
           <FontAwesome5 name="facebook-f" size={size * 0.55} color="#1877F2" />
         </TouchableOpacity>
       )}
-      
+
       {!!tiktokUrl && (
-        <TouchableOpacity 
-          style={[styles.iconButton, { width: size, height: size, borderRadius: size / 2 }]} 
+        <TouchableOpacity
+          style={[styles.iconButton, { width: size, height: size, borderRadius: size / 2 }]}
           onPress={() => handleOpenLink('tiktok', tiktokUrl)}
           activeOpacity={0.7}
         >
@@ -190,7 +190,7 @@ const styles = StyleSheet.create({
     fontFamily: PincTheme.fonts.body,
     color: PincTheme.colors.textPrimary,
   },
-  
+
   // Display Styles
   displayContainer: {
     flexDirection: 'row',
