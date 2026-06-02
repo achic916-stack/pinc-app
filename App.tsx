@@ -567,6 +567,9 @@ export default function App() {
             onClearMemory={() => setSelectedMemoryPin(null)}
             currentUserId={currentUser?.userId}
             onDeletePin={handleDeletePin}
+            onOpenUserProfile={(userId) => {
+              setSelectedUserProfileId(userId);
+            }}
           />
 
           {/* Floating Action Button "The Pinc Button" */}
@@ -797,6 +800,10 @@ export default function App() {
               setActiveTab("home");
             }}
             currentUserId={currentUser.userId}
+            onOpenUserProfile={(userId) => {
+              setSelectedUserProfileId(userId);
+              setAppReelsPins([]);
+            }}
           />
 
           {/* GDPR & Settings Modal */}

@@ -63,6 +63,7 @@ interface MapScreenProps {
   onClearMemory?: () => void;
   currentUserId?: string;
   onDeletePin?: (pin: Pin) => void;
+  onOpenUserProfile?: (userId: string) => void;
 }
 
 // Detailed Light Lifestyle Map Styling for Google Maps
@@ -317,7 +318,8 @@ export const MapScreen: React.FC<MapScreenProps> = ({
   selectedMemoryPin = null,
   onClearMemory,
   currentUserId,
-  onDeletePin
+  onDeletePin,
+  onOpenUserProfile
 }) => {
   const { t } = useTranslation();
   const mapRef = useRef<any | null>(null);
@@ -938,6 +940,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
           if (onClearMemory) onClearMemory();
         }}
         currentUserId={currentUserId || auth.currentUser?.uid || ""} // Pass appropriately if needed
+        onOpenUserProfile={onOpenUserProfile}
       />
 
       {/* Main Bottom Dashboard Tab Bar Overlay */}
@@ -996,6 +999,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
         pins={reelsFeedPins}
         onClose={() => setReelsFeedPins([])}
         currentUserId={currentUserId || auth.currentUser?.uid || ""}
+        onOpenUserProfile={onOpenUserProfile}
       />
     </SafeAreaView>
   );

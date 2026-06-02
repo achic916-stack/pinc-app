@@ -16,7 +16,7 @@ import { Audio, Video, ResizeMode } from "expo-av";
 import { CachedVideo } from "./CachedVideo";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { Pin, auth, toggleLikePin, subscribeToComments, fetchUserProfile, UserProfile } from "../services/firebase";
+import { Pin, auth, toggleLikePin, subscribeToComments, fetchUserProfile, UserProfile, checkIsFollowing, toggleFollow } from "../services/firebase";
 import { PincTheme } from "../styles/theme";
 import { CommentsDrawer } from "./CommentsDrawer";
 import { WatermarkShare } from "./WatermarkShare";
@@ -29,6 +29,7 @@ interface ReelsFeedModalProps {
   onClose: () => void;
   currentUserId: string;
   initialIndex?: number;
+  onOpenUserProfile?: (userId: string) => void;
 }
 
 const FeedItem = ({ 
@@ -37,7 +38,8 @@ const FeedItem = ({
   shouldMountVideo = true,
   onCommentPress,
   onSharePress,
-  currentUserId
+  currentUserId,
+  onOpenUserProfile
 }: { 
   item: Pin; 
   isVisible: boolean;
@@ -45,11 +47,44 @@ const FeedItem = ({
   onCommentPress: () => void;
   onSharePress: () => void;
   currentUserId: string;
+  onOpenUserProfile?: (userId: string) => void;
 }) => {
   const [liked, setLiked] = useState(item.likes?.includes(currentUserId) || false);
   const [likesCount, setLikesCount] = useState(item.likes?.length || item.likesCount || 0);
   const [commentsCount, setCommentsCount] = useState(item.commentsCount || 0);
   const [backgroundSound, setBackgroundSound] = useState<Audio.Sound | null>(null);
+
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [isTogglingFollow, setIsTogglingFollow] = useState(false);
+
+  useEffect(() => {
+    const checkStatus = async () => {
+      if (!currentUserId || !item.userId || item.userId === currentUserId) return;
+      try {
+        const status = await checkIsFollowing(currentUserId, item.userId);
+        setIsFollowing(status);
+      } catch (err) {
+        console.warn("Failed to check follow status in FeedItem:", err);
+      }
+    };
+    checkStatus();
+  }, [item.userId, currentUserId]);
+
+  const handleToggleFollow = async () => {
+    if (!currentUserId || !item.userId || item.userId === currentUserId || isTogglingFollow) return;
+    setIsTogglingFollow(true);
+    const prevStatus = isFollowing;
+    setIsFollowing(!prevStatus);
+    try {
+      const nowFollowing = await toggleFollow(currentUserId, item.userId);
+      setIsFollowing(nowFollowing);
+    } catch (err) {
+      console.warn("Failed to toggle follow in FeedItem:", err);
+      setIsFollowing(prevStatus);
+    } finally {
+      setIsTogglingFollow(false);
+    }
+  };
 
   // Sync likes and check if currentUserId liked on item change
   useEffect(() => {
@@ -182,11 +217,24 @@ const FeedItem = ({
       {/* Bottom Left: User Info & Caption */}
       <View style={styles.bottomOverlay}>
         <View style={styles.userInfoRow}>
-          <Image source={{ uri: item.user_profile_pic }} style={styles.avatar} />
-          <Text style={styles.username}>{item.username}</Text>
-          <TouchableOpacity style={styles.followButton}>
-            <Text style={styles.followText}>Follow</Text>
+          <TouchableOpacity 
+            onPress={() => onOpenUserProfile && onOpenUserProfile(item.userId)}
+            style={{ flexDirection: 'row', alignItems: 'center' }}
+          >
+            <Image source={{ uri: item.user_profile_pic }} style={styles.avatar} />
+            <Text style={styles.username}>{item.username}</Text>
           </TouchableOpacity>
+          {item.userId !== currentUserId && (
+            <TouchableOpacity 
+              style={[styles.followButton, isFollowing && styles.followingButtonActive]}
+              onPress={handleToggleFollow}
+              disabled={isTogglingFollow}
+            >
+              <Text style={styles.followText}>
+                {isFollowing ? "Following" : "Follow"}
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
         
         {item.text_content ? (
@@ -231,7 +279,8 @@ export const ReelsFeedModal: React.FC<ReelsFeedModalProps> = ({
   pins,
   onClose,
   currentUserId,
-  initialIndex = 0
+  initialIndex = 0,
+  onOpenUserProfile
 }) => {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [activeCommentPinId, setActiveCommentPinId] = useState<string | null>(null);
@@ -317,6 +366,7 @@ export const ReelsFeedModal: React.FC<ReelsFeedModalProps> = ({
                 onCommentPress={() => setActiveCommentPinId(item.pinId || null)}
                 onSharePress={() => setSharePin(item)}
                 currentUserId={currentUserId}
+                onOpenUserProfile={onOpenUserProfile}
               />
             )}
             onViewableItemsChanged={handleViewableItemsChanged}
@@ -347,6 +397,7 @@ export const ReelsFeedModal: React.FC<ReelsFeedModalProps> = ({
           currentUser={currentUserProfile}
           onClose={() => setActiveCommentPinId(null)}
           locale="en"
+          onOpenUserProfile={onOpenUserProfile}
         />
 
         {/* Watermark Share Modal */}
@@ -484,5 +535,9 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
     marginTop: 4,
+  },
+  followingButtonActive: {
+    backgroundColor: "rgba(255, 255, 255, 0.3)",
+    borderColor: "transparent",
   },
 });
