@@ -85,7 +85,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
   const [selectedFullScreenImage, setSelectedFullScreenImage] = useState<string | null>(null);
 
   // Owner checking & sponsored checks
-  const isOwner = venue ? (venue.ownerId === currentUser.userId || !venue.ownerId) : false;
+  const isOwner = venue ? (venue.ownerId === currentUser.userId || currentUser.role === "ADMIN") : false;
   const isShopPackage = venue ? (venue.is_sponsored === true || (venue.sponsor_tier && venue.sponsor_tier >= 1)) : false;
   const showEditPanel = isEditing && isShopPackage && isOwner;
 

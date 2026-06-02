@@ -261,7 +261,7 @@ export async function fetchUserProfile(userId: string): Promise<UserProfile | nu
   if (docSnap.exists()) {
     const data = docSnap.data();
     return {
-      userId: data.userId,
+      userId: data.userId || docSnap.id,
       username: data.username,
       bio: data.bio,
       profile_pic: data.profile_pic,

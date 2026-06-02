@@ -88,7 +88,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   // New States for Follower Lists and Chat
   const [userListType, setUserListType] = useState<"followers" | "following" | null>(null);
   const myShops = (venues || []).filter((v) => 
-    (v.ownerId === currentUserId || !v.ownerId) && 
+    v.ownerId === currentUserId && 
     (v.is_sponsored || (v.sponsor_tier && v.sponsor_tier >= 1))
   );
 

@@ -627,7 +627,7 @@ export default function App() {
           <UserProfileModal
             visible={selectedUserProfileId !== null}
             userId={selectedUserProfileId}
-            currentUserId={currentUser.userId}
+            currentUserId={currentUser?.userId || ""}
             onClose={() => setSelectedUserProfileId(null)}
             onSelectMemory={(pin) => {
               setSelectedMemoryPin(pin);
