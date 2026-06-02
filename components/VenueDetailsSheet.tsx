@@ -10,14 +10,17 @@ import {
   ActivityIndicator,
   Alert,
   Linking,
-  Platform
+  Platform,
+  TextInput
 } from "react-native";
 import { Image } from "expo-image";
 import { PincTheme } from "../styles/theme";
-import { Venue, Pin, UserProfile, toggleLikePin, subscribeToComments, deletePin, db } from "../services/firebase";
+import { Venue, Pin, UserProfile, toggleLikePin, subscribeToComments, deletePin, db, uploadPinImage } from "../services/firebase";
 import { doc, updateDoc, deleteDoc } from "firebase/firestore";
 import { t } from "../services/localization";
 import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
+import { compressImage } from "../services/imageCompressor";
 import { CommentsDrawer } from "./CommentsDrawer";
 import { CachedVideo } from "./CachedVideo";
 import { SocialLinksDisplay } from "./SocialLinks";
@@ -79,52 +82,164 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
   const [commentsCounts, setCommentsCounts] = useState<{ [pinId: string]: number }>({});
   const [selectedFullScreenImage, setSelectedFullScreenImage] = useState<string | null>(null);
 
+  // Owner checking (fallback to true if no ownerId exists for developer testing)
+  const isOwner = venue.ownerId === currentUser.userId || !venue.ownerId;
+
+  // Local editing states
+  const [editedRating, setEditedRating] = useState<number>(venue.aesthetic_rating || 5.0);
+  const [editedCategory, setEditedCategory] = useState<string>(venue.category || "café");
+  const [editedCrowdStatus, setEditedCrowdStatus] = useState<string>(venue.crowd_status || "Green");
+  const [editedDescription, setEditedDescription] = useState<string>(venue.description || "");
+  const [editedImages, setEditedImages] = useState<string[]>(venue.images || []);
+  const [isUploading, setIsUploading] = useState(false);
+
+  useEffect(() => {
+    if (venue) {
+      setEditedRating(venue.aesthetic_rating || 5.0);
+      setEditedCategory(venue.category || "café");
+      setEditedCrowdStatus(venue.crowd_status || "Green");
+      setEditedDescription(venue.description || "");
+      setEditedImages(venue.images || []);
+    }
+  }, [venue]);
+
   const handleLongPressImage = (imageUri: string) => {
+    if (!isOwner) return; // Only owner can delete!
     Alert.alert(
       locale === "th" ? "ลบรูปภาพร้านค้า" : "Delete Shop Image",
       locale === "th" 
-        ? "คุณแน่ใจหรือไม่ว่าต้องการลบรูปภาพนี้ออกจากร้านค้าของคุณ?" 
-        : "Are you sure you want to delete this image from your shop?",
+        ? "คุณแน่ใจหรือไม่ว่าต้องการเอารูปภาพนี้ออกจากร้านค้าชั่วคราว? (กรุณากดปุ่มบันทึกด้านล่างเพื่อยืนยัน)" 
+        : "Are you sure you want to remove this image temporarily? (Please press save below to commit)",
       [
         { text: locale === "th" ? "ยกเลิก" : "Cancel", style: "cancel" },
         { 
           text: locale === "th" ? "ลบ" : "Delete", 
           style: "destructive",
-          onPress: async () => {
-            try {
-              const updatedImages = (venue.images || []).filter(img => img !== imageUri);
-              
-              let updatedCoverImage = venue.cover_image;
-              if (venue.cover_image === imageUri) {
-                updatedCoverImage = updatedImages.length > 0 ? updatedImages[0] : "";
-              }
-
-              const venueDocRef = doc(db, "venues", venue.venueId);
-              await updateDoc(venueDocRef, {
-                images: updatedImages,
-                cover_image: updatedCoverImage,
-                custom_icon_url: updatedCoverImage
-              });
-
-              venue.images = updatedImages;
-              venue.cover_image = updatedCoverImage;
-              venue.custom_icon_url = updatedCoverImage;
-
-              Alert.alert(
-                locale === "th" ? "สำเร็จ" : "Success", 
-                locale === "th" ? "ลบรูปภาพเรียบร้อยแล้ว" : "Image deleted successfully"
-              );
-            } catch (err) {
-              console.error("Failed to delete shop image:", err);
-              Alert.alert(
-                locale === "th" ? "เกิดข้อผิดพลาด" : "Error", 
-                locale === "th" ? "ไม่สามารถลบรูปภาพได้ในขณะนี้" : "Could not delete image at this time"
-              );
-            }
+          onPress: () => {
+            setEditedImages(prev => prev.filter(img => img !== imageUri));
           }
         }
       ]
     );
+  };
+
+  const handlePickImage = async () => {
+    const maxImages = venue.sponsor_tier === 2 ? 5 : venue.sponsor_tier === 3 ? 10 : 3;
+    if (editedImages.length >= maxImages) {
+      Alert.alert(
+        locale === "th" ? "ครบตามกำหนด" : "Limit reached", 
+        locale === "th" 
+          ? `อัปโหลดได้สูงสุด ${maxImages} รูปสำหรับแพ็กเกจนี้` 
+          : `You can upload up to ${maxImages} photos for this package.`
+      );
+      return;
+    }
+
+    Alert.alert(
+      locale === "th" ? "เลือกรูปภาพ" : "Choose Image",
+      locale === "th" ? "เลือกแหล่งที่มาของรูปภาพ" : "Select image source",
+      [
+        {
+          text: locale === "th" ? "📷 ถ่ายรูป" : "📷 Camera",
+          onPress: async () => {
+            const { status } = await ImagePicker.requestCameraPermissionsAsync();
+            if (status !== "granted") {
+              Alert.alert(locale === "th" ? "ไม่ได้รับอนุญาต" : "Permission Denied", locale === "th" ? "กรุณาอนุญาตการเข้าถึงกล้อง" : "Please grant camera permission");
+              return;
+            }
+            const result = await ImagePicker.launchCameraAsync({
+              allowsEditing: true,
+              quality: 0.85,
+            });
+            if (!result.canceled && result.assets?.length > 0) {
+              uploadSingleImage(result.assets[0].uri);
+            }
+          },
+        },
+        {
+          text: locale === "th" ? "🖼️ เลือกจากคลัง" : "🖼️ Gallery",
+          onPress: async () => {
+            const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (status !== "granted") {
+              Alert.alert(locale === "th" ? "ไม่ได้รับอนุญาต" : "Permission Denied", locale === "th" ? "กรุณาอนุญาตการเข้าถึงคลังรูปภาพ" : "Please grant photo library permission");
+              return;
+            }
+            const result = await ImagePicker.launchImageLibraryAsync({
+              mediaTypes: ImagePicker.MediaTypeOptions.Images,
+              allowsEditing: true,
+              quality: 0.85,
+            });
+            if (!result.canceled && result.assets?.length > 0) {
+              uploadSingleImage(result.assets[0].uri);
+            }
+          },
+        },
+        { text: locale === "th" ? "ยกเลิก" : "Cancel", style: "cancel" },
+      ]
+    );
+  };
+
+  const uploadSingleImage = async (localUri: string) => {
+    setIsUploading(true);
+    try {
+      const compressedUri = await compressImage(localUri);
+      const downloadUrl = await uploadPinImage(compressedUri, currentUser.userId);
+      setEditedImages(prev => [...prev, downloadUrl]);
+    } catch (err: any) {
+      console.error("Failed to upload image:", err);
+      Alert.alert(locale === "th" ? "เกิดข้อผิดพลาด" : "Error", err.message || "Could not upload image");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleSaveShopDetails = async () => {
+    if (editedImages.length === 0) {
+      Alert.alert(
+        locale === "th" ? "ข้อผิดพลาด" : "Error", 
+        locale === "th" ? "จำเป็นต้องอัปโหลดรูปภาพอย่างน้อย 1 รูป" : "At least one image is required"
+      );
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      const venueDocRef = doc(db, "venues", venue.venueId);
+      const updatedCoverImage = editedImages[0];
+
+      const updateData = {
+        aesthetic_rating: editedRating,
+        category: editedCategory,
+        crowd_status: editedCrowdStatus,
+        description: editedDescription,
+        images: editedImages,
+        cover_image: updatedCoverImage,
+        custom_icon_url: updatedCoverImage
+      };
+
+      await updateDoc(venueDocRef, updateData);
+
+      venue.aesthetic_rating = editedRating;
+      venue.category = editedCategory;
+      venue.crowd_status = editedCrowdStatus;
+      venue.description = editedDescription;
+      venue.images = editedImages;
+      venue.cover_image = updatedCoverImage;
+      venue.custom_icon_url = updatedCoverImage;
+
+      Alert.alert(
+        locale === "th" ? "สำเร็จ" : "Success", 
+        locale === "th" ? "บันทึกข้อมูลร้านค้าเรียบร้อยแล้ว" : "Shop details saved successfully"
+      );
+    } catch (err: any) {
+      console.error("Failed to save shop details:", err);
+      Alert.alert(
+        locale === "th" ? "เกิดข้อผิดพลาด" : "Error", 
+        err.message || "Could not save details"
+      );
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const handleDeleteVenue = () => {
@@ -350,9 +465,11 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
   };
 
   const isShopPackage = venue.is_sponsored === true || (venue.sponsor_tier && venue.sponsor_tier >= 1);
-  const shopImages = venue.images && venue.images.length > 0 
-    ? venue.images 
-    : [venue.cover_image].filter(Boolean);
+  const shopImages = isOwner 
+    ? editedImages 
+    : (venue.images && venue.images.length > 0 
+        ? venue.images 
+        : [venue.cover_image].filter(Boolean));
 
   const widget = getWidgetSummary();
 
@@ -386,83 +503,250 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
         )}
       </View>
 
-      {/* Venue Header Info */}
+      {/* Venue Header Info / Owner Edit Panel */}
       <View style={styles.venueInfo}>
-        <View style={styles.titleRow}>
-          <Text style={styles.venueName}>{venue.name}</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            {isShopPackage && (
-              <TouchableOpacity 
-                style={{ padding: 6, backgroundColor: '#FFEBF0', borderRadius: 8 }}
-                onPress={handleDeleteVenue}
-                activeOpacity={0.7}
+        {isOwner && isShopPackage ? (
+          /* Owner Administration Panel */
+          <View style={{ gap: 14 }}>
+            {/* Header Row (Name & Delete & Rating Selector) */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <TextInput
+                style={{
+                  fontSize: 20,
+                  fontFamily: PincTheme.fonts.heading,
+                  fontWeight: 'bold',
+                  color: PincTheme.colors.textPrimary,
+                  flex: 1,
+                  borderBottomWidth: 1,
+                  borderBottomColor: PincTheme.colors.border,
+                  paddingVertical: 4,
+                  marginRight: 10
+                }}
+                value={venue.name}
+                editable={false}
+              />
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <TouchableOpacity 
+                  style={{ padding: 6, backgroundColor: '#FFEBF0', borderRadius: 8 }}
+                  onPress={handleDeleteVenue}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="trash-outline" size={20} color="#FF4B72" />
+                </TouchableOpacity>
+                {/* Rating Badge (Editable: Taps to trigger prompt/options) */}
+                <TouchableOpacity 
+                  style={[styles.ratingBadge, { backgroundColor: PincTheme.colors.primary }]}
+                  activeOpacity={0.8}
+                  onPress={() => {
+                    Alert.alert(
+                      locale === "th" ? "ปรับแต่งคะแนนรีวิว" : "Adjust Rating Review",
+                      locale === "th" ? "กรุณาเลือกคะแนนสำหรับร้านค้าของคุณ" : "Please select a rating for your shop",
+                      [4.7, 4.8, 4.9, 5.0].map((rate) => ({
+                        text: `★ ${rate.toFixed(1)}`,
+                        onPress: () => setEditedRating(rate)
+                      })).concat([{ text: locale === "th" ? "ยกเลิก" : "Cancel", style: "cancel" }])
+                    );
+                  }}
+                >
+                  <Text style={[styles.ratingText, { color: '#FFF' }]}>★ {editedRating.toFixed(1)} ✏️</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Category Option ("CAFÉ", "RESTAURANT", "BAR") */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: PincTheme.colors.textSecondary }}>CATEGORY:</Text>
+              <View style={{ flexDirection: 'row', gap: 6 }}>
+                {["café", "restaurant", "bar"].map((cat) => (
+                  <TouchableOpacity
+                    key={cat}
+                    style={{
+                      paddingHorizontal: 12,
+                      paddingVertical: 6,
+                      borderRadius: 12,
+                      borderWidth: 1,
+                      borderColor: editedCategory === cat ? PincTheme.colors.primary : PincTheme.colors.border,
+                      backgroundColor: editedCategory === cat ? PincTheme.colors.primaryLight : '#FFF'
+                    }}
+                    onPress={() => setEditedCategory(cat)}
+                  >
+                    <Text style={{
+                      fontSize: 10,
+                      fontWeight: 'bold',
+                      color: editedCategory === cat ? PincTheme.colors.primary : PincTheme.colors.textSecondary
+                    }}>
+                      {cat.toUpperCase()}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* Crowd Status Option ("Empty / Chill", "Moderate Queue", "Crowded / Long Line") */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: PincTheme.colors.textSecondary }}>STATUS:</Text>
+              <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
+                {[
+                  { key: "Green", label: locale === "th" ? "Empty / Chill (โล่ง)" : "Empty / Chill", color: PincTheme.colors.crowdGreen, bg: PincTheme.colors.crowdGreenLight },
+                  { key: "Yellow", label: locale === "th" ? "Moderate Queue (ปานกลาง)" : "Moderate Queue", color: PincTheme.colors.crowdYellow, bg: PincTheme.colors.crowdYellowLight },
+                  { key: "Red", label: locale === "th" ? "Crowded (หนาแน่น)" : "Crowded / Long Line", color: PincTheme.colors.crowdRed, bg: PincTheme.colors.crowdRedLight }
+                ].map((item) => (
+                  <TouchableOpacity
+                    key={item.key}
+                    style={{
+                      paddingHorizontal: 10,
+                      paddingVertical: 6,
+                      borderRadius: 14,
+                      borderWidth: 1.5,
+                      borderColor: editedCrowdStatus.toLowerCase() === item.key.toLowerCase() ? item.color : PincTheme.colors.border,
+                      backgroundColor: editedCrowdStatus.toLowerCase() === item.key.toLowerCase() ? item.bg : '#FFF'
+                    }}
+                    onPress={() => setEditedCrowdStatus(item.key)}
+                  >
+                    <Text style={{
+                      fontSize: 10,
+                      fontWeight: 'bold',
+                      color: editedCrowdStatus.toLowerCase() === item.key.toLowerCase() ? item.color : PincTheme.colors.textSecondary
+                    }}>
+                      {item.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* Description Text Input */}
+            <View style={{ gap: 4 }}>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: PincTheme.colors.textSecondary }}>
+                {locale === "th" ? "รายละเอียดโพสต์ / ข้อมูลร้าน" : "Description / Details"}:
+              </Text>
+              <TextInput
+                style={{
+                  borderWidth: 1,
+                  borderColor: PincTheme.colors.border,
+                  borderRadius: 8,
+                  padding: 10,
+                  fontSize: 13,
+                  color: PincTheme.colors.textPrimary,
+                  backgroundColor: '#FFF',
+                  minHeight: 64,
+                  textAlignVertical: 'top'
+                }}
+                placeholder={locale === "th" ? "กรอกที่อยู่ เบอร์โทรติดต่อ รายละเอียด..." : "Enter address, phone, details..."}
+                placeholderTextColor={PincTheme.colors.textTertiary}
+                multiline
+                numberOfLines={3}
+                value={editedDescription}
+                onChangeText={setEditedDescription}
+              />
+            </View>
+
+            {/* Save Shop Details Button */}
+            <TouchableOpacity 
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: '#FF4B72',
+                paddingVertical: 12,
+                borderRadius: 10,
+                gap: 8,
+                marginTop: 6,
+                shadowColor: '#FF4B72',
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.25,
+                shadowRadius: 4,
+                elevation: 4
+              }}
+              onPress={handleSaveShopDetails}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="save" size={18} color="#FFF" />
+              <Text style={{ color: '#FFF', fontWeight: 'bold', fontSize: 14 }}>
+                {locale === "th" ? "💾 บันทึกข้อมูลโพสต์ร้านค้า" : "💾 Save Shop Details"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          /* General User Read-Only Panel */
+          <>
+            <View style={styles.titleRow}>
+              <Text style={styles.venueName}>{venue.name}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                {isShopPackage && (
+                  <TouchableOpacity 
+                    style={{ padding: 6, backgroundColor: '#FFEBF0', borderRadius: 8 }}
+                    onPress={handleDeleteVenue}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="trash-outline" size={20} color="#FF4B72" />
+                  </TouchableOpacity>
+                )}
+                <View style={styles.ratingBadge}>
+                  <Text style={styles.ratingText}>★ {venue.aesthetic_rating.toFixed(1)}</Text>
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.metaRow}>
+              <Text style={styles.categoryText}>{venue.category.toUpperCase()}</Text>
+              <View style={styles.bulletSeparator} />
+              
+              {/* Dynamic Crowd Status Badge */}
+              <View
+                style={[
+                  styles.crowdBadge,
+                  (currentStatus === "green" || currentStatus === "chill") && styles.badgeGreen,
+                  (currentStatus === "yellow" || currentStatus === "moderate") && styles.badgeYellow,
+                  (currentStatus === "red" || currentStatus === "packed") && styles.badgeRed
+                ]}
               >
-                <Ionicons name="trash-outline" size={20} color="#FF4B72" />
+                <View
+                  style={[
+                    styles.crowdIndicatorDot,
+                    (currentStatus === "green" || currentStatus === "chill") && { backgroundColor: PincTheme.colors.crowdGreen },
+                    (currentStatus === "yellow" || currentStatus === "moderate") && { backgroundColor: PincTheme.colors.crowdYellow },
+                    (currentStatus === "red" || currentStatus === "packed") && { backgroundColor: PincTheme.colors.crowdRed }
+                  ]}
+                />
+                <Text
+                  style={[
+                    styles.crowdText,
+                    (currentStatus === "green" || currentStatus === "chill") && { color: PincTheme.colors.crowdGreen },
+                    (currentStatus === "yellow" || currentStatus === "moderate") && { color: PincTheme.colors.crowdYellow },
+                    (currentStatus === "red" || currentStatus === "packed") && { color: PincTheme.colors.crowdRed }
+                  ]}
+                >
+                  {currentStatus === "green" || currentStatus === "chill" ? t(locale, "emptyChill") : ""}
+                  {currentStatus === "yellow" || currentStatus === "moderate" ? t(locale, "moderateQueue") : ""}
+                  {currentStatus === "red" || currentStatus === "packed" ? t(locale, "crowdedLongLine") : ""}
+                </Text>
+              </View>
+            </View>
+
+            {venue.sponsor_tier === 3 && (
+              <TouchableOpacity 
+                style={styles.directionsButton}
+                onPress={() => {
+                  const url = `https://www.google.com/maps/dir/?api=1&destination=${venue.latitude},${venue.longitude}`;
+                  Linking.openURL(url);
+                }}
+              >
+                <Ionicons name="navigate" size={16} color="#FFF" />
+                <Text style={styles.directionsText}>{locale === "th" ? "ขอเส้นทาง" : "Get Directions"}</Text>
               </TouchableOpacity>
             )}
-            <View style={styles.ratingBadge}>
-              <Text style={styles.ratingText}>★ {venue.aesthetic_rating.toFixed(1)}</Text>
-            </View>
-          </View>
-        </View>
 
-        <View style={styles.metaRow}>
-          <Text style={styles.categoryText}>{venue.category.toUpperCase()}</Text>
-          <View style={styles.bulletSeparator} />
-          
-          {/* Dynamic Crowd Status Badge */}
-          <View
-            style={[
-              styles.crowdBadge,
-              (currentStatus === "green" || currentStatus === "chill") && styles.badgeGreen,
-              (currentStatus === "yellow" || currentStatus === "moderate") && styles.badgeYellow,
-              (currentStatus === "red" || currentStatus === "packed") && styles.badgeRed
-            ]}
-          >
-            <View
-              style={[
-                styles.crowdIndicatorDot,
-                (currentStatus === "green" || currentStatus === "chill") && { backgroundColor: PincTheme.colors.crowdGreen },
-                (currentStatus === "yellow" || currentStatus === "moderate") && { backgroundColor: PincTheme.colors.crowdYellow },
-                (currentStatus === "red" || currentStatus === "packed") && { backgroundColor: PincTheme.colors.crowdRed }
-              ]}
-            />
-            <Text
-              style={[
-                styles.crowdText,
-                (currentStatus === "green" || currentStatus === "chill") && { color: PincTheme.colors.crowdGreen },
-                (currentStatus === "yellow" || currentStatus === "moderate") && { color: PincTheme.colors.crowdYellow },
-                (currentStatus === "red" || currentStatus === "packed") && { color: PincTheme.colors.crowdRed }
-              ]}
-            >
-              {currentStatus === "green" || currentStatus === "chill" ? t(locale, "emptyChill") : ""}
-              {currentStatus === "yellow" || currentStatus === "moderate" ? t(locale, "moderateQueue") : ""}
-              {currentStatus === "red" || currentStatus === "packed" ? t(locale, "crowdedLongLine") : ""}
-            </Text>
-          </View>
-        </View>
+            {!!venue.description && (
+              <Text style={styles.venueDescription}>{venue.description}</Text>
+            )}
 
-        {venue.sponsor_tier === 3 && (
-          <TouchableOpacity 
-            style={styles.directionsButton}
-            onPress={() => {
-              const url = `https://www.google.com/maps/dir/?api=1&destination=${venue.latitude},${venue.longitude}`;
-              Linking.openURL(url);
-            }}
-          >
-            <Ionicons name="navigate" size={16} color="#FFF" />
-            <Text style={styles.directionsText}>{locale === "th" ? "ขอเส้นทาง" : "Get Directions"}</Text>
-          </TouchableOpacity>
-        )}
-
-        {!!venue.description && (
-          <Text style={styles.venueDescription}>{venue.description}</Text>
-        )}
-
-        {!!venue.socialLinks && (
-          <View style={styles.socialLinksWrapper}>
-            <SocialLinksDisplay socialLinks={venue.socialLinks} size={32} />
-          </View>
+            {!!venue.socialLinks && (
+              <View style={styles.socialLinksWrapper}>
+                <SocialLinksDisplay socialLinks={venue.socialLinks} size={32} />
+              </View>
+            )}
+          </>
         )}
       </View>
  
@@ -509,6 +793,30 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                 <Image source={{ uri }} style={styles.gridImage} contentFit="cover" />
               </TouchableOpacity>
             ))}
+
+            {/* Owner Add Photo Card */}
+            {isOwner && (
+              <TouchableOpacity 
+                style={[
+                  styles.gridImageWrapper, 
+                  { 
+                    backgroundColor: '#FFF9FA', 
+                    borderWidth: 2, 
+                    borderStyle: 'dashed', 
+                    borderColor: '#FF4B72', 
+                    justifyContent: 'center', 
+                    alignItems: 'center' 
+                  }
+                ]}
+                activeOpacity={0.7}
+                onPress={handlePickImage}
+              >
+                <Ionicons name="add" size={36} color="#FF4B72" />
+                <Text style={{ fontSize: 10, fontWeight: 'bold', color: '#FF4B72', marginTop: 4 }}>
+                  {locale === "th" ? "เพิ่มรูปภาพ" : "Add Photo"}
+                </Text>
+              </TouchableOpacity>
+            )}
           </ScrollView>
         ) : activeTab === "aesthetic" ? (
           /* Tab 1: Aesthetic (Polished IG Grid) */
@@ -831,6 +1139,16 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
             />
           </View>
         </Modal>
+      )}
+
+      {/* Upload/Save Loader Overlay */}
+      {isUploading && (
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(255,255,255,0.75)', justifyContent: 'center', alignItems: 'center', zIndex: 99999 }]}>
+          <ActivityIndicator size="large" color="#FF4B72" />
+          <Text style={{ marginTop: 12, fontWeight: '700', color: '#FF4B72', fontSize: 13, fontFamily: PincTheme.fonts.heading }}>
+            {locale === "th" ? "กำลังประมวลผลและบันทึกข้อมูล..." : "Processing and saving..."}
+          </Text>
+        </View>
       )}
     </View>
   );

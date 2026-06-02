@@ -154,6 +154,7 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
 
       const venueData = {
         name: shopName.trim(),
+        ownerId: currentUserId,
         latitude,
         longitude,
         geohash,
