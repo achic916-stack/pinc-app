@@ -330,6 +330,12 @@ export const MapScreen: React.FC<MapScreenProps> = ({
   const [deleteModePinId, setDeleteModePinId] = useState<string | null>(null);
   const [followerStatsCache, setFollowerStatsCache] = useState<Record<string, number>>({});
 
+  // Filter venues based on isFilterFriends state
+  const displayedVenues = useMemo(() => {
+    if (!isFilterFriends) return venues;
+    return venues.filter((venue) => venue.is_sponsored || followingVenueIds.has(venue.venueId));
+  }, [venues, isFilterFriends, followingVenueIds]);
+
   // Effect to autofocus search bar on trigger
   useEffect(() => {
     if (focusSearchTrigger && focusSearchTrigger > 0) {
@@ -509,11 +515,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
     }
     : defaultRegion;
 
-  // Filter venues based on isFilterFriends state
-  const displayedVenues = useMemo(() => {
-    if (!isFilterFriends) return venues;
-    return venues.filter((venue) => venue.is_sponsored || followingVenueIds.has(venue.venueId));
-  }, [venues, isFilterFriends, followingVenueIds]);
+
 
   // Dynamic Greedy Clustering algorithm removed in favor of react-native-map-clustering
 
