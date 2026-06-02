@@ -16,7 +16,7 @@ import { Audio, Video, ResizeMode } from "expo-av";
 import { CachedVideo } from "./CachedVideo";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { Pin, auth } from "../services/firebase";
+import { Pin, auth, toggleLikePin, subscribeToComments } from "../services/firebase";
 import { PincTheme } from "../styles/theme";
 import { CommentsDrawer } from "./CommentsDrawer";
 import { WatermarkShare } from "./WatermarkShare";
@@ -36,17 +36,35 @@ const FeedItem = ({
   isVisible,
   shouldMountVideo = true,
   onCommentPress,
-  onSharePress
+  onSharePress,
+  currentUserId
 }: { 
   item: Pin; 
   isVisible: boolean;
   shouldMountVideo?: boolean;
   onCommentPress: () => void;
   onSharePress: () => void;
+  currentUserId: string;
 }) => {
-  const [liked, setLiked] = useState(item.likes?.includes("currentUserId") || false);
-  const [likesCount, setLikesCount] = useState(item.likesCount || 0);
+  const [liked, setLiked] = useState(item.likes?.includes(currentUserId) || false);
+  const [likesCount, setLikesCount] = useState(item.likes?.length || item.likesCount || 0);
+  const [commentsCount, setCommentsCount] = useState(item.commentsCount || 0);
   const [backgroundSound, setBackgroundSound] = useState<Audio.Sound | null>(null);
+
+  // Sync likes and check if currentUserId liked on item change
+  useEffect(() => {
+    setLiked(item.likes?.includes(currentUserId) || false);
+    setLikesCount(item.likes?.length || item.likesCount || 0);
+  }, [item, currentUserId]);
+
+  // Subscribe to real-time comments count
+  useEffect(() => {
+    if (!item.pinId) return;
+    const unsubscribe = subscribeToComments(item.pinId, (commentsList) => {
+      setCommentsCount(commentsList.length);
+    });
+    return () => unsubscribe();
+  }, [item.pinId]);
 
   useEffect(() => {
     let soundObj: Audio.Sound | null = null;
@@ -98,9 +116,21 @@ const FeedItem = ({
     };
   }, [isVisible, item.music_url]);
 
-  const handleLike = () => {
-    setLiked(!liked);
-    setLikesCount(liked ? likesCount - 1 : likesCount + 1);
+  const handleLike = async () => {
+    const nextLiked = !liked;
+    const nextCount = likesCount + (nextLiked ? 1 : -1);
+    setLiked(nextLiked);
+    setLikesCount(nextCount);
+
+    if (item.pinId) {
+      try {
+        await toggleLikePin(item.pinId, currentUserId);
+      } catch (err) {
+        console.warn("Failed to persist like in ReelsFeedModal:", err);
+        setLiked(liked);
+        setLikesCount(likesCount);
+      }
+    }
   };
 
   return (
@@ -180,7 +210,7 @@ const FeedItem = ({
 
         <TouchableOpacity style={styles.actionButton} onPress={onCommentPress}>
           <Ionicons name="chatbubble-outline" size={32} color="#FFF" />
-          <Text style={styles.actionText}>{item.commentsCount || 0}</Text>
+          <Text style={styles.actionText}>{commentsCount}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.actionButton} onPress={onSharePress}>
@@ -268,6 +298,7 @@ export const ReelsFeedModal: React.FC<ReelsFeedModalProps> = ({
                 shouldMountVideo={Math.abs(index - currentIndex) <= 2}
                 onCommentPress={() => setActiveCommentPinId(item.pinId || null)}
                 onSharePress={() => setSharePin(item)}
+                currentUserId={currentUserId}
               />
             )}
             onViewableItemsChanged={handleViewableItemsChanged}

@@ -256,6 +256,53 @@ const RadarPulse: React.FC = () => {
   );
 };
 
+interface CustomMapMarkerProps {
+  coordinate: { latitude: number; longitude: number };
+  onPress?: (e: any) => void;
+  onLongPress?: (e: any) => void;
+  anchor?: { x: number; y: number };
+  zIndex?: number;
+  zoomScale: number;
+  children: React.ReactNode;
+}
+
+const CustomMapMarker: React.FC<CustomMapMarkerProps> = ({
+  coordinate,
+  onPress,
+  onLongPress,
+  anchor,
+  zIndex,
+  zoomScale,
+  children
+}) => {
+  const [tracksView, setTracksView] = useState(true);
+
+  useEffect(() => {
+    setTracksView(true);
+    const timer = setTimeout(() => {
+      setTracksView(false);
+    }, 850);
+    return () => clearTimeout(timer);
+  }, [zoomScale]);
+
+  const markerProps: any = {
+    coordinate,
+    onPress,
+    anchor,
+    zIndex,
+    tracksViewChanges: tracksView,
+  };
+  if (onLongPress) {
+    markerProps.onLongPress = onLongPress;
+  }
+
+  return (
+    <Marker {...markerProps}>
+      {children}
+    </Marker>
+  );
+};
+
 export const MapScreen: React.FC<MapScreenProps> = ({
   venues,
   allPins = [],
@@ -279,7 +326,6 @@ export const MapScreen: React.FC<MapScreenProps> = ({
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [isSearchVisible, setIsSearchVisible] = useState(false);
   const [isFilterFriends, setIsFilterFriends] = useState(false);
-  const [markerTracksViewChanges, setMarkerTracksViewChanges] = useState<Record<string, boolean>>({});
   const [reelsFeedPins, setReelsFeedPins] = useState<Pin[]>([]);
   const [deleteModePinId, setDeleteModePinId] = useState<string | null>(null);
   const [followerStatsCache, setFollowerStatsCache] = useState<Record<string, number>>({});
@@ -421,16 +467,8 @@ export const MapScreen: React.FC<MapScreenProps> = ({
     return { photoUrl, timestamp, latestPin };
   }, [validPins]);
 
-  // Dynamic zoom scale and region delta tracking
+  // Dynamic zoom scale tracking
   const [zoomScale, setZoomScale] = useState(1.0);
-  const [regionDelta, setRegionDelta] = useState({ latitudeDelta: 0.015, longitudeDelta: 0.015 });
-  const [tracksViewChangesDuringZoom, setTracksViewChangesDuringZoom] = useState(false);
-
-  const handleRegionChange = () => {
-    if (!tracksViewChangesDuringZoom) {
-      setTracksViewChangesDuringZoom(true);
-    }
-  };
 
   const handleRegionChangeComplete = (region: { latitude: number; longitude: number; latitudeDelta: number; longitudeDelta: number }) => {
     // Calculate custom zoom scale based on current latitudeDelta relative to base delta (0.015)
@@ -439,16 +477,14 @@ export const MapScreen: React.FC<MapScreenProps> = ({
     // Clamp scale to keep icons legible (between 0.4 and 1.8)
     const clampedScale = Math.max(0.4, Math.min(1.8, calculatedScale));
 
-    setZoomScale(clampedScale);
-    setRegionDelta({
-      latitudeDelta: region.latitudeDelta || 0.015,
-      longitudeDelta: region.longitudeDelta || 0.015
+    // Only update zoom scale if it has changed significantly (more than 8%)
+    // This avoids minor float fluctuations during panning from triggering useless re-renders
+    setZoomScale(prevScale => {
+      if (Math.abs(clampedScale - prevScale) > 0.08) {
+        return clampedScale;
+      }
+      return prevScale;
     });
-
-    // Keep tracking view changes for a short duration to let the scale update render natively, then disable
-    setTimeout(() => {
-      setTracksViewChangesDuringZoom(false);
-    }, 600);
   };
 
   // Default Center coordinates if GPS is loading (Bangkok central café district as default)
@@ -627,7 +663,6 @@ export const MapScreen: React.FC<MapScreenProps> = ({
         showsUserLocation
         showsMyLocationButton={false}
         spiralEnabled={false}
-        onRegionChange={handleRegionChange}
         onRegionChangeComplete={handleRegionChangeComplete}
         clusterColor={PincTheme.colors.primary}
         clusterTextColor="#FFFFFF"
@@ -661,11 +696,11 @@ export const MapScreen: React.FC<MapScreenProps> = ({
           const textSize = Math.max(9, Math.floor(11 * zoomScale));
 
           return (
-            <Marker key={clusterKey} coordinate={{ latitude: centerLat, longitude: centerLng }} onPress={onPress} tracksViewChanges={tracksViewChangesDuringZoom || (markerTracksViewChanges[clusterKey] ?? true)}>
+            <CustomMapMarker key={clusterKey} coordinate={{ latitude: centerLat, longitude: centerLng }} onPress={onPress} zoomScale={zoomScale}>
               <View style={{ alignItems: 'center' }}>
                 <View style={{ width: scaledSize, height: scaledSize, borderRadius: scaledRadius, padding: 3, backgroundColor: tierColor, overflow: 'hidden', ...PincTheme.shadows.md }}>
                   {profilePicUrl ? (
-                    <RNImage source={{ uri: profilePicUrl }} style={{ width: innerSize, height: innerSize, borderRadius: innerRadius, overflow: 'hidden' }} resizeMode="cover" onLoadEnd={() => setMarkerTracksViewChanges(prev => prev[clusterKey] === false ? prev : { ...prev, [clusterKey]: false })} />
+                    <Image source={{ uri: profilePicUrl }} style={{ width: innerSize, height: innerSize, borderRadius: innerRadius, overflow: 'hidden' }} contentFit="cover" />
                   ) : (
                     <View style={{ width: innerSize, height: innerSize, borderRadius: innerRadius, backgroundColor: PincTheme.colors.card }} />
                   )}
@@ -676,7 +711,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                   </Text>
                 ) : null}
               </View>
-            </Marker>
+            </CustomMapMarker>
           );
         }}
         onPress={() => {
@@ -716,7 +751,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
           const pinKey = `pin-${pin.pinId || `${pin.latitude}-${pin.longitude}-${pin.timestamp}`}-${pin.user_profile_pic || ''}`;
 
           return (
-            <Marker
+            <CustomMapMarker
               key={pinKey}
               coordinate={{ latitude: pin.latitude, longitude: pin.longitude }}
               onPress={() => {
@@ -743,13 +778,8 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                   setDeleteModePinId(pin.pinId || null);
                 }
               }}
-              tracksViewChanges={
-                tracksViewChangesDuringZoom ||
-                pin.media_type === "video" ||
-                isVideoUrl(photoUrl) ||
-                (markerTracksViewChanges[pinKey] ?? true)
-              }
               anchor={{ x: 0.5, y: 0.5 }}
+              zoomScale={zoomScale}
             >
               {/* Red Minus Delete Badge Overlay */}
               {isDeleteMode && (
@@ -771,11 +801,10 @@ export const MapScreen: React.FC<MapScreenProps> = ({
               <View style={{ alignItems: 'center' }}>
                 <View style={{ width: getMarkerSize(zoomScale), height: getMarkerSize(zoomScale), borderRadius: getMarkerSize(zoomScale) / 2, padding: 3, backgroundColor: isLiveNews ? PincTheme.colors.crowdRed : getTierColor(followerStatsCache[pin.userId] || 0), overflow: 'hidden', ...PincTheme.shadows.md }}>
                   {pin.user_profile_pic ? (
-                    <RNImage
+                    <Image
                       source={{ uri: pin.user_profile_pic }}
                       style={{ width: getMarkerSize(zoomScale) - 6, height: getMarkerSize(zoomScale) - 6, borderRadius: (getMarkerSize(zoomScale) - 6) / 2, overflow: 'hidden' }}
-                      resizeMode="cover"
-                      onLoadEnd={() => setMarkerTracksViewChanges(prev => prev[pinKey] === false ? prev : { ...prev, [pinKey]: false })}
+                      contentFit="cover"
                     />
                   ) : (
                     <View style={{ width: getMarkerSize(zoomScale) - 6, height: getMarkerSize(zoomScale) - 6, borderRadius: (getMarkerSize(zoomScale) - 6) / 2, backgroundColor: PincTheme.colors.card }} />
@@ -787,7 +816,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                   </Text>
                 ) : null}
               </View>
-            </Marker>
+            </CustomMapMarker>
           );
         })}
         {selectedMemoryPin && (
@@ -825,13 +854,13 @@ export const MapScreen: React.FC<MapScreenProps> = ({
           const innerSize = markerSize - 6;
 
           return (
-            <Marker
+            <CustomMapMarker
               key={sponsorKey}
               coordinate={{ latitude: venue.latitude, longitude: venue.longitude }}
               onPress={() => onSelectVenue(venue)}
-              tracksViewChanges={true}
               zIndex={998}
               anchor={{ x: 0.5, y: 0.5 }}
+              zoomScale={zoomScale}
             >
               <View style={{ alignItems: 'center', justifyContent: 'center' }}>
                 <View style={{
@@ -847,15 +876,14 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                   ...PincTheme.shadows.md,
                 }}>
                   {venue.custom_icon_url || venue.cover_image ? (
-                    <RNImage
+                    <Image
                       source={{ uri: venue.custom_icon_url || venue.cover_image }}
                       style={{
                         width: innerSize,
                         height: innerSize,
                         borderRadius: 4,
                       }}
-                      resizeMode="cover"
-                      onLoadEnd={() => setMarkerTracksViewChanges(prev => prev[sponsorKey] === false ? prev : { ...prev, [sponsorKey]: false })}
+                      contentFit="cover"
                     />
                   ) : null}
                 </View>
@@ -873,7 +901,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                   {venue.name}
                 </Text>
               </View>
-            </Marker>
+            </CustomMapMarker>
           );
         })}
 
@@ -887,7 +915,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
           setIsMemorySheetVisible(false);
           if (onClearMemory) onClearMemory();
         }}
-        currentUserId={""} // Pass appropriately if needed
+        currentUserId={currentUserId || auth.currentUser?.uid || ""} // Pass appropriately if needed
       />
 
       {/* Main Bottom Dashboard Tab Bar Overlay */}
@@ -945,7 +973,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
         visible={reelsFeedPins.length > 0}
         pins={reelsFeedPins}
         onClose={() => setReelsFeedPins([])}
-        currentUserId={auth.currentUser?.uid || ""}
+        currentUserId={currentUserId || auth.currentUser?.uid || ""}
       />
     </SafeAreaView>
   );
