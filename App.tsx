@@ -644,6 +644,7 @@ export default function App() {
               setSelectedVenue(shop);
               setIsEditingVenue(true);
             }}
+            onUpdateProfile={handleAuthSuccess}
           />
 
           {/* Reality Check Sliding Shelf (User Pins Photo Drawer) */}

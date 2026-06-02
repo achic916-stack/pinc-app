@@ -49,6 +49,7 @@ interface UserProfileModalProps {
   currentUserProfile?: UserProfile | null;
   venues?: Venue[];
   onSelectEditVenue?: (venue: Venue) => void;
+  onUpdateProfile?: (updatedProfile: UserProfile) => void;
 }
 
 export const UserProfileModal: React.FC<UserProfileModalProps> = ({
@@ -63,7 +64,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   setUserId,
   currentUserProfile,
   venues = [],
-  onSelectEditVenue
+  onSelectEditVenue,
+  onUpdateProfile
 }) => {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [pins, setPins] = useState<Pin[]>([]);
@@ -205,7 +207,14 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         updates.profile_pic = newUrl;
       }
       await updateUserProfile(userId, updates);
-      setProfile(prev => prev ? { ...prev, ...updates } : null);
+      
+      const nextProfile = { ...profile, ...updates } as UserProfile;
+      setProfile(nextProfile);
+      
+      if (onUpdateProfile) {
+        onUpdateProfile(nextProfile);
+      }
+      
       setShowEditModal(false);
     } catch (err) {
       Alert.alert("Error", "Failed to save profile. Please try again.");
