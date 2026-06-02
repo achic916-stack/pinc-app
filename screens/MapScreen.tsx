@@ -103,7 +103,7 @@ const minimalMapStyle = [
     elementType: "all",
     stylers: [{ visibility: "off" }]
   },
-  // === ซ่อน POI ทั้งหมดตามแบบเดิม (ร้านอาหาร, ร้านค้า, สถานบริการ, ฯลฯ) ===
+  // === ซ่อน POI ทั้งหมด (ร้านอาหาร, ร้านค้า, สถานบริการ, ฯลฯ) ===
   {
     featureType: "poi",
     elementType: "all",
@@ -124,38 +124,53 @@ const minimalMapStyle = [
     elementType: "labels.icon",
     stylers: [{ visibility: "off" }]
   },
-  // === แสดงเฉพาะสถานที่สาธารณะและธรรมชาติที่ขอเพิ่มพิเศษ ===
   {
-    featureType: "poi.government", // สถานที่ราชการ
+    featureType: "poi.business",
+    elementType: "all",
+    stylers: [{ visibility: "off" }]
+  },
+  {
+    featureType: "poi.attraction",
     elementType: "all",
     stylers: [{ visibility: "on" }]
   },
   {
-    featureType: "poi.park", // สวนสาธารณะ
+    featureType: "poi.government",
+    elementType: "all",
+    stylers: [{ visibility: "off" }]
+  },
+  {
+    featureType: "poi.medical",
+    elementType: "all",
+    stylers: [{ visibility: "off" }]
+  },
+  {
+    featureType: "poi.school",
+    elementType: "all",
+    stylers: [{ visibility: "off" }]
+  },
+  {
+    featureType: "poi.place_of_worship",
+    elementType: "all",
+    stylers: [{ visibility: "off" }]
+  },
+  {
+    featureType: "poi.sports_complex",
+    elementType: "all",
+    stylers: [{ visibility: "off" }]
+  },
+  // สวนสาธารณะ: เก็บพื้นที่สีเขียวไว้แต่ซ่อนชื่อ
+  {
+    featureType: "poi.park",
     elementType: "geometry.fill",
     stylers: [{ color: "#E8F0E6" }, { visibility: "on" }]
   },
   {
-    featureType: "poi.park", // ชื่อสวนสาธารณะ
+    featureType: "poi.park",
     elementType: "labels",
-    stylers: [{ visibility: "on" }]
+    stylers: [{ visibility: "off" }]
   },
-  {
-    featureType: "poi.attraction", // สถานที่ท่องเที่ยวธรรมชาติ
-    elementType: "all",
-    stylers: [{ visibility: "on" }]
-  },
-  {
-    featureType: "poi.place_of_worship", // วัด / ศาสนสถาน
-    elementType: "all",
-    stylers: [{ visibility: "on" }]
-  },
-  {
-    featureType: "poi.school", // โรงเรียน / สถานศึกษา
-    elementType: "all",
-    stylers: [{ visibility: "on" }]
-  },
-  // === ถนน: แสดง geometry แต่ซ่อนชื่อถนนเพื่อความสะอาดแบบเดิม ===
+  // ถนน: แสดง geometry แต่ซ่อนชื่อถนนเพื่อความสะอาด
   {
     featureType: "road",
     elementType: "geometry",
@@ -187,21 +202,11 @@ const minimalMapStyle = [
     elementType: "all",
     stylers: [{ visibility: "off" }]
   },
-  // === เปิดแสดงป้ายชื่อ อำเภอ, ตำบล, หมู่บ้านตามต้องการ ===
+  // ซ่อน labels ชุมชนและที่ดิน
   {
-    featureType: "administrative.locality", // อำเภอ / เขต / เมือง
+    featureType: "administrative.neighborhood",
     elementType: "labels",
-    stylers: [{ visibility: "on" }]
-  },
-  {
-    featureType: "administrative.sublocality", // ตำบล / แขวง
-    elementType: "labels",
-    stylers: [{ visibility: "on" }]
-  },
-  {
-    featureType: "administrative.neighborhood", // หมู่บ้าน / ชุมชน
-    elementType: "labels",
-    stylers: [{ visibility: "on" }]
+    stylers: [{ visibility: "off" }]
   },
   {
     featureType: "administrative.land_parcel",

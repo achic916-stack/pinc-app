@@ -105,7 +105,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
       setEditedCrowdStatus(venue.crowd_status || "Green");
       setEditedDescription(venue.description || "");
       setEditedImages(venue.images || []);
-      
+
       const isShop = venue.is_sponsored === true || (venue.sponsor_tier && venue.sponsor_tier >= 1);
       setActiveTab(isShop ? "aesthetic" : "reality");
     }
@@ -1019,275 +1019,275 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
             )}
           </ScrollView>
         ) : activeTab === "aesthetic" ? (
-            /* Tab 1: Aesthetic (Polished IG Grid for Standard Venues) */
-            <ScrollView contentContainerStyle={styles.gridContainer} showsVerticalScrollIndicator={false}>
-              {aestheticPins.length > 0 ? (
-                aestheticPins.map((pin) => (
-                  <View key={pin.pinId} style={styles.gridImageWrapper}>
-                    {pin.image_url ? (
-                      isActuallyVideo(pin) ? (
-                        activeVideoId === pin.pinId ? (
-                          <CachedVideo
-                            source={{ uri: pin.image_url }}
-                            style={styles.gridImage}
-                            resizeMode={ResizeMode.COVER}
-                            shouldPlay
-                            useNativeControls
-                          />
-                        ) : (
-                          <TouchableOpacity
-                            style={{ width: '100%', height: '100%' }}
-                            onPress={() => setActiveVideoId(pin.pinId || null)}
-                            activeOpacity={0.8}
-                          >
-                            <Image source={{ uri: getSafeVideoUrl(pin.image_url) }} style={styles.gridImage} contentFit="cover" />
-                            <View style={[StyleSheet.absoluteFill, { justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)' }]}>
-                              <Text style={{ fontSize: 32 }}>▶️</Text>
-                            </View>
-                          </TouchableOpacity>
-                        )
+          /* Tab 1: Aesthetic (Polished IG Grid for Standard Venues) */
+          <ScrollView contentContainerStyle={styles.gridContainer} showsVerticalScrollIndicator={false}>
+            {aestheticPins.length > 0 ? (
+              aestheticPins.map((pin) => (
+                <View key={pin.pinId} style={styles.gridImageWrapper}>
+                  {pin.image_url ? (
+                    isActuallyVideo(pin) ? (
+                      activeVideoId === pin.pinId ? (
+                        <CachedVideo
+                          source={{ uri: pin.image_url }}
+                          style={styles.gridImage}
+                          resizeMode={ResizeMode.COVER}
+                          shouldPlay
+                          useNativeControls
+                        />
                       ) : (
-                        <Image source={{ uri: pin.image_url }} style={styles.gridImage} contentFit="cover" />
-                      )
-                    ) : (
-                      <View style={[styles.gridImage, { backgroundColor: PincTheme.colors.border, justifyContent: "center", alignItems: "center" }]}>
-                        <Text style={{ fontSize: 24 }}>☕</Text>
-                      </View>
-                    )}
-                    <View style={styles.gridOverlay}>
-                      <Text style={styles.gridRatingText}>★ {pin.user_aesthetic_rating || 5}</Text>
-                    </View>
-                  </View>
-                ))
-              ) : (
-                // Fallback default curated images
-                fallbackAestheticImages.map((uri, index) => (
-                  <View key={index} style={styles.gridImageWrapper}>
-                    <Image source={{ uri }} style={styles.gridImage} resizeMode="cover" />
-                  </View>
-                ))
-              )}
-            </ScrollView>
-          )
-        : (
-          /* Tab 2: The Reality (Real-time X Chronological Feed) */
-          <View style={{ flex: 1 }}>
-            {/* Real-time Status Summary Widget */}
-            <View style={styles.summaryWidget}>
-              {widget.hasData ? (
-                <View style={styles.summaryRow}>
-                  <Text style={styles.summaryText}>{widget.text}</Text>
-                  <View style={[styles.summaryBadge, { backgroundColor: widget.badgeColor + "22", borderColor: widget.badgeColor }]}>
-                    <Text style={[styles.summaryBadgeText, { color: widget.badgeColor }]}>{widget.highlightText}</Text>
-                  </View>
-                </View>
-              ) : (
-                <View>
-                  <Text style={styles.summaryTextBold}>{widget.text}</Text>
-                  <Text style={styles.summarySubtext}>{widget.subtext}</Text>
-                </View>
-              )}
-            </View>
-
-            {isLoadingPins ? (
-              <View style={styles.loaderContainer}>
-                <ActivityIndicator size="small" color={PincTheme.colors.primary} />
-                <Text style={styles.loaderText}>{locale === "th" ? "กำลังโหลดข้อมูลสด..." : "Fetching live reports..."}</Text>
-              </View>
-            ) : realityPins.length === 0 ? (
-              <View style={styles.emptyContainer}>
-                <Text style={styles.emptyTitle}>{t(locale, "noLiveChecksToday")}</Text>
-                <Text style={styles.emptySubtitle}>
-                  {t(locale, "postFirstCheckIn")}
-                </Text>
-              </View>
-            ) : (
-              <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
-                {realityPins.map((pin) => {
-                  const pinDate = pin.timestamp instanceof Date ? pin.timestamp : new Date(pin.timestamp);
-                  const isPostToday = isToday(pinDate);
-                  const isPostYesterday = isYesterday(pinDate);
-                  const isFriend = followingIds.includes(pin.userId);
-
-                  // Interaction activity cue checks
-                  const isOwnPost = pin.userId === currentUser.userId;
-                  const likeState = getPinLikeState(pin);
-                  const commentCount = commentsCounts[pin.pinId || ""] || 0;
-                  const hasInteractions = likeState.count > 0 || commentCount > 0;
-                  const showActivityCue = isOwnPost && hasInteractions;
-
-                  return (
-                    <View
-                      key={pin.pinId}
-                      style={[
-                        styles.feedCard,
-                        isFriend && styles.feedCardFriend,
-                        showActivityCue && styles.feedCardOwnActive
-                      ]}
-                    >
-                      <View style={styles.feedHeader}>
                         <TouchableOpacity
-                          style={{ flexDirection: "row", alignItems: "center", flex: 1 }}
-                          onPress={() => onOpenUserProfile && onOpenUserProfile(pin.userId)}
-                          activeOpacity={0.7}
+                          style={{ width: '100%', height: '100%' }}
+                          onPress={() => setActiveVideoId(pin.pinId || null)}
+                          activeOpacity={0.8}
                         >
-                          <Image source={{ uri: pin.user_profile_pic }} style={styles.avatar} />
-                          <View style={styles.userMeta}>
-                            <Text style={styles.username}>@{pin.username}</Text>
-                            <Text style={styles.timestamp}>
-                              {isPostToday
-                                ? t(locale, "today")
-                                : isPostYesterday
-                                  ? t(locale, "yesterday")
-                                  : pinDate.toLocaleDateString()
-                              } {" "}
-                              {t(locale, "at")} {" "}
-                              {pinDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                            </Text>
+                          <Image source={{ uri: getSafeVideoUrl(pin.image_url) }} style={styles.gridImage} contentFit="cover" />
+                          <View style={[StyleSheet.absoluteFill, { justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)' }]}>
+                            <Text style={{ fontSize: 32 }}>▶️</Text>
                           </View>
                         </TouchableOpacity>
+                      )
+                    ) : (
+                      <Image source={{ uri: pin.image_url }} style={styles.gridImage} contentFit="cover" />
+                    )
+                  ) : (
+                    <View style={[styles.gridImage, { backgroundColor: PincTheme.colors.border, justifyContent: "center", alignItems: "center" }]}>
+                      <Text style={{ fontSize: 24 }}>☕</Text>
+                    </View>
+                  )}
+                  <View style={styles.gridOverlay}>
+                    <Text style={styles.gridRatingText}>★ {pin.user_aesthetic_rating || 5}</Text>
+                  </View>
+                </View>
+              ))
+            ) : (
+              // Fallback default curated images
+              fallbackAestheticImages.map((uri, index) => (
+                <View key={index} style={styles.gridImageWrapper}>
+                  <Image source={{ uri }} style={styles.gridImage} resizeMode="cover" />
+                </View>
+              ))
+            )}
+          </ScrollView>
+        )
+        : (
+        /* Tab 2: The Reality (Real-time X Chronological Feed) */
+        <View style={{ flex: 1 }}>
+          {/* Real-time Status Summary Widget */}
+          <View style={styles.summaryWidget}>
+            {widget.hasData ? (
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryText}>{widget.text}</Text>
+                <View style={[styles.summaryBadge, { backgroundColor: widget.badgeColor + "22", borderColor: widget.badgeColor }]}>
+                  <Text style={[styles.summaryBadgeText, { color: widget.badgeColor }]}>{widget.highlightText}</Text>
+                </View>
+              </View>
+            ) : (
+              <View>
+                <Text style={styles.summaryTextBold}>{widget.text}</Text>
+                <Text style={styles.summarySubtext}>{widget.subtext}</Text>
+              </View>
+            )}
+          </View>
 
-                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                          {showActivityCue && (
-                            <View style={styles.activityBadge}>
-                              <Text style={styles.activityBadgeText}>✨ {t(locale, "ownPostActivity")}</Text>
-                            </View>
-                          )}
+          {isLoadingPins ? (
+            <View style={styles.loaderContainer}>
+              <ActivityIndicator size="small" color={PincTheme.colors.primary} />
+              <Text style={styles.loaderText}>{locale === "th" ? "กำลังโหลดข้อมูลสด..." : "Fetching live reports..."}</Text>
+            </View>
+          ) : realityPins.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyTitle}>{t(locale, "noLiveChecksToday")}</Text>
+              <Text style={styles.emptySubtitle}>
+                {t(locale, "postFirstCheckIn")}
+              </Text>
+            </View>
+          ) : (
+            <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
+              {realityPins.map((pin) => {
+                const pinDate = pin.timestamp instanceof Date ? pin.timestamp : new Date(pin.timestamp);
+                const isPostToday = isToday(pinDate);
+                const isPostYesterday = isYesterday(pinDate);
+                const isFriend = followingIds.includes(pin.userId);
 
-                          {isFriend && !showActivityCue && (
-                            <View style={styles.friendBadge}>
-                              <Text style={styles.friendBadgeText}>{t(locale, "friendPost")}</Text>
-                            </View>
-                          )}
+                // Interaction activity cue checks
+                const isOwnPost = pin.userId === currentUser.userId;
+                const likeState = getPinLikeState(pin);
+                const commentCount = commentsCounts[pin.pinId || ""] || 0;
+                const hasInteractions = likeState.count > 0 || commentCount > 0;
+                const showActivityCue = isOwnPost && hasInteractions;
 
-                          {/* Live Location verification Badge */}
-                          {pin.is_live_verified && (
-                            <View style={styles.liveBadge}>
-                              <Text style={styles.liveBadgeText}>{t(locale, "verifiedLive")}</Text>
-                            </View>
-                          )}
+                return (
+                  <View
+                    key={pin.pinId}
+                    style={[
+                      styles.feedCard,
+                      isFriend && styles.feedCardFriend,
+                      showActivityCue && styles.feedCardOwnActive
+                    ]}
+                  >
+                    <View style={styles.feedHeader}>
+                      <TouchableOpacity
+                        style={{ flexDirection: "row", alignItems: "center", flex: 1 }}
+                        onPress={() => onOpenUserProfile && onOpenUserProfile(pin.userId)}
+                        activeOpacity={0.7}
+                      >
+                        <Image source={{ uri: pin.user_profile_pic }} style={styles.avatar} />
+                        <View style={styles.userMeta}>
+                          <Text style={styles.username}>@{pin.username}</Text>
+                          <Text style={styles.timestamp}>
+                            {isPostToday
+                              ? t(locale, "today")
+                              : isPostYesterday
+                                ? t(locale, "yesterday")
+                                : pinDate.toLocaleDateString()
+                            } {" "}
+                            {t(locale, "at")} {" "}
+                            {pinDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                          </Text>
                         </View>
-                      </View>
+                      </TouchableOpacity>
 
-                      <Text style={styles.feedText}>{pin.text_content}</Text>
-
-                      {pin.image_url && (
-                        <View style={{ position: 'relative' }}>
-                          {isActuallyVideo(pin) ? (
-                            activeVideoId === pin.pinId ? (
-                              <CachedVideo
-                                source={{ uri: pin.image_url }}
-                                style={styles.feedImage}
-                                resizeMode={ResizeMode.COVER}
-                                shouldPlay
-                                useNativeControls
-                              />
-                            ) : (
-                              <TouchableOpacity
-                                style={{ width: '100%', height: 250, borderRadius: 12, overflow: 'hidden', marginTop: 12 }}
-                                onPress={() => setActiveVideoId(pin.pinId || null)}
-                                activeOpacity={0.8}
-                              >
-                                <Image source={{ uri: getSafeVideoUrl(pin.image_url) }} style={styles.feedImage} contentFit="cover" />
-                                <View style={[StyleSheet.absoluteFill, { justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)' }]}>
-                                  <Text style={{ fontSize: 48 }}>▶️</Text>
-                                </View>
-                              </TouchableOpacity>
-                            )
-                          ) : (
-                            <Image source={{ uri: pin.image_url }} style={styles.feedImage} contentFit="cover" />
-                          )}
-
-                          {venue.sponsor_tier === 3 && (
-                            <TouchableOpacity
-                              style={{
-                                position: 'absolute',
-                                bottom: 12,
-                                left: 12,
-                                backgroundColor: 'rgba(255, 75, 114, 0.95)',
-                                paddingHorizontal: 12,
-                                paddingVertical: 8,
-                                borderRadius: 20,
-                                flexDirection: 'row',
-                                alignItems: 'center',
-                                shadowColor: '#000',
-                                shadowOffset: { width: 0, height: 2 },
-                                shadowOpacity: 0.25,
-                                shadowRadius: 3.84,
-                                elevation: 5,
-                              }}
-                              onPress={() => {
-                                const url = `https://www.google.com/maps/dir/?api=1&destination=${venue.latitude},${venue.longitude}`;
-                                Linking.openURL(url);
-                              }}
-                              activeOpacity={0.8}
-                            >
-                              <Ionicons name="navigate" size={16} color="#FFF" />
-                              <Text style={{ color: '#FFF', fontSize: 13, fontWeight: 'bold', marginLeft: 6 }}>
-                                {locale === "th" ? "ขอเส้นทางไปที่นี่" : "Get Directions"}
-                              </Text>
-                            </TouchableOpacity>
-                          )}
-                        </View>
-                      )}
-
-                      {/* Social Action Row */}
-                      <View style={styles.socialActionRow}>
-                        {/* Like Button */}
-                        <TouchableOpacity
-                          style={styles.actionButton}
-                          onPress={() => handleLikeToggle(pin)}
-                          activeOpacity={0.7}
-                        >
-                          <Text style={[styles.actionIcon, likeState.liked && styles.actionIconLiked]}>
-                            {likeState.liked ? "❤️" : "🤍"}
-                          </Text>
-                          <Text style={[styles.actionCount, likeState.liked && styles.actionCountLiked]}>
-                            {likeState.count}
-                          </Text>
-                        </TouchableOpacity>
-
-                        {/* Comment Button */}
-                        <TouchableOpacity
-                          style={styles.actionButton}
-                          onPress={() => setActiveCommentsPinId(pin.pinId || null)}
-                          activeOpacity={0.7}
-                        >
-                          <Text style={styles.actionIcon}>💬</Text>
-                          <Text style={styles.actionCount}>
-                            {commentCount}
-                          </Text>
-                        </TouchableOpacity>
-
-                        {/* Share Button */}
-                        {pin.image_url && (
-                          <TouchableOpacity
-                            style={styles.actionButton}
-                            onPress={() => setSharePin(pin)}
-                            activeOpacity={0.7}
-                          >
-                            <Text style={styles.actionIcon}>🔗</Text>
-                            <Text style={styles.actionCount}>แชร์</Text>
-                          </TouchableOpacity>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                        {showActivityCue && (
+                          <View style={styles.activityBadge}>
+                            <Text style={styles.activityBadgeText}>✨ {t(locale, "ownPostActivity")}</Text>
+                          </View>
                         )}
 
-                        {/* Delete Button (Only for own posts) */}
-                        {pin.userId === currentUser.userId && (
-                          <TouchableOpacity
-                            style={[styles.actionButton, { marginLeft: "auto" }]}
-                            onPress={() => handleDeletePin(pin.pinId)}
-                            activeOpacity={0.7}
-                          >
-                            <Text style={styles.actionIcon}>🗑️</Text>
-                          </TouchableOpacity>
+                        {isFriend && !showActivityCue && (
+                          <View style={styles.friendBadge}>
+                            <Text style={styles.friendBadgeText}>{t(locale, "friendPost")}</Text>
+                          </View>
+                        )}
+
+                        {/* Live Location verification Badge */}
+                        {pin.is_live_verified && (
+                          <View style={styles.liveBadge}>
+                            <Text style={styles.liveBadgeText}>{t(locale, "verifiedLive")}</Text>
+                          </View>
                         )}
                       </View>
                     </View>
-                  );
-                })}
-              </ScrollView>
-            )}
-          </View>
+
+                    <Text style={styles.feedText}>{pin.text_content}</Text>
+
+                    {pin.image_url && (
+                      <View style={{ position: 'relative' }}>
+                        {isActuallyVideo(pin) ? (
+                          activeVideoId === pin.pinId ? (
+                            <CachedVideo
+                              source={{ uri: pin.image_url }}
+                              style={styles.feedImage}
+                              resizeMode={ResizeMode.COVER}
+                              shouldPlay
+                              useNativeControls
+                            />
+                          ) : (
+                            <TouchableOpacity
+                              style={{ width: '100%', height: 250, borderRadius: 12, overflow: 'hidden', marginTop: 12 }}
+                              onPress={() => setActiveVideoId(pin.pinId || null)}
+                              activeOpacity={0.8}
+                            >
+                              <Image source={{ uri: getSafeVideoUrl(pin.image_url) }} style={styles.feedImage} contentFit="cover" />
+                              <View style={[StyleSheet.absoluteFill, { justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)' }]}>
+                                <Text style={{ fontSize: 48 }}>▶️</Text>
+                              </View>
+                            </TouchableOpacity>
+                          )
+                        ) : (
+                          <Image source={{ uri: pin.image_url }} style={styles.feedImage} contentFit="cover" />
+                        )}
+
+                        {venue.sponsor_tier === 3 && (
+                          <TouchableOpacity
+                            style={{
+                              position: 'absolute',
+                              bottom: 12,
+                              left: 12,
+                              backgroundColor: 'rgba(255, 75, 114, 0.95)',
+                              paddingHorizontal: 12,
+                              paddingVertical: 8,
+                              borderRadius: 20,
+                              flexDirection: 'row',
+                              alignItems: 'center',
+                              shadowColor: '#000',
+                              shadowOffset: { width: 0, height: 2 },
+                              shadowOpacity: 0.25,
+                              shadowRadius: 3.84,
+                              elevation: 5,
+                            }}
+                            onPress={() => {
+                              const url = `https://www.google.com/maps/dir/?api=1&destination=${venue.latitude},${venue.longitude}`;
+                              Linking.openURL(url);
+                            }}
+                            activeOpacity={0.8}
+                          >
+                            <Ionicons name="navigate" size={16} color="#FFF" />
+                            <Text style={{ color: '#FFF', fontSize: 13, fontWeight: 'bold', marginLeft: 6 }}>
+                              {locale === "th" ? "ขอเส้นทางไปที่นี่" : "Get Directions"}
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    )}
+
+                    {/* Social Action Row */}
+                    <View style={styles.socialActionRow}>
+                      {/* Like Button */}
+                      <TouchableOpacity
+                        style={styles.actionButton}
+                        onPress={() => handleLikeToggle(pin)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[styles.actionIcon, likeState.liked && styles.actionIconLiked]}>
+                          {likeState.liked ? "❤️" : "🤍"}
+                        </Text>
+                        <Text style={[styles.actionCount, likeState.liked && styles.actionCountLiked]}>
+                          {likeState.count}
+                        </Text>
+                      </TouchableOpacity>
+
+                      {/* Comment Button */}
+                      <TouchableOpacity
+                        style={styles.actionButton}
+                        onPress={() => setActiveCommentsPinId(pin.pinId || null)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={styles.actionIcon}>💬</Text>
+                        <Text style={styles.actionCount}>
+                          {commentCount}
+                        </Text>
+                      </TouchableOpacity>
+
+                      {/* Share Button */}
+                      {pin.image_url && (
+                        <TouchableOpacity
+                          style={styles.actionButton}
+                          onPress={() => setSharePin(pin)}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={styles.actionIcon}>🔗</Text>
+                          <Text style={styles.actionCount}>แชร์</Text>
+                        </TouchableOpacity>
+                      )}
+
+                      {/* Delete Button (Only for own posts) */}
+                      {pin.userId === currentUser.userId && (
+                        <TouchableOpacity
+                          style={[styles.actionButton, { marginLeft: "auto" }]}
+                          onPress={() => handleDeletePin(pin.pinId)}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={styles.actionIcon}>🗑️</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  </View>
+                );
+              })}
+            </ScrollView>
+          )}
+        </View>
         )}
       </View>
 
