@@ -103,61 +103,59 @@ const minimalMapStyle = [
     elementType: "all",
     stylers: [{ visibility: "off" }]
   },
-  
-  // === จัดการคะแนนสถานที่ POI ===
-  // ซ่อนเฉพาะธุรกิจพาณิชย์ (ร้านอาหาร, สถานบริการต่างๆ, โรงแรม, รีสอร์ท, ร้านขายของ, มินิมาร์ท)
+  // === ซ่อน POI ทั้งหมดตามแบบเดิม (ร้านอาหาร, ร้านค้า, สถานบริการ, ฯลฯ) ===
   {
-    featureType: "poi.business",
+    featureType: "poi",
     elementType: "all",
     stylers: [{ visibility: "off" }]
   },
-  // แสดงสถานที่ท่องเที่ยวและสถานที่ทางธรรมชาติ
   {
-    featureType: "poi.attraction",
+    featureType: "poi",
+    elementType: "labels",
+    stylers: [{ visibility: "off" }]
+  },
+  {
+    featureType: "poi",
+    elementType: "labels.text",
+    stylers: [{ visibility: "off" }]
+  },
+  {
+    featureType: "poi",
+    elementType: "labels.icon",
+    stylers: [{ visibility: "off" }]
+  },
+  // === แสดงเฉพาะสถานที่สาธารณะและธรรมชาติที่ขอเพิ่มพิเศษ ===
+  {
+    featureType: "poi.government", // สถานที่ราชการ
     elementType: "all",
     stylers: [{ visibility: "on" }]
   },
-  // แสดงสถานที่ราชการ
   {
-    featureType: "poi.government",
-    elementType: "all",
-    stylers: [{ visibility: "on" }]
-  },
-  // แสดงโรงเรียน/มหาวิทยาลัย
-  {
-    featureType: "poi.school",
-    elementType: "all",
-    stylers: [{ visibility: "on" }]
-  },
-  // แสดงวัด / ศาสนสถาน
-  {
-    featureType: "poi.place_of_worship",
-    elementType: "all",
-    stylers: [{ visibility: "on" }]
-  },
-  // แสดงสวนสาธารณะ พร้อมชื่อสวนสาธารณะ
-  {
-    featureType: "poi.park",
+    featureType: "poi.park", // สวนสาธารณะ
     elementType: "geometry.fill",
     stylers: [{ color: "#E8F0E6" }, { visibility: "on" }]
   },
   {
-    featureType: "poi.park",
+    featureType: "poi.park", // ชื่อสวนสาธารณะ
     elementType: "labels",
     stylers: [{ visibility: "on" }]
   },
   {
-    featureType: "poi.medical",
+    featureType: "poi.attraction", // สถานที่ท่องเที่ยวธรรมชาติ
     elementType: "all",
-    stylers: [{ visibility: "off" }]
+    stylers: [{ visibility: "on" }]
   },
   {
-    featureType: "poi.sports_complex",
+    featureType: "poi.place_of_worship", // วัด / ศาสนสถาน
     elementType: "all",
-    stylers: [{ visibility: "off" }]
+    stylers: [{ visibility: "on" }]
   },
-
-  // === จัดการถนน (แสดงชื่อถนนหลักเพื่อความสะดวกในการเดินทาง) ===
+  {
+    featureType: "poi.school", // โรงเรียน / สถานศึกษา
+    elementType: "all",
+    stylers: [{ visibility: "on" }]
+  },
+  // === ถนน: แสดง geometry แต่ซ่อนชื่อถนนเพื่อความสะอาดแบบเดิม ===
   {
     featureType: "road",
     elementType: "geometry",
@@ -166,30 +164,30 @@ const minimalMapStyle = [
   {
     featureType: "road",
     elementType: "labels",
-    stylers: [{ visibility: "on" }]
+    stylers: [{ visibility: "off" }]
   },
   {
     featureType: "road.highway",
     elementType: "labels",
-    stylers: [{ visibility: "on" }]
+    stylers: [{ visibility: "off" }]
   },
   {
     featureType: "road.arterial",
     elementType: "labels",
-    stylers: [{ visibility: "on" }]
+    stylers: [{ visibility: "off" }]
   },
   {
     featureType: "road.local",
     elementType: "labels",
-    stylers: [{ visibility: "on" }]
+    stylers: [{ visibility: "off" }]
   },
+  // ซ่อนระบบขนส่ง
   {
     featureType: "transit",
     elementType: "all",
     stylers: [{ visibility: "off" }]
   },
-
-  // === เปิดแสดงป้ายชื่อ อำเภอ, ตำบล, หมู่บ้าน ===
+  // === เปิดแสดงป้ายชื่อ อำเภอ, ตำบล, หมู่บ้านตามต้องการ ===
   {
     featureType: "administrative.locality", // อำเภอ / เขต / เมือง
     elementType: "labels",
