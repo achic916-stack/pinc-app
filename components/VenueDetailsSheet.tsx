@@ -821,7 +821,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
             ))}
 
             {/* Owner Add Photo Card */}
-            {isOwner && (
+            {showEditPanel && (
               <TouchableOpacity 
                 style={[
                   styles.gridImageWrapper, 
