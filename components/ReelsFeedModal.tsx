@@ -16,7 +16,7 @@ import { Audio, Video, ResizeMode } from "expo-av";
 import { CachedVideo } from "./CachedVideo";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { Pin, auth, toggleLikePin, subscribeToComments } from "../services/firebase";
+import { Pin, auth, toggleLikePin, subscribeToComments, fetchUserProfile, UserProfile } from "../services/firebase";
 import { PincTheme } from "../styles/theme";
 import { CommentsDrawer } from "./CommentsDrawer";
 import { WatermarkShare } from "./WatermarkShare";
@@ -261,13 +261,31 @@ export const ReelsFeedModal: React.FC<ReelsFeedModalProps> = ({
   }).current;
 
   // Build resilient currentUser object for CommentsDrawer
-  const currentUserProfile = {
+  const [currentUserProfile, setCurrentUserProfile] = useState<UserProfile>({
     userId: currentUserId || auth.currentUser?.uid || "cafe_hopper",
     username: auth.currentUser?.displayName || "cafe_hopper",
     profile_pic: auth.currentUser?.photoURL || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80",
     bio: "Pinc member",
     created_at: new Date()
-  };
+  });
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      const uid = currentUserId || auth.currentUser?.uid;
+      if (!uid) return;
+      try {
+        const profile = await fetchUserProfile(uid);
+        if (profile) {
+          setCurrentUserProfile(profile);
+        }
+      } catch (err) {
+        console.warn("Failed to fetch user profile in ReelsFeedModal:", err);
+      }
+    };
+    if (visible) {
+      fetchProfile();
+    }
+  }, [visible, currentUserId]);
 
   return (
     <Modal
