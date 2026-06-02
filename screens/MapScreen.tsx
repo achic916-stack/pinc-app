@@ -828,7 +828,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
               key={sponsorKey}
               coordinate={{ latitude: venue.latitude, longitude: venue.longitude }}
               onPress={() => onSelectVenue(venue)}
-              tracksViewChanges={markerTracksViewChanges[sponsorKey] ?? true}
+              tracksViewChanges={true}
               zIndex={998}
               anchor={{ x: 0.5, y: 0.5 }}
             >

@@ -78,6 +78,7 @@ export interface UserProfile {
 
 export interface Venue {
   venueId: string;
+  ownerId?: string;
   name: string;
   latitude: number;
   longitude: number;

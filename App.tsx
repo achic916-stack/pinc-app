@@ -102,6 +102,7 @@ export default function App() {
   // Map & DB States
   const [venues, setVenues] = useState<Venue[]>([]);
   const [selectedVenue, setSelectedVenue] = useState<Venue | null>(null);
+  const [isEditingVenue, setIsEditingVenue] = useState(false);
   const [activePins, setActivePins] = useState<Pin[]>([]);
   const [allPins, setAllPins] = useState<Pin[]>([]);
   
@@ -474,6 +475,7 @@ export default function App() {
   };
 
   const handleSelectVenue = (venue: Venue) => {
+    setIsEditingVenue(false);
     setSelectedVenue(venue);
   };
 
@@ -597,6 +599,7 @@ export default function App() {
                     }}
                     currentUser={currentUser}
                     isFullScreen={true}
+                    isEditing={isEditingVenue}
                   />
                 </SafeAreaView>
               </Modal>
@@ -614,6 +617,7 @@ export default function App() {
                   }}
                   currentUser={currentUser}
                   isFullScreen={false}
+                  isEditing={isEditingVenue}
                 />
               </View>
             )
@@ -635,6 +639,11 @@ export default function App() {
             onDeletePin={handleDeletePin}
             setUserId={setSelectedUserProfileId}
             currentUserProfile={currentUser}
+            venues={venues}
+            onSelectEditVenue={(shop) => {
+              setSelectedVenue(shop);
+              setIsEditingVenue(true);
+            }}
           />
 
           {/* Reality Check Sliding Shelf (User Pins Photo Drawer) */}

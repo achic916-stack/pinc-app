@@ -59,6 +59,7 @@ interface VenueDetailsSheetProps {
   onOpenUserProfile?: (userId: string) => void;
   currentUser: UserProfile;
   isFullScreen?: boolean;
+  isEditing?: boolean;
 }
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -72,7 +73,8 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
   followingIds = [],
   onOpenUserProfile,
   currentUser,
-  isFullScreen = false
+  isFullScreen = false,
+  isEditing = false
 }) => {
   const [activeTab, setActiveTab] = useState<"aesthetic" | "reality">("reality");
   const [activeVideoId, setActiveVideoId] = useState<string | null>(null);
@@ -82,16 +84,19 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
   const [commentsCounts, setCommentsCounts] = useState<{ [pinId: string]: number }>({});
   const [selectedFullScreenImage, setSelectedFullScreenImage] = useState<string | null>(null);
 
-  // Owner checking (fallback to true if no ownerId exists for developer testing)
-  const isOwner = venue.ownerId === currentUser.userId || !venue.ownerId;
+  // Owner checking & sponsored checks
+  const isOwner = venue ? (venue.ownerId === currentUser.userId || !venue.ownerId) : false;
+  const isShopPackage = venue ? (venue.is_sponsored === true || (venue.sponsor_tier && venue.sponsor_tier >= 1)) : false;
+  const showEditPanel = isEditing && isShopPackage && isOwner;
 
   // Local editing states
-  const [editedRating, setEditedRating] = useState<number>(venue.aesthetic_rating || 5.0);
-  const [editedCategory, setEditedCategory] = useState<string>(venue.category || "café");
-  const [editedCrowdStatus, setEditedCrowdStatus] = useState<string>(venue.crowd_status || "Green");
-  const [editedDescription, setEditedDescription] = useState<string>(venue.description || "");
-  const [editedImages, setEditedImages] = useState<string[]>(venue.images || []);
+  const [editedRating, setEditedRating] = useState<number>(venue ? (venue.aesthetic_rating || 5.0) : 5.0);
+  const [editedCategory, setEditedCategory] = useState<string>(venue ? (venue.category || "café") : "café");
+  const [editedCrowdStatus, setEditedCrowdStatus] = useState<string>(venue ? (venue.crowd_status || "Green") : "Green");
+  const [editedDescription, setEditedDescription] = useState<string>(venue ? (venue.description || "") : "");
+  const [editedImages, setEditedImages] = useState<string[]>(venue ? (venue.images || []) : []);
   const [isUploading, setIsUploading] = useState(false);
+  const [isCategoryStatusCollapsed, setIsCategoryStatusCollapsed] = useState(true);
 
   useEffect(() => {
     if (venue) {
@@ -104,7 +109,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
   }, [venue]);
 
   const handleLongPressImage = (imageUri: string) => {
-    if (!isOwner) return; // Only owner can delete!
+    if (!showEditPanel) return; // Only owner can delete in edit mode!
     Alert.alert(
       locale === "th" ? "ลบรูปภาพร้านค้า" : "Delete Shop Image",
       locale === "th" 
@@ -464,8 +469,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
     };
   };
 
-  const isShopPackage = venue.is_sponsored === true || (venue.sponsor_tier && venue.sponsor_tier >= 1);
-  const shopImages = isOwner 
+  const shopImages = showEditPanel 
     ? editedImages 
     : (venue.images && venue.images.length > 0 
         ? venue.images 
@@ -505,7 +509,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
 
       {/* Venue Header Info / Owner Edit Panel */}
       <View style={styles.venueInfo}>
-        {isOwner && isShopPackage ? (
+        {showEditPanel ? (
           /* Owner Administration Panel */
           <View style={{ gap: 14 }}>
             {/* Header Row (Name & Delete & Rating Selector) */}
@@ -553,67 +557,98 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
               </View>
             </View>
 
-            {/* Category Option ("CAFÉ", "FOOD", "BAR", "SHOP", "CLOTHES", "BEAUTY", "ART/BOOKS") */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-              <Text style={{ fontSize: 12, fontWeight: '700', color: PincTheme.colors.textSecondary }}>CATEGORY:</Text>
-              <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
-                {["café", "food", "bar", "shop", "clothes", "beauty", "art/books"].map((cat) => (
-                  <TouchableOpacity
-                    key={cat}
-                    style={{
-                      paddingHorizontal: 12,
-                      paddingVertical: 6,
-                      borderRadius: 12,
-                      borderWidth: 1,
-                      borderColor: editedCategory === cat ? PincTheme.colors.primary : PincTheme.colors.border,
-                      backgroundColor: editedCategory === cat ? PincTheme.colors.primaryLight : '#FFF'
-                    }}
-                    onPress={() => setEditedCategory(cat)}
-                  >
-                    <Text style={{
-                      fontSize: 10,
-                      fontWeight: 'bold',
-                      color: editedCategory === cat ? PincTheme.colors.primary : PincTheme.colors.textSecondary
-                    }}>
-                      {cat === "art/books" ? "ART / BOOKS" : cat.toUpperCase()}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+            {/* Category/Status Collapsible Panel Header */}
+            <TouchableOpacity
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                paddingVertical: 12,
+                borderBottomWidth: 1,
+                borderBottomColor: PincTheme.colors.border,
+                marginTop: 4,
+              }}
+              onPress={() => setIsCategoryStatusCollapsed(prev => !prev)}
+              activeOpacity={0.7}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Ionicons name="options-outline" size={18} color={PincTheme.colors.primary} />
+                <Text style={{ fontSize: 13, fontWeight: '700', color: PincTheme.colors.textPrimary, fontFamily: PincTheme.fonts.heading }}>
+                  Category / Status
+                </Text>
               </View>
-            </View>
+              <Ionicons
+                name={isCategoryStatusCollapsed ? "chevron-down" : "chevron-up"}
+                size={18}
+                color={PincTheme.colors.textSecondary}
+              />
+            </TouchableOpacity>
 
-            {/* Crowd Status Option ("Empty / Chill", "Moderate Queue", "Crowded / Long Line") */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-              <Text style={{ fontSize: 12, fontWeight: '700', color: PincTheme.colors.textSecondary }}>STATUS:</Text>
-              <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
-                {[
-                  { key: "Green", label: locale === "th" ? "Empty / Chill (โล่ง)" : "Empty / Chill", color: PincTheme.colors.crowdGreen, bg: PincTheme.colors.crowdGreenLight },
-                  { key: "Yellow", label: locale === "th" ? "Moderate Queue (ปานกลาง)" : "Moderate Queue", color: PincTheme.colors.crowdYellow, bg: PincTheme.colors.crowdYellowLight },
-                  { key: "Red", label: locale === "th" ? "Crowded (หนาแน่น)" : "Crowded / Long Line", color: PincTheme.colors.crowdRed, bg: PincTheme.colors.crowdRedLight }
-                ].map((item) => (
-                  <TouchableOpacity
-                    key={item.key}
-                    style={{
-                      paddingHorizontal: 10,
-                      paddingVertical: 6,
-                      borderRadius: 14,
-                      borderWidth: 1.5,
-                      borderColor: editedCrowdStatus.toLowerCase() === item.key.toLowerCase() ? item.color : PincTheme.colors.border,
-                      backgroundColor: editedCrowdStatus.toLowerCase() === item.key.toLowerCase() ? item.bg : '#FFF'
-                    }}
-                    onPress={() => setEditedCrowdStatus(item.key)}
-                  >
-                    <Text style={{
-                      fontSize: 10,
-                      fontWeight: 'bold',
-                      color: editedCrowdStatus.toLowerCase() === item.key.toLowerCase() ? item.color : PincTheme.colors.textSecondary
-                    }}>
-                      {item.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+            {!isCategoryStatusCollapsed && (
+              <View style={{ gap: 12, marginTop: 8, paddingHorizontal: 4 }}>
+                {/* Category Option ("CAFÉ", "FOOD", "BAR", "SHOP", "CLOTHES", "BEAUTY", "ART/BOOKS") */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: PincTheme.colors.textSecondary }}>CATEGORY:</Text>
+                  <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
+                    {["café", "food", "bar", "shop", "clothes", "beauty", "art/books"].map((cat) => (
+                      <TouchableOpacity
+                        key={cat}
+                        style={{
+                          paddingHorizontal: 12,
+                          paddingVertical: 6,
+                          borderRadius: 12,
+                          borderWidth: 1,
+                          borderColor: editedCategory === cat ? PincTheme.colors.primary : PincTheme.colors.border,
+                          backgroundColor: editedCategory === cat ? PincTheme.colors.primaryLight : '#FFF'
+                        }}
+                        onPress={() => setEditedCategory(cat)}
+                      >
+                        <Text style={{
+                          fontSize: 10,
+                          fontWeight: 'bold',
+                          color: editedCategory === cat ? PincTheme.colors.primary : PincTheme.colors.textSecondary
+                        }}>
+                          {cat === "art/books" ? "ART / BOOKS" : cat.toUpperCase()}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+
+                {/* Crowd Status Option ("Empty / Chill", "Moderate Queue", "Crowded / Long Line") */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: PincTheme.colors.textSecondary }}>STATUS:</Text>
+                  <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
+                    {[
+                      { key: "Green", label: locale === "th" ? "Empty / Chill (โล่ง)" : "Empty / Chill", color: PincTheme.colors.crowdGreen, bg: PincTheme.colors.crowdGreenLight },
+                      { key: "Yellow", label: locale === "th" ? "Moderate Queue (ปานกลาง)" : "Moderate Queue", color: PincTheme.colors.crowdYellow, bg: PincTheme.colors.crowdYellowLight },
+                      { key: "Red", label: locale === "th" ? "Crowded (หนาแน่น)" : "Crowded / Long Line", color: PincTheme.colors.crowdRed, bg: PincTheme.colors.crowdRedLight }
+                    ].map((item) => (
+                      <TouchableOpacity
+                        key={item.key}
+                        style={{
+                          paddingHorizontal: 10,
+                          paddingVertical: 6,
+                          borderRadius: 14,
+                          borderWidth: 1.5,
+                          borderColor: editedCrowdStatus.toLowerCase() === item.key.toLowerCase() ? item.color : PincTheme.colors.border,
+                          backgroundColor: editedCrowdStatus.toLowerCase() === item.key.toLowerCase() ? item.bg : '#FFF'
+                        }}
+                        onPress={() => setEditedCrowdStatus(item.key)}
+                      >
+                        <Text style={{
+                          fontSize: 10,
+                          fontWeight: 'bold',
+                          color: editedCrowdStatus.toLowerCase() === item.key.toLowerCase() ? item.color : PincTheme.colors.textSecondary
+                        }}>
+                          {item.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
               </View>
-            </View>
+            )}
 
             {/* Description Text Input */}
             <View style={{ gap: 4 }}>
@@ -673,15 +708,6 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
             <View style={styles.titleRow}>
               <Text style={styles.venueName}>{venue.name}</Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                {isShopPackage && (
-                  <TouchableOpacity 
-                    style={{ padding: 6, backgroundColor: '#FFEBF0', borderRadius: 8 }}
-                    onPress={handleDeleteVenue}
-                    activeOpacity={0.7}
-                  >
-                    <Ionicons name="trash-outline" size={20} color="#FF4B72" />
-                  </TouchableOpacity>
-                )}
                 <View style={styles.ratingBadge}>
                   <Text style={styles.ratingText}>★ {venue.aesthetic_rating.toFixed(1)}</Text>
                 </View>

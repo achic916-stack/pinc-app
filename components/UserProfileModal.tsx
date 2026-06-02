@@ -18,6 +18,7 @@ import { PincTheme } from "../styles/theme";
 import {
   UserProfile,
   Pin,
+  Venue,
   fetchUserProfile,
   subscribeToUserPins,
   toggleFollow,
@@ -46,6 +47,8 @@ interface UserProfileModalProps {
   onDeletePin?: (pin: Pin) => void;
   setUserId?: (userId: string) => void;
   currentUserProfile?: UserProfile | null;
+  venues?: Venue[];
+  onSelectEditVenue?: (venue: Venue) => void;
 }
 
 export const UserProfileModal: React.FC<UserProfileModalProps> = ({
@@ -58,7 +61,9 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   setLocale,
   onDeletePin,
   setUserId,
-  currentUserProfile
+  currentUserProfile,
+  venues = [],
+  onSelectEditVenue
 }) => {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [pins, setPins] = useState<Pin[]>([]);
@@ -80,6 +85,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   
   // New States for Follower Lists and Chat
   const [userListType, setUserListType] = useState<"followers" | "following" | null>(null);
+  const myShops = (venues || []).filter((v) => v.ownerId === currentUserId);
 
   useEffect(() => {
     if (!visible || !userId) {
@@ -346,6 +352,66 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                       >
                         <Text style={[styles.editProfileBtnText, { color: "#FF4B72" }]}>🏪 สำหรับร้านค้า</Text>
                       </TouchableOpacity>
+
+                      {/* My Shops list */}
+                      {myShops.length > 0 && (
+                        <View style={{ marginTop: 16, width: "100%", paddingHorizontal: 12 }}>
+                          <Text style={{
+                            fontSize: 12,
+                            fontWeight: "bold",
+                            color: PincTheme.colors.textSecondary,
+                            alignSelf: "flex-start",
+                            marginBottom: 8,
+                            textTransform: "uppercase",
+                            letterSpacing: 0.5,
+                            fontFamily: PincTheme.fonts.heading
+                          }}>
+                            {locale === "th" ? "ร้านของฉัน" : "My Shops"}
+                          </Text>
+                          {myShops.map((shop) => (
+                            <TouchableOpacity
+                              key={shop.venueId}
+                              style={{
+                                flexDirection: "row",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                backgroundColor: "#FFF8F9",
+                                borderWidth: 1,
+                                borderColor: "#FFE0E6",
+                                borderRadius: PincTheme.borderRadius.md,
+                                paddingVertical: 10,
+                                paddingHorizontal: 12,
+                                marginBottom: 8,
+                                width: "100%",
+                                ...PincTheme.shadows.sm
+                              }}
+                              onPress={() => {
+                                onClose(); // Close profile modal
+                                if (onSelectEditVenue) {
+                                  onSelectEditVenue(shop);
+                                }
+                              }}
+                              activeOpacity={0.8}
+                            >
+                              <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                                <Image
+                                  source={{ uri: shop.cover_image }}
+                                  style={{ width: 36, height: 36, borderRadius: 6, backgroundColor: PincTheme.colors.border }}
+                                />
+                                <View style={{ alignItems: "flex-start" }}>
+                                  <Text style={{ fontSize: 13, fontWeight: "bold", color: PincTheme.colors.textPrimary, fontFamily: PincTheme.fonts.heading }} numberOfLines={1}>
+                                    {shop.name}
+                                  </Text>
+                                  <Text style={{ fontSize: 10, color: PincTheme.colors.textTertiary, fontFamily: PincTheme.fonts.body }}>
+                                    ★ {shop.aesthetic_rating.toFixed(1)} • {shop.category.toUpperCase()}
+                                  </Text>
+                                </View>
+                              </View>
+                              <Ionicons name="create-outline" size={18} color="#FF4B72" />
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      )}
                     </View>
                   ) : (
                     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginTop: 16 }}>
