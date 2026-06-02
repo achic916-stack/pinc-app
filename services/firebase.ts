@@ -279,12 +279,12 @@ export async function updateUserProfile(userId: string, data: Partial<UserProfil
   const docRef = doc(db, "users", userId);
   await withTimeout(updateDoc(docRef, data), 5000, "Updating profile timed out.");
 
-  // If username is changed, update it in all their pins
+  // 1. If username is changed, synchronize it across all user's pins and comments
   if (data.username) {
     try {
+      // Sync username in pins
       const pinsQuery = query(collection(db, "pins"), where("userId", "==", userId));
       const pinsSnapshot = await getDocs(pinsQuery);
-      
       if (!pinsSnapshot.empty) {
         const batch = writeBatch(db);
         pinsSnapshot.docs.forEach((pinDoc) => {
@@ -292,8 +292,48 @@ export async function updateUserProfile(userId: string, data: Partial<UserProfil
         });
         await batch.commit();
       }
+      
+      // Sync username in comments
+      const commentsQuery = query(collection(db, "comments"), where("userId", "==", userId));
+      const commentsSnapshot = await getDocs(commentsQuery);
+      if (!commentsSnapshot.empty) {
+        const batch = writeBatch(db);
+        commentsSnapshot.docs.forEach((commentDoc) => {
+          batch.update(commentDoc.ref, { username: data.username });
+        });
+        await batch.commit();
+      }
     } catch (err) {
-      console.warn("Failed to synchronize username in pins:", err);
+      console.warn("Failed to synchronize username in pins/comments:", err);
+    }
+  }
+
+  // 2. If profile picture is changed, synchronize it across all user's pins and comments
+  if (data.profile_pic) {
+    try {
+      // Sync profile pic in pins (user_profile_pic field)
+      const pinsQuery = query(collection(db, "pins"), where("userId", "==", userId));
+      const pinsSnapshot = await getDocs(pinsQuery);
+      if (!pinsSnapshot.empty) {
+        const batch = writeBatch(db);
+        pinsSnapshot.docs.forEach((pinDoc) => {
+          batch.update(pinDoc.ref, { user_profile_pic: data.profile_pic });
+        });
+        await batch.commit();
+      }
+      
+      // Sync profile pic in comments (user_profile_pic field)
+      const commentsQuery = query(collection(db, "comments"), where("userId", "==", userId));
+      const commentsSnapshot = await getDocs(commentsQuery);
+      if (!commentsSnapshot.empty) {
+        const batch = writeBatch(db);
+        commentsSnapshot.docs.forEach((commentDoc) => {
+          batch.update(commentDoc.ref, { user_profile_pic: data.profile_pic });
+        });
+        await batch.commit();
+      }
+    } catch (err) {
+      console.warn("Failed to synchronize profile picture in pins/comments:", err);
     }
   }
 }
