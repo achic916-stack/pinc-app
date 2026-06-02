@@ -553,11 +553,11 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
               </View>
             </View>
 
-            {/* Category Option ("CAFÉ", "RESTAURANT", "BAR") */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            {/* Category Option ("CAFÉ", "FOOD", "BAR", "SHOP", "CLOTHES", "BEAUTY", "ART/BOOKS") */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
               <Text style={{ fontSize: 12, fontWeight: '700', color: PincTheme.colors.textSecondary }}>CATEGORY:</Text>
-              <View style={{ flexDirection: 'row', gap: 6 }}>
-                {["café", "restaurant", "bar"].map((cat) => (
+              <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
+                {["café", "food", "bar", "shop", "clothes", "beauty", "art/books"].map((cat) => (
                   <TouchableOpacity
                     key={cat}
                     style={{
@@ -575,7 +575,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                       fontWeight: 'bold',
                       color: editedCategory === cat ? PincTheme.colors.primary : PincTheme.colors.textSecondary
                     }}>
-                      {cat.toUpperCase()}
+                      {cat === "art/books" ? "ART / BOOKS" : cat.toUpperCase()}
                     </Text>
                   </TouchableOpacity>
                 ))}
