@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, Modal, FlatList, TouchableOpacity, SafeAreaView, TextInput, KeyboardAvoidingView, Platform } from "react-native";
+import { View, Text, StyleSheet, Modal, FlatList, TouchableOpacity, SafeAreaView, TextInput, KeyboardAvoidingView, Platform, BackHandler } from "react-native";
 import { Image } from "expo-image";
 import { ChatMessage, getChatId, subscribeToMessages, sendMessage } from "../services/firebase";
 import { PincTheme } from "../styles/theme";
@@ -52,57 +52,71 @@ export const ChatModal: React.FC<ChatModalProps> = ({
     }
   };
 
+  useEffect(() => {
+    if (!visible) return;
+
+    const backHandler = BackHandler.addEventListener("hardwareBackPress", () => {
+      onClose();
+      return true;
+    });
+
+    return () => backHandler.remove();
+  }, [visible, onClose]);
+
+  if (!visible) return null;
+
   return (
-    <Modal visible={visible} animationType="slide" transparent={true} onRequestClose={onClose}>
-      <View style={styles.modalOverlay}>
-        <SafeAreaView style={styles.modalContent}>
-          <View style={styles.header}>
-            <TouchableOpacity onPress={onClose} style={styles.backBtn}>
-              <Text style={styles.backBtnText}>‹ Back</Text>
-            </TouchableOpacity>
-            <View style={styles.headerTitleContainer}>
-              <Image source={{ uri: targetProfilePic }} style={styles.headerAvatar} />
-              <Text style={styles.headerTitle}>@{targetUsername}</Text>
-            </View>
-            <View style={{ width: 60 }} /> {/* spacer */}
-          </View>
-
-          <KeyboardAvoidingView 
-            style={{ flex: 1 }} 
-            behavior={Platform.OS === "ios" ? "padding" : undefined}
-          >
-            <FlatList
-              data={messages}
-              keyExtractor={item => item.id}
-              contentContainerStyle={styles.messageList}
-              renderItem={({ item }) => {
-                const isMe = item.senderId === currentUserId;
-                return (
-                  <View style={[styles.messageBubble, isMe ? styles.messageMe : styles.messageThem]}>
-                    <Text style={[styles.messageText, isMe ? styles.messageTextMe : styles.messageTextThem]}>
-                      {item.text}
-                    </Text>
-                  </View>
-                );
-              }}
+    <View style={[StyleSheet.absoluteFill, { backgroundColor: "#F8F8F8", zIndex: 9999 }]}>
+      <SafeAreaView style={styles.modalContent}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={onClose} style={styles.backBtn}>
+            <Text style={styles.backBtnText}>‹ Back</Text>
+          </TouchableOpacity>
+          <View style={styles.headerTitleContainer}>
+            <Image 
+              source={{ uri: targetProfilePic || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80" }} 
+              style={styles.headerAvatar} 
             />
+            <Text style={styles.headerTitle}>@{targetUsername}</Text>
+          </View>
+          <View style={{ width: 60 }} /> {/* spacer */}
+        </View>
 
-            <View style={styles.inputContainer}>
-              <TextInput
-                style={styles.input}
-                placeholder="Message..."
-                value={inputText}
-                onChangeText={setInputText}
-                onSubmitEditing={handleSend}
-              />
-              <TouchableOpacity style={styles.sendBtn} onPress={handleSend} disabled={!inputText.trim()}>
-                <Text style={[styles.sendBtnText, !inputText.trim() && { opacity: 0.5 }]}>Send</Text>
-              </TouchableOpacity>
-            </View>
-          </KeyboardAvoidingView>
-        </SafeAreaView>
-      </View>
-    </Modal>
+        <KeyboardAvoidingView 
+          style={{ flex: 1 }} 
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+          <FlatList
+            data={messages}
+            keyExtractor={item => item.id}
+            contentContainerStyle={styles.messageList}
+            renderItem={({ item }) => {
+              const isMe = item.senderId === currentUserId;
+              return (
+                <View style={[styles.messageBubble, isMe ? styles.messageMe : styles.messageThem]}>
+                  <Text style={[styles.messageText, isMe ? styles.messageTextMe : styles.messageTextThem]}>
+                    {item.text}
+                  </Text>
+                </View>
+              );
+            }}
+          />
+
+          <View style={styles.inputContainer}>
+            <TextInput
+              style={styles.input}
+              placeholder="Message..."
+              value={inputText}
+              onChangeText={setInputText}
+              onSubmitEditing={handleSend}
+            />
+            <TouchableOpacity style={styles.sendBtn} onPress={handleSend} disabled={!inputText.trim()}>
+              <Text style={[styles.sendBtnText, !inputText.trim() && { opacity: 0.5 }]}>Send</Text>
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </View>
   );
 };
 
