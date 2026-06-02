@@ -706,7 +706,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
           return (
             <CustomMapMarker key={clusterKey} coordinate={{ latitude: centerLat, longitude: centerLng }} onPress={onPress} zoomScale={zoomScale}>
               <View style={{ alignItems: 'center' }}>
-                <View style={{ width: scaledSize, height: scaledSize, borderRadius: scaledRadius, padding: 3, backgroundColor: tierColor, overflow: 'hidden', ...PincTheme.shadows.md }}>
+                <View style={{ width: scaledSize, height: scaledSize, borderRadius: scaledRadius, padding: 3, backgroundColor: tierColor, ...PincTheme.shadows.md }}>
                   {profilePicUrl ? (
                     <Image source={{ uri: profilePicUrl }} style={{ width: innerSize, height: innerSize, borderRadius: innerRadius, overflow: 'hidden' }} contentFit="cover" />
                   ) : (
@@ -821,7 +821,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
 
               {/* Unified Profile Marker */}
               <View style={{ alignItems: 'center' }}>
-                <View style={{ width: getMarkerSize(zoomScale), height: getMarkerSize(zoomScale), borderRadius: getMarkerSize(zoomScale) / 2, padding: 3, backgroundColor: isLiveNews ? PincTheme.colors.crowdRed : getTierColor(followerStatsCache[pin.userId] || 0), overflow: 'hidden', ...PincTheme.shadows.md }}>
+                <View style={{ width: getMarkerSize(zoomScale), height: getMarkerSize(zoomScale), borderRadius: getMarkerSize(zoomScale) / 2, padding: 3, backgroundColor: isLiveNews ? PincTheme.colors.crowdRed : getTierColor(followerStatsCache[pin.userId] || 0), ...PincTheme.shadows.md }}>
                   {pin.user_profile_pic ? (
                     <Image
                       source={{ uri: pin.user_profile_pic }}

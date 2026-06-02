@@ -780,47 +780,39 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
       </View>
 
       {/* Premium Sliding Navigation Tabs */}
-      <View style={styles.tabsContainer}>
-        <TouchableOpacity
-          style={[styles.tabButton, activeTab === "aesthetic" && styles.activeTabButton]}
-          onPress={() => setActiveTab("aesthetic")}
-        >
-          <Text style={[styles.tabLabel, activeTab === "aesthetic" && styles.activeTabLabel]}>
-            {isShopPackage 
-              ? (locale === "th" ? "ภาพจากร้าน" : "Aesthetic")
-              : t(locale, "aestheticTab")}
-          </Text>
-          <Text style={styles.tabSubLabel}>
-            {isShopPackage 
-              ? (locale === "th" ? "บรรยากาศร้านค้า" : "Shop Atmosphere")
-              : t(locale, "aestheticSub")}
-          </Text>
-          {activeTab === "aesthetic" && <View style={styles.tabIndicator} />}
-        </TouchableOpacity>
+      {!isShopPackage && (
+        <View style={styles.tabsContainer}>
+          <TouchableOpacity
+            style={[styles.tabButton, activeTab === "aesthetic" && styles.activeTabButton]}
+            onPress={() => setActiveTab("aesthetic")}
+          >
+            <Text style={[styles.tabLabel, activeTab === "aesthetic" && styles.activeTabLabel]}>
+              {t(locale, "aestheticTab")}
+            </Text>
+            <Text style={styles.tabSubLabel}>{t(locale, "aestheticSub")}</Text>
+            {activeTab === "aesthetic" && <View style={styles.tabIndicator} />}
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.tabButton, activeTab === "reality" && styles.activeTabButton]}
-          onPress={() => setActiveTab("reality")}
-        >
-          <Text style={[styles.tabLabel, activeTab === "reality" && styles.activeTabLabel]}>
-            {isShopPackage 
-              ? (locale === "th" ? "รีวิวลูกค้า" : "Reality")
-              : t(locale, "realityTab")}
-          </Text>
-          <Text style={styles.tabSubLabel}>
-            {isShopPackage 
-              ? (locale === "th" ? "สถานะสดจากทางบ้าน" : "Customer Live Reports")
-              : t(locale, "realitySub")}
-          </Text>
-          {activeTab === "reality" && <View style={styles.tabIndicator} />}
-        </TouchableOpacity>
-      </View>
+          <TouchableOpacity
+            style={[styles.tabButton, activeTab === "reality" && styles.activeTabButton]}
+            onPress={() => setActiveTab("reality")}
+          >
+            <Text style={[styles.tabLabel, activeTab === "reality" && styles.activeTabLabel]}>
+              {t(locale, "realityTab")}
+            </Text>
+            <Text style={styles.tabSubLabel}>{t(locale, "realitySub")}</Text>
+            {activeTab === "reality" && <View style={styles.tabIndicator} />}
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* Tab View Contents */}
       <View style={styles.contentContainer}>
-        {activeTab === "aesthetic" ? (
-          isShopPackage ? (
-            /* Shop Uploaded Images Grid */
-            <ScrollView contentContainerStyle={styles.gridContainer} showsVerticalScrollIndicator={false}>
+        {isShopPackage ? (
+          /* Shop Atmosphere Images Grid + Customer Reviews combined in a single scroll view */
+          <ScrollView contentContainerStyle={{ paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
+            {/* Grid of Shop Images */}
+            <View style={styles.gridContainer}>
               {shopImages.map((uri, index) => (
                 <TouchableOpacity
                   key={index}
@@ -856,8 +848,177 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                   </Text>
                 </TouchableOpacity>
               )}
-            </ScrollView>
-          ) : (
+            </View>
+
+            {/* Customer Reviews Section */}
+            {realityPins.length > 0 && (
+              <View style={{ marginTop: 24, paddingHorizontal: 16 }}>
+                {/* Section Header */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16, borderTopWidth: 1, borderTopColor: PincTheme.colors.border, paddingTop: 20 }}>
+                  <Ionicons name="images-outline" size={20} color={PincTheme.colors.primary} />
+                  <Text style={{ fontSize: 14, fontWeight: '800', fontFamily: PincTheme.fonts.heading, color: PincTheme.colors.textPrimary, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    {locale === "th" ? "รีวิวจากลูกค้า" : "Customer Reviews"} ({realityPins.length})
+                  </Text>
+                </View>
+
+                {/* Chronological Customer Review Cards */}
+                {realityPins.map((pin) => {
+                  const pinDate = pin.timestamp instanceof Date ? pin.timestamp : new Date(pin.timestamp);
+                  const isPostToday = isToday(pinDate);
+                  const isPostYesterday = isYesterday(pinDate);
+                  const isFriend = followingIds.includes(pin.userId);
+
+                  // Interaction activity cue checks
+                  const isOwnPost = pin.userId === currentUser.userId;
+                  const likeState = getPinLikeState(pin);
+                  const commentCount = commentsCounts[pin.pinId || ""] || 0;
+                  const hasInteractions = likeState.count > 0 || commentCount > 0;
+                  const showActivityCue = isOwnPost && hasInteractions;
+
+                  return (
+                    <View
+                      key={pin.pinId}
+                      style={[
+                        styles.feedCard,
+                        isFriend && styles.feedCardFriend,
+                        showActivityCue && styles.feedCardOwnActive,
+                        { marginLeft: 0, marginRight: 0, width: '100%', marginBottom: 16 }
+                      ]}
+                    >
+                      <View style={styles.feedHeader}>
+                        <TouchableOpacity
+                          style={{ flexDirection: "row", alignItems: "center", flex: 1 }}
+                          onPress={() => onOpenUserProfile && onOpenUserProfile(pin.userId)}
+                          activeOpacity={0.7}
+                        >
+                          <Image source={{ uri: pin.user_profile_pic }} style={styles.avatar} />
+                          <View style={styles.userMeta}>
+                            <Text style={styles.username}>@{pin.username}</Text>
+                            <Text style={styles.timestamp}>
+                              {isPostToday
+                                ? t(locale, "today")
+                                : isPostYesterday
+                                  ? t(locale, "yesterday")
+                                  : pinDate.toLocaleDateString()
+                              } {" "}
+                              {t(locale, "at")} {" "}
+                              {pinDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                            </Text>
+                          </View>
+                        </TouchableOpacity>
+
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                          {showActivityCue && (
+                            <View style={styles.activityBadge}>
+                              <Text style={styles.activityBadgeText}>✨ {t(locale, "ownPostActivity")}</Text>
+                            </View>
+                          )}
+
+                          {isFriend && !showActivityCue && (
+                            <View style={styles.friendBadge}>
+                              <Text style={styles.friendBadgeText}>{t(locale, "friendPost")}</Text>
+                            </View>
+                          )}
+
+                          {/* Live Location verification Badge */}
+                          {pin.is_live_verified && (
+                            <View style={styles.liveBadge}>
+                              <Text style={styles.liveBadgeText}>{t(locale, "verifiedLive")}</Text>
+                            </View>
+                          )}
+                        </View>
+                      </View>
+
+                      <Text style={styles.feedText}>{pin.text_content}</Text>
+
+                      {pin.image_url && (
+                        <View style={{ position: 'relative' }}>
+                          {isActuallyVideo(pin) ? (
+                            activeVideoId === pin.pinId ? (
+                              <CachedVideo
+                                source={{ uri: pin.image_url }}
+                                style={styles.feedImage}
+                                resizeMode={ResizeMode.COVER}
+                                shouldPlay
+                                useNativeControls
+                              />
+                            ) : (
+                              <TouchableOpacity
+                                style={styles.feedImage}
+                                onPress={() => setActiveVideoId(pin.pinId || null)}
+                                activeOpacity={0.9}
+                              >
+                                <Image source={{ uri: getSafeVideoUrl(pin.image_url) }} style={styles.feedImage} contentFit="cover" />
+                                <View style={[StyleSheet.absoluteFill, { justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 12 }]}>
+                                  <Ionicons name="play" size={44} color="#FFF" />
+                                </View>
+                              </TouchableOpacity>
+                            )
+                          ) : (
+                            <Image source={{ uri: pin.image_url }} style={styles.feedImage} contentFit="cover" />
+                          )}
+                        </View>
+                      )}
+
+                      {/* Footer Interactions */}
+                      <View style={styles.feedFooter}>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
+                          {/* Like Button */}
+                          <TouchableOpacity
+                            style={styles.interactionBtn}
+                            onPress={() => handleLikeToggle(pin)}
+                            activeOpacity={0.7}
+                          >
+                            <Ionicons
+                              name={likeState.liked ? "heart" : "heart-outline"}
+                              size={22}
+                              color={likeState.liked ? "#FF4B72" : PincTheme.colors.textSecondary}
+                            />
+                            <Text style={[styles.interactionText, likeState.liked && { color: "#FF4B72" }]}>
+                              {likeState.count}
+                            </Text>
+                          </TouchableOpacity>
+
+                          {/* Comment Button */}
+                          <TouchableOpacity
+                            style={styles.interactionBtn}
+                            onPress={() => setActiveCommentsPinId(pin.pinId || null)}
+                            activeOpacity={0.7}
+                          >
+                            <Ionicons name="chatbubble-outline" size={20} color={PincTheme.colors.textSecondary} />
+                            <Text style={styles.interactionText}>{commentCount}</Text>
+                          </TouchableOpacity>
+                        </View>
+
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                          {/* Share Button */}
+                          <TouchableOpacity
+                            style={styles.shareButton}
+                            onPress={() => setSharePin(pin)}
+                            activeOpacity={0.7}
+                          >
+                            <Ionicons name="paper-plane-outline" size={20} color={PincTheme.colors.textSecondary} />
+                          </TouchableOpacity>
+
+                          {/* Delete Button */}
+                          {(pin.userId === currentUser.userId || isOwner) && (
+                            <TouchableOpacity
+                              style={styles.deleteButton}
+                              onPress={() => handleDeletePin(pin.pinId)}
+                              activeOpacity={0.7}
+                            >
+                              <Ionicons name="trash-outline" size={18} color="#FF3B30" />
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+          </ScrollView>
+        ) : activeTab === "aesthetic" ? (
             /* Tab 1: Aesthetic (Polished IG Grid for Standard Venues) */
             <ScrollView contentContainerStyle={styles.gridContainer} showsVerticalScrollIndicator={false}>
               {aestheticPins.length > 0 ? (
@@ -908,7 +1069,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
               )}
             </ScrollView>
           )
-        ) : (
+        : (
           /* Tab 2: The Reality (Real-time X Chronological Feed) */
           <View style={{ flex: 1 }}>
             {/* Real-time Status Summary Widget */}
