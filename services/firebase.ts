@@ -1171,10 +1171,12 @@ export interface ChatMessage {
 }
 
 export function getChatId(userId1: string, userId2: string): string {
+  if (!userId1 || !userId2) return "invalid_chat_id";
   return userId1 < userId2 ? `${userId1}_${userId2}` : `${userId2}_${userId1}`;
 }
 
 export async function sendMessage(chatId: string, senderId: string, text: string) {
+  if (chatId === "invalid_chat_id" || !chatId) return;
   const messagesRef = collection(db, "chats", chatId, "messages");
   await addDoc(messagesRef, {
     senderId,
@@ -1183,7 +1185,15 @@ export async function sendMessage(chatId: string, senderId: string, text: string
   });
 }
 
-export function subscribeToMessages(chatId: string, onUpdate: (messages: ChatMessage[]) => void) {
+export function subscribeToMessages(
+  chatId: string, 
+  onUpdate: (messages: ChatMessage[]) => void, 
+  onError?: (error: any) => void
+) {
+  if (chatId === "invalid_chat_id" || !chatId) {
+    onUpdate([]);
+    return () => {};
+  }
   const q = query(collection(db, "chats", chatId, "messages"), orderBy("timestamp", "asc"));
   return onSnapshot(q, (snapshot) => {
     const messages: ChatMessage[] = [];
@@ -1191,5 +1201,8 @@ export function subscribeToMessages(chatId: string, onUpdate: (messages: ChatMes
       messages.push({ id: doc.id, ...doc.data() } as ChatMessage);
     });
     onUpdate(messages);
+  }, (error) => {
+    console.warn("Firestore subscribeToMessages failed:", error);
+    if (onError) onError(error);
   });
 }

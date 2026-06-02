@@ -26,18 +26,23 @@ export const ChatModal: React.FC<ChatModalProps> = ({
   const chatId = getChatId(currentUserId, targetUserId);
 
   useEffect(() => {
-    if (!visible) return;
+    if (!visible || !currentUserId || !targetUserId || chatId === "invalid_chat_id") {
+      setMessages([]);
+      return;
+    }
 
     const unsubscribe = subscribeToMessages(chatId, (newMessages) => {
       setMessages(newMessages);
+    }, (err) => {
+      console.warn("Chat messages subscription failed:", err);
     });
 
     return () => unsubscribe();
-  }, [visible, chatId]);
+  }, [visible, chatId, currentUserId, targetUserId]);
 
   const handleSend = async () => {
     const trimmed = inputText.trim();
-    if (!trimmed) return;
+    if (!trimmed || !currentUserId || !targetUserId || chatId === "invalid_chat_id") return;
 
     setInputText(""); // Optimistic clear
     try {
