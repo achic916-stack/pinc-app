@@ -650,7 +650,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
 
           // ใช้รูปโปรไฟล์ (user_profile_pic) แทนรูปภาพในโพสต์
           const profilePicUrl = (nearestPin as any)?.user_profile_pic || null;
-          const clusterKey = `cluster-${id}-${profilePicUrl || ''}-${zoomScale}`;
+          const clusterKey = `cluster-${id}-${profilePicUrl || ''}`;
           const tierColor = nearestPin ? getTierColor(followerStatsCache[nearestPin.userId] || 0) : '#E0E0E0';
           const displayName = nearestPin?.username || "";
 
@@ -661,7 +661,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
           const textSize = Math.max(9, Math.floor(11 * zoomScale));
 
           return (
-            <Marker key={clusterKey} coordinate={{ latitude: centerLat, longitude: centerLng }} onPress={onPress} tracksViewChanges={true}>
+            <Marker key={clusterKey} coordinate={{ latitude: centerLat, longitude: centerLng }} onPress={onPress} tracksViewChanges={tracksViewChangesDuringZoom || (markerTracksViewChanges[clusterKey] ?? true)}>
               <View style={{ alignItems: 'center' }}>
                 <View style={{ width: scaledSize, height: scaledSize, borderRadius: scaledRadius, padding: 3, backgroundColor: tierColor, overflow: 'hidden', ...PincTheme.shadows.md }}>
                   {profilePicUrl ? (
@@ -713,7 +713,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
           const photoUrl = pin.media_type === "video" && pin.thumbnail_url ? pin.thumbnail_url : pin.image_url;
           const isLiveNews = pin.post_type === "live_news";
           const isDeleteMode = deleteModePinId === pin.pinId;
-          const pinKey = `pin-${pin.pinId || `${pin.latitude}-${pin.longitude}-${pin.timestamp}`}-${pin.user_profile_pic || ''}-${zoomScale}`;
+          const pinKey = `pin-${pin.pinId || `${pin.latitude}-${pin.longitude}-${pin.timestamp}`}-${pin.user_profile_pic || ''}`;
 
           return (
             <Marker
@@ -743,7 +743,12 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                   setDeleteModePinId(pin.pinId || null);
                 }
               }}
-              tracksViewChanges={true}
+              tracksViewChanges={
+                tracksViewChangesDuringZoom ||
+                pin.media_type === "video" ||
+                isVideoUrl(photoUrl) ||
+                (markerTracksViewChanges[pinKey] ?? true)
+              }
               anchor={{ x: 0.5, y: 0.5 }}
             >
               {/* Red Minus Delete Badge Overlay */}
@@ -801,7 +806,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
         {/* Advertiser Pins */}
         {displayedVenues.filter(venue => venue.is_sponsored).map(venue => {
           const imageUri = venue.custom_icon_url || venue.cover_image || '';
-          const sponsorKey = `sponsor-${venue.venueId}-${imageUri}-${venue.aesthetic_rating}-${venue.crowd_status}-${zoomScale}`;
+          const sponsorKey = `sponsor-${venue.venueId}-${imageUri}-${venue.aesthetic_rating}-${venue.crowd_status}`;
           const isTier1 = venue.sponsor_tier === 1;
           const isTier2 = venue.sponsor_tier === 2;
           const isTier3 = venue.sponsor_tier === 3;
