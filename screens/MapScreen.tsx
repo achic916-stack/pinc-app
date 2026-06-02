@@ -470,7 +470,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
   // Filter venues based on isFilterFriends state
   const displayedVenues = useMemo(() => {
     if (!isFilterFriends) return venues;
-    return venues.filter((venue) => followingVenueIds.has(venue.venueId));
+    return venues.filter((venue) => venue.is_sponsored || followingVenueIds.has(venue.venueId));
   }, [venues, isFilterFriends, followingVenueIds]);
 
   // Dynamic Greedy Clustering algorithm removed in favor of react-native-map-clustering
@@ -650,7 +650,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
 
           // ใช้รูปโปรไฟล์ (user_profile_pic) แทนรูปภาพในโพสต์
           const profilePicUrl = (nearestPin as any)?.user_profile_pic || null;
-          const clusterKey = `cluster-${id}`;
+          const clusterKey = `cluster-${id}-${profilePicUrl || ''}-${zoomScale}`;
           const tierColor = nearestPin ? getTierColor(followerStatsCache[nearestPin.userId] || 0) : '#E0E0E0';
           const displayName = nearestPin?.username || "";
 
@@ -713,7 +713,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
           const photoUrl = pin.media_type === "video" && pin.thumbnail_url ? pin.thumbnail_url : pin.image_url;
           const isLiveNews = pin.post_type === "live_news";
           const isDeleteMode = deleteModePinId === pin.pinId;
-          const pinKey = pin.pinId || `${pin.latitude}-${pin.longitude}-${pin.timestamp}`;
+          const pinKey = `pin-${pin.pinId || `${pin.latitude}-${pin.longitude}-${pin.timestamp}`}-${pin.user_profile_pic || ''}-${zoomScale}`;
 
           return (
             <Marker
@@ -800,7 +800,8 @@ export const MapScreen: React.FC<MapScreenProps> = ({
 
         {/* Advertiser Pins */}
         {displayedVenues.filter(venue => venue.is_sponsored).map(venue => {
-          const sponsorKey = `sponsor-${venue.venueId}`;
+          const imageUri = venue.custom_icon_url || venue.cover_image || '';
+          const sponsorKey = `sponsor-${venue.venueId}-${imageUri}-${venue.aesthetic_rating}-${venue.crowd_status}-${zoomScale}`;
           const isTier1 = venue.sponsor_tier === 1;
           const isTier2 = venue.sponsor_tier === 2;
           const isTier3 = venue.sponsor_tier === 3;
