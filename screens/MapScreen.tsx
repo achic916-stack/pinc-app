@@ -395,8 +395,14 @@ export const MapScreen: React.FC<MapScreenProps> = ({
 
   // Group pins within 500 meters. The representative pin (group[0]) is the oldest (first posted) pin.
   const groupedValidPins = useMemo(() => {
+    // 1. Identify all sponsored venue IDs
+    const sponsoredVenueIds = new Set(displayedVenues.filter(v => v.is_sponsored || (v.sponsor_tier && v.sponsor_tier >= 1)).map(v => v.venueId));
+
+    // 2. Filter out pins that belong to a sponsored venue so they don't render on the map directly
+    const mapRenderablePins = validPins.filter(pin => !pin.venueId || !sponsoredVenueIds.has(pin.venueId));
+
     // Sort pins oldest first so that the seed pin for each cluster is the earliest posted pin
-    const sortedPins = [...validPins].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    const sortedPins = [...mapRenderablePins].sort((a, b) => new Date(a.timestamp).getTime() - new Date(a.timestamp).getTime());
     const groups: Pin[][] = [];
     const processed = new Set<string>();
 
@@ -416,7 +422,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
       groups.push(currentGroup);
     }
     return groups;
-  }, [validPins]);
+  }, [validPins, displayedVenues]);
 
   // Fetch follower stats for validPins
   useEffect(() => {
@@ -750,10 +756,23 @@ export const MapScreen: React.FC<MapScreenProps> = ({
           const isDeleteMode = deleteModePinId === pin.pinId;
           const pinKey = `pin-${pin.pinId || `${pin.latitude}-${pin.longitude}-${pin.timestamp}`}-${pin.user_profile_pic || ''}`;
 
+          // Check if close to a sponsored venue (within 35 meters)
+          const closeSponsor = displayedVenues.find(
+            v => v.is_sponsored && calculateDistance(pin.latitude, pin.longitude, v.latitude, v.longitude) < 35
+          );
+
+          let displayLat = pin.latitude;
+          let displayLng = pin.longitude;
+          if (closeSponsor) {
+            // Shift the user pin slightly south-east (~10 meters offset) so it tucks behind the shop's pin
+            displayLat = pin.latitude - 0.00010;
+            displayLng = pin.longitude + 0.00010;
+          }
+
           return (
             <CustomMapMarker
               key={pinKey}
-              coordinate={{ latitude: pin.latitude, longitude: pin.longitude }}
+              coordinate={{ latitude: displayLat, longitude: displayLng }}
               onPress={() => {
                 if (isDeleteMode) return;
 
@@ -778,6 +797,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                   setDeleteModePinId(pin.pinId || null);
                 }
               }}
+              zIndex={closeSponsor ? 100 : 500}
               anchor={{ x: 0.5, y: 0.5 }}
               zoomScale={zoomScale}
             >

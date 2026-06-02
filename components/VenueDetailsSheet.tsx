@@ -26,7 +26,7 @@ import { CachedVideo } from "./CachedVideo";
 import { SocialLinksDisplay } from "./SocialLinks";
 import { WatermarkShare } from "./WatermarkShare";
 import { Modal } from "react-native";
-const Audio = { Sound: { createAsync: async () => ({ sound: { playAsync: async () => {}, stopAsync: async () => {}, unloadAsync: async () => {} } }) }, setAudioModeAsync: async () => {} }; const Video = () => null; const ResizeMode = { COVER: 'cover', CONTAIN: 'contain' };
+const Audio = { Sound: { createAsync: async () => ({ sound: { playAsync: async () => { }, stopAsync: async () => { }, unloadAsync: async () => { } } }) }, setAudioModeAsync: async () => { } }; const Video = () => null; const ResizeMode = { COVER: 'cover', CONTAIN: 'contain' };
 
 
 const getSafeVideoUrl = (url: string | null | undefined) => {
@@ -105,6 +105,9 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
       setEditedCrowdStatus(venue.crowd_status || "Green");
       setEditedDescription(venue.description || "");
       setEditedImages(venue.images || []);
+      
+      const isShop = venue.is_sponsored === true || (venue.sponsor_tier && venue.sponsor_tier >= 1);
+      setActiveTab(isShop ? "aesthetic" : "reality");
     }
   }, [venue]);
 
@@ -112,13 +115,13 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
     if (!showEditPanel) return; // Only owner can delete in edit mode!
     Alert.alert(
       locale === "th" ? "ลบรูปภาพร้านค้า" : "Delete Shop Image",
-      locale === "th" 
-        ? "คุณแน่ใจหรือไม่ว่าต้องการเอารูปภาพนี้ออกจากร้านค้าชั่วคราว? (กรุณากดปุ่มบันทึกด้านล่างเพื่อยืนยัน)" 
+      locale === "th"
+        ? "คุณแน่ใจหรือไม่ว่าต้องการเอารูปภาพนี้ออกจากร้านค้าชั่วคราว? (กรุณากดปุ่มบันทึกด้านล่างเพื่อยืนยัน)"
         : "Are you sure you want to remove this image temporarily? (Please press save below to commit)",
       [
         { text: locale === "th" ? "ยกเลิก" : "Cancel", style: "cancel" },
-        { 
-          text: locale === "th" ? "ลบ" : "Delete", 
+        {
+          text: locale === "th" ? "ลบ" : "Delete",
           style: "destructive",
           onPress: () => {
             setEditedImages(prev => prev.filter(img => img !== imageUri));
@@ -132,9 +135,9 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
     const maxImages = venue.sponsor_tier === 2 ? 5 : venue.sponsor_tier === 3 ? 10 : 3;
     if (editedImages.length >= maxImages) {
       Alert.alert(
-        locale === "th" ? "ครบตามกำหนด" : "Limit reached", 
-        locale === "th" 
-          ? `อัปโหลดได้สูงสุด ${maxImages} รูปสำหรับแพ็กเกจนี้` 
+        locale === "th" ? "ครบตามกำหนด" : "Limit reached",
+        locale === "th"
+          ? `อัปโหลดได้สูงสุด ${maxImages} รูปสำหรับแพ็กเกจนี้`
           : `You can upload up to ${maxImages} photos for this package.`
       );
       return;
@@ -201,7 +204,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
   const handleSaveShopDetails = async () => {
     if (editedImages.length === 0) {
       Alert.alert(
-        locale === "th" ? "ข้อผิดพลาด" : "Error", 
+        locale === "th" ? "ข้อผิดพลาด" : "Error",
         locale === "th" ? "จำเป็นต้องอัปโหลดรูปภาพอย่างน้อย 1 รูป" : "At least one image is required"
       );
       return;
@@ -233,13 +236,13 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
       venue.custom_icon_url = updatedCoverImage;
 
       Alert.alert(
-        locale === "th" ? "สำเร็จ" : "Success", 
+        locale === "th" ? "สำเร็จ" : "Success",
         locale === "th" ? "บันทึกข้อมูลร้านค้าเรียบร้อยแล้ว" : "Shop details saved successfully"
       );
     } catch (err: any) {
       console.error("Failed to save shop details:", err);
       Alert.alert(
-        locale === "th" ? "เกิดข้อผิดพลาด" : "Error", 
+        locale === "th" ? "เกิดข้อผิดพลาด" : "Error",
         err.message || "Could not save details"
       );
     } finally {
@@ -250,13 +253,13 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
   const handleDeleteVenue = () => {
     Alert.alert(
       locale === "th" ? "ลบหมุดร้านค้า" : "Delete Shop Pin",
-      locale === "th" 
-        ? `คุณแน่ใจหรือไม่ว่าต้องการลบหมุดร้านค้า "${venue.name}" นี้ออกจากแผนที่อย่างถาวร?` 
+      locale === "th"
+        ? `คุณแน่ใจหรือไม่ว่าต้องการลบหมุดร้านค้า "${venue.name}" นี้ออกจากแผนที่อย่างถาวร?`
         : `Are you sure you want to permanently delete the shop pin "${venue.name}" from the map?`,
       [
         { text: locale === "th" ? "ยกเลิก" : "Cancel", style: "cancel" },
-        { 
-          text: locale === "th" ? "ลบ" : "Delete", 
+        {
+          text: locale === "th" ? "ลบ" : "Delete",
           style: "destructive",
           onPress: async () => {
             try {
@@ -264,7 +267,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
               await deleteDoc(venueDocRef);
 
               Alert.alert(
-                locale === "th" ? "สำเร็จ" : "Success", 
+                locale === "th" ? "สำเร็จ" : "Success",
                 locale === "th" ? "ลบหมุดร้านค้าเรียบร้อยแล้ว" : "Shop pin deleted successfully",
                 [
                   {
@@ -278,7 +281,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
             } catch (err) {
               console.error("Failed to delete venue:", err);
               Alert.alert(
-                locale === "th" ? "เกิดข้อผิดพลาด" : "Error", 
+                locale === "th" ? "เกิดข้อผิดพลาด" : "Error",
                 locale === "th" ? "ไม่สามารถลบหมุดร้านค้าได้ในขณะนี้" : "Could not delete shop pin at this time"
               );
             }
@@ -351,8 +354,8 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
       t(locale, "confirmDeletePost") || "คุณแน่ใจหรือไม่ที่จะลบโพสต์นี้?",
       [
         { text: t(locale, "cancel") || "ยกเลิก", style: "cancel" },
-        { 
-          text: t(locale, "delete") || "ลบ", 
+        {
+          text: t(locale, "delete") || "ลบ",
           style: "destructive",
           onPress: async () => {
             try {
@@ -411,7 +414,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
   // Dynamic calculations for real-time status summary widget
   const getWidgetSummary = () => {
     const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
-    
+
     // Filter reports from verified users within the last 2 hours
     const verifiedRecent = realityPins.filter(pin => {
       const pinTime = pin.timestamp instanceof Date ? pin.timestamp : new Date(pin.timestamp);
@@ -469,20 +472,20 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
     };
   };
 
-  const shopImages = showEditPanel 
-    ? editedImages 
-    : (venue.images && venue.images.length > 0 
-        ? venue.images 
-        : [venue.cover_image].filter(Boolean));
+  const shopImages = showEditPanel
+    ? editedImages
+    : (venue.images && venue.images.length > 0
+      ? venue.images
+      : [venue.cover_image].filter(Boolean));
 
   const widget = getWidgetSummary();
 
   return (
     <View style={[
-      styles.sheetContainer, 
-      isFullScreen && { 
-        height: '100%', 
-        borderTopLeftRadius: 0, 
+      styles.sheetContainer,
+      isFullScreen && {
+        height: '100%',
+        borderTopLeftRadius: 0,
         borderTopRightRadius: 0,
         paddingTop: Platform.OS === 'ios' ? 0 : 12
       }
@@ -490,8 +493,8 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
       {/* Drag Indicator / Header */}
       <View style={[styles.header, isFullScreen && { borderBottomWidth: 0, paddingVertical: 16 }]}>
         {!isFullScreen && <View style={styles.dragIndicator} />}
-        <TouchableOpacity 
-          style={[styles.closeButton, isFullScreen && { left: 16, top: 12, right: undefined }]} 
+        <TouchableOpacity
+          style={[styles.closeButton, isFullScreen && { left: 16, top: 12, right: undefined }]}
           onPress={onClose}
         >
           {isFullScreen ? (
@@ -530,7 +533,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                 editable={false}
               />
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={{ padding: 6, backgroundColor: '#FFEBF0', borderRadius: 8 }}
                   onPress={handleDeleteVenue}
                   activeOpacity={0.7}
@@ -538,7 +541,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                   <Ionicons name="trash-outline" size={20} color="#FF4B72" />
                 </TouchableOpacity>
                 {/* Rating Badge (Editable: Taps to trigger prompt/options) */}
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={[styles.ratingBadge, { backgroundColor: PincTheme.colors.primary }]}
                   activeOpacity={0.8}
                   onPress={() => {
@@ -677,7 +680,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
             </View>
 
             {/* Save Shop Details Button */}
-            <TouchableOpacity 
+            <TouchableOpacity
               style={{
                 flexDirection: 'row',
                 alignItems: 'center',
@@ -717,7 +720,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
             <View style={styles.metaRow}>
               <Text style={styles.categoryText}>{venue.category.toUpperCase()}</Text>
               <View style={styles.bulletSeparator} />
-              
+
               {/* Dynamic Crowd Status Badge */}
               <View
                 style={[
@@ -751,7 +754,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
             </View>
 
             {venue.sponsor_tier === 3 && (
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.directionsButton}
                 onPress={() => {
                   const url = `https://www.google.com/maps/dir/?api=1&destination=${venue.latitude},${venue.longitude}`;
@@ -775,125 +778,136 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
           </>
         )}
       </View>
- 
+
       {/* Premium Sliding Navigation Tabs */}
-      {!isShopPackage && (
-        <View style={styles.tabsContainer}>
-          <TouchableOpacity
-            style={[styles.tabButton, activeTab === "aesthetic" && styles.activeTabButton]}
-            onPress={() => setActiveTab("aesthetic")}
-          >
-            <Text style={[styles.tabLabel, activeTab === "aesthetic" && styles.activeTabLabel]}>
-              {t(locale, "aestheticTab")}
-            </Text>
-            <Text style={styles.tabSubLabel}>{t(locale, "aestheticSub")}</Text>
-            {activeTab === "aesthetic" && <View style={styles.tabIndicator} />}
-          </TouchableOpacity>
- 
-          <TouchableOpacity
-            style={[styles.tabButton, activeTab === "reality" && styles.activeTabButton]}
-            onPress={() => setActiveTab("reality")}
-          >
-            <Text style={[styles.tabLabel, activeTab === "reality" && styles.activeTabLabel]}>
-              {t(locale, "realityTab")}
-            </Text>
-            <Text style={styles.tabSubLabel}>{t(locale, "realitySub")}</Text>
-            {activeTab === "reality" && <View style={styles.tabIndicator} />}
-          </TouchableOpacity>
-        </View>
-      )}
- 
+      <View style={styles.tabsContainer}>
+        <TouchableOpacity
+          style={[styles.tabButton, activeTab === "aesthetic" && styles.activeTabButton]}
+          onPress={() => setActiveTab("aesthetic")}
+        >
+          <Text style={[styles.tabLabel, activeTab === "aesthetic" && styles.activeTabLabel]}>
+            {isShopPackage 
+              ? (locale === "th" ? "ภาพจากร้าน" : "Aesthetic")
+              : t(locale, "aestheticTab")}
+          </Text>
+          <Text style={styles.tabSubLabel}>
+            {isShopPackage 
+              ? (locale === "th" ? "บรรยากาศร้านค้า" : "Shop Atmosphere")
+              : t(locale, "aestheticSub")}
+          </Text>
+          {activeTab === "aesthetic" && <View style={styles.tabIndicator} />}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.tabButton, activeTab === "reality" && styles.activeTabButton]}
+          onPress={() => setActiveTab("reality")}
+        >
+          <Text style={[styles.tabLabel, activeTab === "reality" && styles.activeTabLabel]}>
+            {isShopPackage 
+              ? (locale === "th" ? "รีวิวลูกค้า" : "Reality")
+              : t(locale, "realityTab")}
+          </Text>
+          <Text style={styles.tabSubLabel}>
+            {isShopPackage 
+              ? (locale === "th" ? "สถานะสดจากทางบ้าน" : "Customer Live Reports")
+              : t(locale, "realitySub")}
+          </Text>
+          {activeTab === "reality" && <View style={styles.tabIndicator} />}
+        </TouchableOpacity>
+      </View>
       {/* Tab View Contents */}
       <View style={styles.contentContainer}>
-        {isShopPackage ? (
-          /* Shop Uploaded Images Grid */
-          <ScrollView contentContainerStyle={styles.gridContainer} showsVerticalScrollIndicator={false}>
-            {shopImages.map((uri, index) => (
-              <TouchableOpacity 
-                key={index} 
-                style={styles.gridImageWrapper}
-                activeOpacity={0.9}
-                onPress={() => setSelectedFullScreenImage(uri)}
-                onLongPress={() => handleLongPressImage(uri)}
-              >
-                <Image source={{ uri }} style={styles.gridImage} contentFit="cover" />
-              </TouchableOpacity>
-            ))}
+        {activeTab === "aesthetic" ? (
+          isShopPackage ? (
+            /* Shop Uploaded Images Grid */
+            <ScrollView contentContainerStyle={styles.gridContainer} showsVerticalScrollIndicator={false}>
+              {shopImages.map((uri, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={styles.gridImageWrapper}
+                  activeOpacity={0.9}
+                  onPress={() => setSelectedFullScreenImage(uri)}
+                  onLongPress={() => handleLongPressImage(uri)}
+                >
+                  <Image source={{ uri }} style={styles.gridImage} contentFit="cover" />
+                </TouchableOpacity>
+              ))}
 
-            {/* Owner Add Photo Card */}
-            {showEditPanel && (
-              <TouchableOpacity 
-                style={[
-                  styles.gridImageWrapper, 
-                  { 
-                    backgroundColor: '#FFF9FA', 
-                    borderWidth: 2, 
-                    borderStyle: 'dashed', 
-                    borderColor: '#FF4B72', 
-                    justifyContent: 'center', 
-                    alignItems: 'center' 
-                  }
-                ]}
-                activeOpacity={0.7}
-                onPress={handlePickImage}
-              >
-                <Ionicons name="add" size={36} color="#FF4B72" />
-                <Text style={{ fontSize: 10, fontWeight: 'bold', color: '#FF4B72', marginTop: 4 }}>
-                  {locale === "th" ? "เพิ่มรูปภาพ" : "Add Photo"}
-                </Text>
-              </TouchableOpacity>
-            )}
-          </ScrollView>
-        ) : activeTab === "aesthetic" ? (
-          /* Tab 1: Aesthetic (Polished IG Grid) */
-          <ScrollView contentContainerStyle={styles.gridContainer} showsVerticalScrollIndicator={false}>
-            {aestheticPins.length > 0 ? (
-              aestheticPins.map((pin) => (
-                <View key={pin.pinId} style={styles.gridImageWrapper}>
-                  {pin.image_url ? (
-                    isActuallyVideo(pin) ? (
-                      activeVideoId === pin.pinId ? (
-                        <CachedVideo 
-                          source={{ uri: pin.image_url }} 
-                          style={styles.gridImage} 
-                          resizeMode={ResizeMode.COVER} 
-                          shouldPlay 
-                          useNativeControls
-                        />
+              {/* Owner Add Photo Card */}
+              {showEditPanel && (
+                <TouchableOpacity
+                  style={[
+                    styles.gridImageWrapper,
+                    {
+                      backgroundColor: '#FFF9FA',
+                      borderWidth: 2,
+                      borderStyle: 'dashed',
+                      borderColor: '#FF4B72',
+                      justifyContent: 'center',
+                      alignItems: 'center'
+                    }
+                  ]}
+                  activeOpacity={0.7}
+                  onPress={handlePickImage}
+                >
+                  <Ionicons name="add" size={36} color="#FF4B72" />
+                  <Text style={{ fontSize: 10, fontWeight: 'bold', color: '#FF4B72', marginTop: 4 }}>
+                    {locale === "th" ? "เพิ่มรูปภาพ" : "Add Photo"}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </ScrollView>
+          ) : (
+            /* Tab 1: Aesthetic (Polished IG Grid for Standard Venues) */
+            <ScrollView contentContainerStyle={styles.gridContainer} showsVerticalScrollIndicator={false}>
+              {aestheticPins.length > 0 ? (
+                aestheticPins.map((pin) => (
+                  <View key={pin.pinId} style={styles.gridImageWrapper}>
+                    {pin.image_url ? (
+                      isActuallyVideo(pin) ? (
+                        activeVideoId === pin.pinId ? (
+                          <CachedVideo
+                            source={{ uri: pin.image_url }}
+                            style={styles.gridImage}
+                            resizeMode={ResizeMode.COVER}
+                            shouldPlay
+                            useNativeControls
+                          />
+                        ) : (
+                          <TouchableOpacity
+                            style={{ width: '100%', height: '100%' }}
+                            onPress={() => setActiveVideoId(pin.pinId || null)}
+                            activeOpacity={0.8}
+                          >
+                            <Image source={{ uri: getSafeVideoUrl(pin.image_url) }} style={styles.gridImage} contentFit="cover" />
+                            <View style={[StyleSheet.absoluteFill, { justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)' }]}>
+                              <Text style={{ fontSize: 32 }}>▶️</Text>
+                            </View>
+                          </TouchableOpacity>
+                        )
                       ) : (
-                        <TouchableOpacity 
-                          style={{ width: '100%', height: '100%' }} 
-                          onPress={() => setActiveVideoId(pin.pinId || null)}
-                          activeOpacity={0.8}
-                        >
-                          <Image source={{ uri: getSafeVideoUrl(pin.image_url) }} style={styles.gridImage} contentFit="cover" />
-                          <View style={[StyleSheet.absoluteFill, { justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)' }]}>
-                            <Text style={{ fontSize: 32 }}>▶️</Text>
-                          </View>
-                        </TouchableOpacity>
+                        <Image source={{ uri: pin.image_url }} style={styles.gridImage} contentFit="cover" />
                       )
                     ) : (
-                      <Image source={{ uri: pin.image_url }} style={styles.gridImage} contentFit="cover" />
-                    )
-                  ) : (
-                    <View style={[styles.gridImage, { backgroundColor: PincTheme.colors.border, justifyContent: "center", alignItems: "center" }]}>
-                      <Text style={{ fontSize: 24 }}>☕</Text>
+                      <View style={[styles.gridImage, { backgroundColor: PincTheme.colors.border, justifyContent: "center", alignItems: "center" }]}>
+                        <Text style={{ fontSize: 24 }}>☕</Text>
+                      </View>
+                    )}
+                    <View style={styles.gridOverlay}>
+                      <Text style={styles.gridRatingText}>★ {pin.user_aesthetic_rating || 5}</Text>
                     </View>
-                  )}
-                  <View style={styles.gridOverlay}>
-                    <Text style={styles.gridRatingText}>★ {pin.user_aesthetic_rating || 5}</Text>
                   </View>
-                </View>
-              ))
-            ) : (
-              // Fallback default curated images
-              fallbackAestheticImages.map((uri, index) => (
-                <View key={index} style={styles.gridImageWrapper}>
-                  <Image source={{ uri }} style={styles.gridImage} resizeMode="cover" />
-                </View>
-              ))
-            )}
-          </ScrollView>
+                ))
+              ) : (
+                // Fallback default curated images
+                fallbackAestheticImages.map((uri, index) => (
+                  <View key={index} style={styles.gridImageWrapper}>
+                    <Image source={{ uri }} style={styles.gridImage} resizeMode="cover" />
+                  </View>
+                ))
+              )}
+            </ScrollView>
+          )
         ) : (
           /* Tab 2: The Reality (Real-time X Chronological Feed) */
           <View style={{ flex: 1 }}>
@@ -913,7 +927,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                 </View>
               )}
             </View>
- 
+
             {isLoadingPins ? (
               <View style={styles.loaderContainer}>
                 <ActivityIndicator size="small" color={PincTheme.colors.primary} />
@@ -933,7 +947,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                   const isPostToday = isToday(pinDate);
                   const isPostYesterday = isYesterday(pinDate);
                   const isFriend = followingIds.includes(pin.userId);
-                  
+
                   // Interaction activity cue checks
                   const isOwnPost = pin.userId === currentUser.userId;
                   const likeState = getPinLikeState(pin);
@@ -942,10 +956,10 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                   const showActivityCue = isOwnPost && hasInteractions;
 
                   return (
-                    <View 
-                      key={pin.pinId} 
+                    <View
+                      key={pin.pinId}
                       style={[
-                        styles.feedCard, 
+                        styles.feedCard,
                         isFriend && styles.feedCardFriend,
                         showActivityCue && styles.feedCardOwnActive
                       ]}
@@ -960,10 +974,10 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                           <View style={styles.userMeta}>
                             <Text style={styles.username}>@{pin.username}</Text>
                             <Text style={styles.timestamp}>
-                              {isPostToday 
-                                ? t(locale, "today") 
-                                : isPostYesterday 
-                                  ? t(locale, "yesterday") 
+                              {isPostToday
+                                ? t(locale, "today")
+                                : isPostYesterday
+                                  ? t(locale, "yesterday")
                                   : pinDate.toLocaleDateString()
                               } {" "}
                               {t(locale, "at")} {" "}
@@ -971,7 +985,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                             </Text>
                           </View>
                         </TouchableOpacity>
-                        
+
                         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                           {showActivityCue && (
                             <View style={styles.activityBadge}>
@@ -984,7 +998,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                               <Text style={styles.friendBadgeText}>{t(locale, "friendPost")}</Text>
                             </View>
                           )}
-                          
+
                           {/* Live Location verification Badge */}
                           {pin.is_live_verified && (
                             <View style={styles.liveBadge}>
@@ -993,23 +1007,23 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                           )}
                         </View>
                       </View>
-                      
+
                       <Text style={styles.feedText}>{pin.text_content}</Text>
-                      
+
                       {pin.image_url && (
                         <View style={{ position: 'relative' }}>
                           {isActuallyVideo(pin) ? (
                             activeVideoId === pin.pinId ? (
-                              <CachedVideo 
-                                source={{ uri: pin.image_url }} 
-                                style={styles.feedImage} 
-                                resizeMode={ResizeMode.COVER} 
-                                shouldPlay 
+                              <CachedVideo
+                                source={{ uri: pin.image_url }}
+                                style={styles.feedImage}
+                                resizeMode={ResizeMode.COVER}
+                                shouldPlay
                                 useNativeControls
                               />
                             ) : (
-                              <TouchableOpacity 
-                                style={{ width: '100%', height: 250, borderRadius: 12, overflow: 'hidden', marginTop: 12 }} 
+                              <TouchableOpacity
+                                style={{ width: '100%', height: 250, borderRadius: 12, overflow: 'hidden', marginTop: 12 }}
                                 onPress={() => setActiveVideoId(pin.pinId || null)}
                                 activeOpacity={0.8}
                               >
@@ -1059,8 +1073,8 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                       {/* Social Action Row */}
                       <View style={styles.socialActionRow}>
                         {/* Like Button */}
-                        <TouchableOpacity 
-                          style={styles.actionButton} 
+                        <TouchableOpacity
+                          style={styles.actionButton}
                           onPress={() => handleLikeToggle(pin)}
                           activeOpacity={0.7}
                         >
@@ -1073,8 +1087,8 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                         </TouchableOpacity>
 
                         {/* Comment Button */}
-                        <TouchableOpacity 
-                          style={styles.actionButton} 
+                        <TouchableOpacity
+                          style={styles.actionButton}
                           onPress={() => setActiveCommentsPinId(pin.pinId || null)}
                           activeOpacity={0.7}
                         >
@@ -1086,8 +1100,8 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
 
                         {/* Share Button */}
                         {pin.image_url && (
-                          <TouchableOpacity 
-                            style={styles.actionButton} 
+                          <TouchableOpacity
+                            style={styles.actionButton}
                             onPress={() => setSharePin(pin)}
                             activeOpacity={0.7}
                           >
@@ -1095,11 +1109,11 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                             <Text style={styles.actionCount}>แชร์</Text>
                           </TouchableOpacity>
                         )}
-                        
+
                         {/* Delete Button (Only for own posts) */}
                         {pin.userId === currentUser.userId && (
-                          <TouchableOpacity 
-                            style={[styles.actionButton, { marginLeft: "auto" }]} 
+                          <TouchableOpacity
+                            style={[styles.actionButton, { marginLeft: "auto" }]}
                             onPress={() => handleDeletePin(pin.pinId)}
                             activeOpacity={0.7}
                           >
@@ -1134,10 +1148,10 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
           animationType="slide"
           onRequestClose={() => setSharePin(null)}
         >
-          <WatermarkShare 
-            photoUri={sharePin.image_url} 
-            locationName={venue.name} 
-            onClose={() => setSharePin(null)} 
+          <WatermarkShare
+            photoUri={sharePin.image_url}
+            locationName={venue.name}
+            onClose={() => setSharePin(null)}
           />
         </Modal>
       )}
@@ -1151,17 +1165,17 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
           onRequestClose={() => setSelectedFullScreenImage(null)}
         >
           <View style={styles.fullScreenOverlay}>
-            <TouchableOpacity 
-              style={styles.fullScreenCloseBtn} 
+            <TouchableOpacity
+              style={styles.fullScreenCloseBtn}
               onPress={() => setSelectedFullScreenImage(null)}
               activeOpacity={0.7}
             >
               <Ionicons name="close" size={32} color="#FFF" />
             </TouchableOpacity>
-            <Image 
-              source={{ uri: selectedFullScreenImage }} 
-              style={styles.fullScreenImage} 
-              contentFit="contain" 
+            <Image
+              source={{ uri: selectedFullScreenImage }}
+              style={styles.fullScreenImage}
+              contentFit="contain"
             />
           </View>
         </Modal>
