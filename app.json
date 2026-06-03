@@ -27,6 +27,7 @@
     },
     "android": {
       "package": "com.achic.pinc",
+      "versionCode": 5,
       "config": {
         "googleMaps": {
           "apiKey": "AIzaSyCNz0jI3_1nKLiUxQzsTpELei-BKTNzIWM"
