@@ -398,6 +398,16 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
     );
   };
 
+  // Find the pioneer pin (oldest pin in pins array)
+  const pioneerPin = React.useMemo(() => {
+    if (!pins || pins.length === 0) return null;
+    return [...pins].reduce((oldest, current) => {
+      const oldestTime = new Date(oldest.timestamp).getTime();
+      const currentTime = new Date(current.timestamp).getTime();
+      return currentTime < oldestTime ? current : oldest;
+    });
+  }, [pins]);
+
   // Filter pins based on report type
   const aestheticPins = pins.filter(pin => pin.report_type === "aesthetic");
   const realityPins = pins.filter(pin => pin.report_type === "live_status");
@@ -769,6 +779,34 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
 
             {!!venue.description && (
               <Text style={styles.venueDescription}>{venue.description}</Text>
+            )}
+
+            {pioneerPin && (
+              <TouchableOpacity
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  backgroundColor: "#FFF9E6",
+                  borderWidth: 1,
+                  borderColor: "#FFE0B2",
+                  borderRadius: PincTheme.borderRadius.sm,
+                  paddingVertical: 8,
+                  paddingHorizontal: 12,
+                  marginTop: 12,
+                  alignSelf: "flex-start",
+                  gap: 6
+                }}
+                onPress={() => onOpenUserProfile && onOpenUserProfile(pioneerPin.userId)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="star" size={14} color="#FFC107" />
+                <Text style={{ fontSize: 11, fontFamily: PincTheme.fonts.heading, fontWeight: "700", color: "#E65100" }}>
+                  {locale === "th" 
+                    ? `ผู้ปักหมุดบุกเบิกคนแรก: @${pioneerPin.username}`
+                    : `Pioneer Finder: @${pioneerPin.username}`
+                  }
+                </Text>
+              </TouchableOpacity>
             )}
 
             {!!venue.socialLinks && (

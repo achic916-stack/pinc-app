@@ -401,6 +401,20 @@ export const MapScreen: React.FC<MapScreenProps> = ({
     });
   }, [allPins]);
 
+  // Precompute the oldest pin (pioneer pin) for each venue
+  const pioneerPinIds = useMemo(() => {
+    const oldestPinsByVenue: Record<string, Pin> = {};
+    allPins.forEach(pin => {
+      if (!pin.venueId) return;
+      const currentOldest = oldestPinsByVenue[pin.venueId];
+      const pinTime = new Date(pin.timestamp).getTime();
+      if (!currentOldest || pinTime < new Date(currentOldest.timestamp).getTime()) {
+        oldestPinsByVenue[pin.venueId] = pin;
+      }
+    });
+    return new Set(Object.values(oldestPinsByVenue).map(p => p.pinId).filter(Boolean));
+  }, [allPins]);
+
   // Group pins within 500 meters. The representative pin (group[0]) is the oldest (first posted) pin.
   const groupedValidPins = useMemo(() => {
     // 1. Identify all sponsored venue IDs
@@ -823,15 +837,46 @@ export const MapScreen: React.FC<MapScreenProps> = ({
 
               {/* Unified Profile Marker */}
               <View style={{ alignItems: 'center', ...PincTheme.shadows.md }}>
-                <View style={{ width: getMarkerSize(zoomScale), height: getMarkerSize(zoomScale), borderRadius: getMarkerSize(zoomScale) / 2, padding: 3, backgroundColor: isLiveNews ? PincTheme.colors.crowdRed : getTierColor(followerStatsCache[pin.userId] || 0), overflow: 'hidden' }}>
-                  {pin.user_profile_pic ? (
-                    <RNImage
-                      source={{ uri: pin.user_profile_pic }}
-                      style={{ width: getMarkerSize(zoomScale) - 6, height: getMarkerSize(zoomScale) - 6, borderRadius: (getMarkerSize(zoomScale) - 6) / 2 }}
-                      resizeMode="cover"
-                    />
-                  ) : (
-                    <View style={{ width: getMarkerSize(zoomScale) - 6, height: getMarkerSize(zoomScale) - 6, borderRadius: (getMarkerSize(zoomScale) - 6) / 2, backgroundColor: PincTheme.colors.card }} />
+                <View style={{ position: 'relative' }}>
+                  <View style={{
+                    width: getMarkerSize(zoomScale),
+                    height: getMarkerSize(zoomScale),
+                    borderRadius: getMarkerSize(zoomScale) / 2,
+                    padding: 3,
+                    backgroundColor: pioneerPinIds.has(pin.pinId!) ? '#FFD700' : (isLiveNews ? PincTheme.colors.crowdRed : getTierColor(followerStatsCache[pin.userId] || 0)),
+                    overflow: 'hidden'
+                  }}>
+                    {pin.user_profile_pic ? (
+                      <RNImage
+                        source={{ uri: pin.user_profile_pic }}
+                        style={{ width: getMarkerSize(zoomScale) - 6, height: getMarkerSize(zoomScale) - 6, borderRadius: (getMarkerSize(zoomScale) - 6) / 2 }}
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <View style={{ width: getMarkerSize(zoomScale) - 6, height: getMarkerSize(zoomScale) - 6, borderRadius: (getMarkerSize(zoomScale) - 6) / 2, backgroundColor: PincTheme.colors.card }} />
+                    )}
+                  </View>
+                  {pioneerPinIds.has(pin.pinId!) && (
+                    <View style={{
+                      position: 'absolute',
+                      bottom: 0,
+                      right: 0,
+                      backgroundColor: '#FFFFFF',
+                      borderRadius: 7,
+                      width: 14,
+                      height: 14,
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      borderWidth: 1,
+                      borderColor: '#FFD700',
+                      shadowColor: '#000',
+                      shadowOffset: { width: 0, height: 1 },
+                      shadowOpacity: 0.2,
+                      shadowRadius: 1,
+                      elevation: 2
+                    }}>
+                      <Ionicons name="star" size={8} color="#FFD700" />
+                    </View>
                   )}
                 </View>
                 {pin.username ? (
