@@ -424,7 +424,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                         onPress={() => setShowBusinessPackages(true)}
                         activeOpacity={0.8}
                       >
-                        <Text style={[styles.editProfileBtnText, { color: "#FF4B72" }]}>🏪 สำหรับร้านค้า</Text>
+                        <Text style={[styles.editProfileBtnText, { color: "#FF4B72" }]}>{locale === "th" ? "🏪 สำหรับร้านค้า" : "🏪 For Business"}</Text>
                       </TouchableOpacity>
 
                       {profile.role === "ADMIN" && (
@@ -433,7 +433,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                           onPress={() => setShowAdminStats(true)}
                           activeOpacity={0.8}
                         >
-                          <Text style={[styles.editProfileBtnText, { color: "#007AFF" }]}>📊 สถิติระบบ (สำหรับแอดมิน)</Text>
+                          <Text style={[styles.editProfileBtnText, { color: "#007AFF" }]}>{locale === "th" ? "📊 สถิติระบบ (สำหรับแอดมิน)" : "📊 Admin Dashboard"}</Text>
                         </TouchableOpacity>
                       )}
 
@@ -685,6 +685,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       <BusinessPackagesModal 
         visible={showBusinessPackages} 
         onClose={() => setShowBusinessPackages(false)} 
+        locale={locale}
       />
 
       {/* User List Modal (Followers / Following) */}

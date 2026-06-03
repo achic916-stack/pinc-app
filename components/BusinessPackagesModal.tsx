@@ -27,11 +27,13 @@ const IMAGE_SIZE = (width - 24 * 2 - 12 * 2) / 3; // 3 columns with gaps
 interface BusinessPackagesModalProps {
   visible: boolean;
   onClose: () => void;
+  locale?: string;
 }
 
 export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
   visible,
   onClose,
+  locale = "th",
 }) => {
   // Generic upload flow states for all packages
   const [selectedPackage, setSelectedPackage] = useState<'essential' | 'signature' | 'destination' | null>(null);
@@ -56,54 +58,61 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
     const maxImages = getMaxImages();
     if (essentialImages.length >= maxImages) {
       Alert.alert(
-        "ครบแล้ว", 
-        `อัปโหลดได้สูงสุด ${maxImages} รูปสำหรับแพ็กเกจนี้`
+        locale === "th" ? "ครบแล้ว" : "Limit reached", 
+        locale === "th" ? `อัปโหลดได้สูงสุด ${maxImages} รูปสำหรับแพ็กเกจนี้` : `You can upload up to ${maxImages} images for this package`
       );
       return;
     }
 
-    Alert.alert("เลือกรูปภาพ", "เลือกแหล่งที่มาของรูปภาพ", [
-      {
-        text: "📷 ถ่ายรูป",
-        onPress: async () => {
-          const { status } = await ImagePicker.requestCameraPermissionsAsync();
-          if (status !== "granted") {
-            Alert.alert("ไม่ได้รับอนุญาต", "กรุณาอนุญาตการเข้าถึงกล้อง");
-            return;
-          }
-          const result = await ImagePicker.launchCameraAsync({
-            allowsEditing: true,
-            quality: 0.85,
-          });
-          if (!result.canceled && result.assets?.length > 0) {
-            setEssentialImages((prev) => [...prev, result.assets[0].uri]);
-          }
+    Alert.alert(
+      locale === "th" ? "เลือกรูปภาพ" : "Select Image", 
+      locale === "th" ? "เลือกแหล่งที่มาของรูปภาพ" : "Choose image source", 
+      [
+        {
+          text: locale === "th" ? "📷 ถ่ายรูป" : "📷 Take Photo",
+          onPress: async () => {
+            const { status } = await ImagePicker.requestCameraPermissionsAsync();
+            if (status !== "granted") {
+              Alert.alert(
+                locale === "th" ? "ไม่ได้รับอนุญาต" : "Permission Denied", 
+                locale === "th" ? "กรุณาอนุญาตการเข้าถึงกล้อง" : "Please allow camera access"
+              );
+              return;
+            }
+            const result = await ImagePicker.launchCameraAsync({
+              allowsEditing: true,
+              quality: 0.85,
+            });
+            if (!result.canceled && result.assets?.length > 0) {
+              setEssentialImages((prev) => [...prev, result.assets[0].uri]);
+            }
+          },
         },
-      },
-      {
-        text: "🖼️ เลือกจากคลัง",
-        onPress: async () => {
-          const { status } =
-            await ImagePicker.requestMediaLibraryPermissionsAsync();
-          if (status !== "granted") {
-            Alert.alert(
-              "ไม่ได้รับอนุญาต",
-              "กรุณาอนุญาตการเข้าถึงคลังรูปภาพ"
-            );
-            return;
-          }
-          const result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
-            allowsEditing: true,
-            quality: 0.85,
-          });
-          if (!result.canceled && result.assets?.length > 0) {
-            setEssentialImages((prev) => [...prev, result.assets[0].uri]);
-          }
+        {
+          text: locale === "th" ? "🖼️ เลือกจากคลัง" : "🖼️ Choose from Gallery",
+          onPress: async () => {
+            const { status } =
+              await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (status !== "granted") {
+              Alert.alert(
+                locale === "th" ? "ไม่ได้รับอนุญาต" : "Permission Denied",
+                locale === "th" ? "กรุณาอนุญาตการเข้าถึงคลังรูปภาพ" : "Please allow library access"
+              );
+              return;
+            }
+            const result = await ImagePicker.launchImageLibraryAsync({
+              mediaTypes: ImagePicker.MediaTypeOptions.Images,
+              allowsEditing: true,
+              quality: 0.85,
+            });
+            if (!result.canceled && result.assets?.length > 0) {
+              setEssentialImages((prev) => [...prev, result.assets[0].uri]);
+            }
+          },
         },
-      },
-      { text: "ยกเลิก", style: "cancel" },
-    ]);
+        { text: locale === "th" ? "ยกเลิก" : "Cancel", style: "cancel" },
+      ]
+    );
   };
 
   const handleRemoveImage = (index: number) => {
@@ -112,11 +121,17 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
 
   const handleSubmitPackage = async () => {
     if (essentialImages.length === 0) {
-      Alert.alert("กรุณาอัปโหลดรูปภาพ", "จำเป็นต้องอัปโหลดอย่างน้อย 1 รูป");
+      Alert.alert(
+        locale === "th" ? "กรุณาอัปโหลดรูปภาพ" : "Please upload images", 
+        locale === "th" ? "จำเป็นต้องอัปโหลดอย่างน้อย 1 รูป" : "At least 1 image is required"
+      );
       return;
     }
     if (!shopName.trim()) {
-      Alert.alert("กรุณากรอกชื่อร้าน", "ชื่อร้านค้าจำเป็นต้องกรอก");
+      Alert.alert(
+        locale === "th" ? "กรุณากรอกชื่อร้าน" : "Please enter shop name", 
+        locale === "th" ? "ชื่อร้านค้าจำเป็นต้องกรอก" : "Shop name is required"
+      );
       return;
     }
 
@@ -151,7 +166,8 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
       
       // Determine sponsor tier based on package
       let tier = 1;
-      if (selectedPackage === 'signature') tier = 2;
+      if (selectedPackage === 'essential') tier = 1;
+      else if (selectedPackage === 'signature') tier = 2;
       else if (selectedPackage === 'destination') tier = 3;
 
       const finalProvince = selectedProvince === "อื่นๆ"
@@ -170,7 +186,7 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
         cover_image: uploadedUrls[0],
         custom_icon_url: uploadedUrls[0], // Use the first uploaded image as custom icon/logo
         images: uploadedUrls,
-        description: description.trim() + (phoneNumber.trim() ? `\nโทร: ${phoneNumber.trim()}` : ""),
+        description: description.trim() + (phoneNumber.trim() ? (locale === "th" ? `\nโทร: ${phoneNumber.trim()}` : `\nTel: ${phoneNumber.trim()}`) : ""),
         is_sponsored: true,
         sponsor_tier: tier,
         subscription_status: 'ACTIVE',
@@ -189,11 +205,13 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
 
       setIsSubmitting(false);
       Alert.alert(
-        "✅ สมัครแพ็กเกจสำเร็จ!",
-        `ร้านค้า "${shopName}" ของคุณเปิดใช้งานแพ็กเกจ ${selectedPackage?.toUpperCase()} เรียบร้อยแล้ว (โดยไม่เรียกเก็บค่าใช้จ่ายจริงเพื่อวัตถุประสงค์ในการทดสอบระบบ)\n\nตำแหน่งร้านหมุดรูปสี่เหลี่ยมพร้อมขอบสีสันตามธีมของแพ็กเกจ ได้ถูกปักขึ้นบนแผนที่ ณ พิกัดปัจจุบันของคุณแล้ว สามารถเปิดดูเพื่อทดสอบระบบได้ทันทีครับ`,
+        locale === "th" ? "✅ สมัครแพ็กเกจสำเร็จ!" : "✅ Subscription Successful!",
+        locale === "th" 
+          ? `ร้านค้า "${shopName}" ของคุณเปิดใช้งานแพ็กเกจ ${selectedPackage?.toUpperCase()} เรียบร้อยแล้ว (โดยไม่เรียกเก็บค่าใช้จ่ายจริงเพื่อวัตถุประสงค์ในการทดสอบระบบ)\n\nตำแหน่งร้านหมุดรูปสี่เหลี่ยมพร้อมขอบสีสันตามธีมของแพ็กเกจ ได้ถูกปักขึ้นบนแผนที่ ณ พิกัดปัจจุบันของคุณแล้ว สามารถเปิดดูเพื่อทดสอบระบบได้ทันทีครับ`
+          : `Your shop "${shopName}" has successfully activated the ${selectedPackage?.toUpperCase()} package (No real charges apply; for testing purposes only).\n\nA square-shaped map pin with themed borders has been placed at your current location. You can view it on the map now to test!`,
         [
           {
-            text: "ตกลง",
+            text: locale === "th" ? "ตกลง" : "OK",
             onPress: () => {
               setShowEssentialUpload(false);
               setEssentialImages([]);
@@ -212,30 +230,37 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
     } catch (err: any) {
       setIsSubmitting(false);
       console.error("Register package failed:", err);
-      Alert.alert("เกิดข้อผิดพลาด", err.message || "ไม่สามารถสมัครแพ็กเกจได้ในขณะนี้");
+      Alert.alert(
+        locale === "th" ? "เกิดข้อผิดพลาด" : "Error Occurred", 
+        err.message || (locale === "th" ? "ไม่สามารถสมัครแพ็กเกจได้ในขณะนี้" : "Unable to subscribe to package at this time")
+      );
     }
   };
 
   const handleCloseEssentialUpload = () => {
     if (essentialImages.length > 0 || shopName || phoneNumber) {
-      Alert.alert("ยกเลิกการลงทะเบียน?", "ข้อมูลที่กรอกไว้จะหายไป", [
-        { text: "กรอกต่อ", style: "cancel" },
-        {
-          text: "ยกเลิก",
-          style: "destructive",
-          onPress: () => {
-            setShowEssentialUpload(false);
-            setEssentialImages([]);
-            setShopName("");
-            setPhoneNumber("");
-            setDescription("");
-            setSocialLinks({});
-            setSelectedPackage(null);
-            setSelectedProvince("กรุงเทพมหานคร");
-            setCustomProvince("");
+      Alert.alert(
+        locale === "th" ? "ยกเลิกการลงทะเบียน?" : "Cancel registration?", 
+        locale === "th" ? "ข้อมูลที่กรอกไว้จะหายไป" : "All entered information will be lost", 
+        [
+          { text: locale === "th" ? "กรอกต่อ" : "Continue", style: "cancel" },
+          {
+            text: locale === "th" ? "ยกเลิก" : "Cancel",
+            style: "destructive",
+            onPress: () => {
+              setShowEssentialUpload(false);
+              setEssentialImages([]);
+              setShopName("");
+              setPhoneNumber("");
+              setDescription("");
+              setSocialLinks({});
+              setSelectedPackage(null);
+              setSelectedProvince("กรุงเทพมหานคร");
+              setCustomProvince("");
+            },
           },
-        },
-      ]);
+        ]
+      );
     } else {
       setShowEssentialUpload(false);
       setSelectedPackage(null);
@@ -254,11 +279,15 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
     };
 
     const getPackageSubtitle = () => {
-      return `อัปโหลดรูปภาพร้านค้า (สูงสุด ${maxImages} รูป)`;
+      return locale === "th" 
+        ? `อัปโหลดรูปภาพร้านค้า (สูงสุด ${maxImages} รูป)`
+        : `Upload shop images (Max ${maxImages} images)`;
     };
 
     const getImageSectionTitle = () => {
-      return `รูปภาพร้านค้า (${essentialImages.length}/${maxImages})`;
+      return locale === "th"
+        ? `รูปภาพร้านค้า (${essentialImages.length}/${maxImages})`
+        : `Shop Images (${essentialImages.length}/${maxImages})`;
     };
 
     return (
@@ -293,41 +322,41 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
             >
               {/* ── Shop Info Inputs ── */}
               <View style={uploadStyles.inputSection}>
-                <Text style={uploadStyles.sectionTitle}>ข้อมูลร้านค้า</Text>
+                <Text style={uploadStyles.sectionTitle}>{locale === "th" ? "ข้อมูลร้านค้า" : "Shop Information"}</Text>
 
-                <Text style={uploadStyles.inputLabel}>ชื่อร้านค้า</Text>
+                <Text style={uploadStyles.inputLabel}>{locale === "th" ? "ชื่อร้านค้า" : "Shop Name"}</Text>
                 <TextInput
                   style={uploadStyles.textInput}
                   value={shopName}
                   onChangeText={setShopName}
-                  placeholder={selectedPackage === 'essential' ? "เช่น Coffee House Café" : "เช่น Golden Roast Coffee"}
+                  placeholder={selectedPackage === 'essential' ? (locale === "th" ? "เช่น Coffee House Café" : "e.g. Coffee House Café") : (locale === "th" ? "เช่น Golden Roast Coffee" : "e.g. Golden Roast Coffee")}
                   placeholderTextColor={PincTheme.colors.textTertiary}
                   maxLength={40}
                 />
 
-                <Text style={uploadStyles.inputLabel}>เบอร์โทรศัพท์ (ถ้ามี)</Text>
+                <Text style={uploadStyles.inputLabel}>{locale === "th" ? "เบอร์โทรศัพท์ (ถ้ามี)" : "Phone Number (Optional)"}</Text>
                 <TextInput
                   style={uploadStyles.textInput}
                   value={phoneNumber}
                   onChangeText={setPhoneNumber}
-                  placeholder="เช่น 081-234-5678"
+                  placeholder={locale === "th" ? "เช่น 081-234-5678" : "e.g. 081-234-5678"}
                   placeholderTextColor={PincTheme.colors.textTertiary}
                   keyboardType="phone-pad"
                   maxLength={15}
                 />
 
-                <Text style={uploadStyles.inputLabel}>รายละเอียด / ที่อยู่ / โปรโมชั่น</Text>
+                <Text style={uploadStyles.inputLabel}>{locale === "th" ? "รายละเอียด / ที่อยู่ / โปรโมชั่น" : "Description / Address / Promotion"}</Text>
                 <TextInput
                   style={[uploadStyles.textInput, { height: 80, textAlignVertical: 'top' }]}
                   value={description}
                   onChangeText={setDescription}
-                  placeholder="พิมพ์รายละเอียดของร้านค้า โปรโมชั่น หรือที่อยู่ที่นี่..."
+                  placeholder={locale === "th" ? "พิมพ์รายละเอียดของร้านค้า โปรโมชั่น หรือที่อยู่ที่นี่..." : "Type shop details, promotions, or address here..."}
                   placeholderTextColor={PincTheme.colors.textTertiary}
                   multiline={true}
                   maxLength={200}
                 />
 
-                <Text style={uploadStyles.inputLabel}>จังหวัดที่ตั้งของร้านค้า</Text>
+                <Text style={uploadStyles.inputLabel}>{locale === "th" ? "จังหวัดที่ตั้งของร้านค้า" : "Shop Province"}</Text>
                 <View style={provinceStyles.badgeContainer}>
                   {THAI_PROVINCES.map((prov) => (
                     <TouchableOpacity
@@ -344,7 +373,7 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
                           selectedProvince === prov && provinceStyles.badgeTextActive
                         ]}
                       >
-                        {prov}
+                        {locale === "th" ? prov : (PROVINCE_MAP_EN[prov] || prov)}
                       </Text>
                     </TouchableOpacity>
                   ))}
@@ -355,7 +384,7 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
                     style={[uploadStyles.textInput, { marginTop: 10 }]}
                     value={customProvince}
                     onChangeText={setCustomProvince}
-                    placeholder="ระบุชื่อจังหวัดของคุณ เช่น นครปฐม"
+                    placeholder={locale === "th" ? "ระบุชื่อจังหวัดของคุณ เช่น นครปฐม" : "Specify your province, e.g. Nakhon Pathom"}
                     placeholderTextColor={PincTheme.colors.textTertiary}
                     maxLength={30}
                   />
@@ -375,7 +404,7 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
                     { marginBottom: 12, marginTop: 0 },
                   ]}
                 >
-                  รูปภาพแรกที่เลือก จะถูกนำไปใช้เป็น "หน้าปก" หรือ "โลโก้" บนแผนที่
+                  {locale === "th" ? "รูปภาพแรกที่เลือก จะถูกนำไปใช้เป็น \"หน้าปก\" หรือ \"โลโก้\" บนแผนที่" : "The first selected image will be used as the \"cover\" or \"logo\" on the map"}
                 </Text>
 
                 <View style={uploadStyles.imageGrid}>
@@ -425,7 +454,7 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
                     >
                       <Text style={uploadStyles.addImageIcon}>＋</Text>
                       <Text style={uploadStyles.addImageText}>
-                        เพิ่มรูป
+                        {locale === "th" ? "เพิ่มรูป" : "Add Image"}
                       </Text>
                     </TouchableOpacity>
                   )}
@@ -436,7 +465,7 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
               {essentialImages.length > 0 && (shopName || phoneNumber) && (
                 <View style={uploadStyles.previewSection}>
                   <Text style={uploadStyles.sectionTitle}>
-                    🔍 ตัวอย่างการแสดงผล
+                    {locale === "th" ? "🔍 ตัวอย่างการแสดงผล" : "🔍 Preview"}
                   </Text>
                   <ScrollView
                     horizontal
@@ -494,13 +523,15 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
                   <ActivityIndicator size="small" color="#FFF" />
                 ) : (
                   <Text style={uploadStyles.submitBtnText}>
-                    ✅ ส่งข้อมูลลงทะเบียน
+                    {locale === "th" ? "✅ ส่งข้อมูลลงทะเบียน" : "✅ Submit Registration"}
                   </Text>
                 )}
               </TouchableOpacity>
 
               <Text style={uploadStyles.disclaimer}>
-                * ระบบการสมัครบริการนี้เป็นแพ็กเกจเสมือนจริงเพื่อการทดสอบเท่านั้น
+                {locale === "th" 
+                  ? "* ระบบการสมัครบริการนี้เป็นแพ็กเกจเสมือนจริงเพื่อการทดสอบเท่านั้น" 
+                  : "* This subscription system is a mock-up for testing purposes only"}
               </Text>
 
               <View style={styles.bottomSpacer} />
@@ -524,9 +555,9 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.headerLeft}>
-              <Text style={styles.headerTitle}>🏪 สำหรับร้านค้า</Text>
+              <Text style={styles.headerTitle}>{locale === "th" ? "🏪 สำหรับร้านค้า" : "🏪 For Business"}</Text>
               <Text style={styles.headerSubtitle}>
-                เพิ่มยอดขายด้วยพิกัดที่โดดเด่น
+                {locale === "th" ? "เพิ่มยอดขายด้วยพิกัดที่โดดเด่น" : "Boost sales with outstanding pin locations"}
               </Text>
             </View>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
@@ -551,7 +582,7 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
                     Essential
                   </Text>
                   <Text style={styles.packageTagline}>
-                    เรียบง่าย แต่มีตัวตน
+                    {locale === "th" ? "เรียบง่าย แต่มีตัวตน" : "Simple yet visible"}
                   </Text>
                 </View>
                 <View
@@ -561,22 +592,24 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
               <View style={styles.packageBody}>
                 <View style={styles.priceContainer}>
                   <Text style={styles.promoPrice}>฿199</Text>
-                  <Text style={styles.perMonth}>/เดือน</Text>
+                  <Text style={styles.perMonth}>{locale === "th" ? "/เดือน" : "/month"}</Text>
                 </View>
-                <Text style={styles.originalPrice}>ปกติ ฿399/เดือน</Text>
+                <Text style={styles.originalPrice}>
+                  {locale === "th" ? "ปกติ ฿399/เดือน" : "Regular ฿399/month"}
+                </Text>
 
                 <View style={styles.featuresList}>
                   <Text style={styles.featureItem}>
-                    ✓ โชว์ชื่อร้านบนแผนที่ตลอดเวลา
+                    {locale === "th" ? "✓ โชว์ชื่อร้านบนแผนที่ตลอดเวลา" : "✓ Always show shop name on map"}
                   </Text>
                   <Text style={styles.featureItem}>
-                    ✓ หมุดกรอบสีเงิน (Silver)
+                    {locale === "th" ? "✓ หมุดกรอบสีเงิน (Silver)" : "✓ Silver border pin"}
                   </Text>
                   <Text style={styles.featureItem}>
-                    ✓ แสดงผลในการค้นหาระดับมาตรฐาน
+                    {locale === "th" ? "✓ แสดงผลในการค้นหาระดับมาตรฐาน" : "✓ Standard search visibility"}
                   </Text>
                   <Text style={styles.featureItem}>
-                    ✓ อัปโหลดรูปร้านค้าได้ 3 รูป
+                    {locale === "th" ? "✓ อัปโหลดรูปร้านค้าได้ 3 รูป" : "✓ Upload up to 3 shop photos"}
                   </Text>
                 </View>
 
@@ -587,7 +620,9 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
                     setShowEssentialUpload(true);
                   }}
                 >
-                  <Text style={styles.selectBtnText}>เลือกแพ็กเกจนี้</Text>
+                  <Text style={styles.selectBtnText}>
+                    {locale === "th" ? "เลือกแพ็กเกจนี้" : "Select this package"}
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -602,7 +637,7 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
               {/* Recommend Badge */}
               <View style={styles.recommendBadge}>
                 <Text style={styles.recommendBadgeText}>
-                  ⭐ คุ้มค่าที่สุด (BEST VALUE)
+                  {locale === "th" ? "⭐ คุ้มค่าที่สุด (BEST VALUE)" : "⭐ BEST VALUE"}
                 </Text>
               </View>
 
@@ -617,7 +652,7 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
                     Signature
                   </Text>
                   <Text style={styles.packageTagline}>
-                    สร้างภาพจำแบรนด์
+                    {locale === "th" ? "สร้างภาพจำแบรนด์" : "Build brand recognition"}
                   </Text>
                 </View>
                 <View
@@ -630,22 +665,24 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
               <View style={styles.packageBody}>
                 <View style={styles.priceContainer}>
                   <Text style={styles.promoPrice}>฿399</Text>
-                  <Text style={styles.perMonth}>/เดือน</Text>
+                  <Text style={styles.perMonth}>{locale === "th" ? "/เดือน" : "/month"}</Text>
                 </View>
-                <Text style={styles.originalPrice}>ปกติ ฿599/เดือน</Text>
+                <Text style={styles.originalPrice}>
+                  {locale === "th" ? "ปกติ ฿599/เดือน" : "Regular ฿599/month"}
+                </Text>
 
                 <View style={styles.featuresList}>
                   <Text style={[styles.featureItem, { fontWeight: "700" }]}>
-                    ✓ อัปโหลดรูปร้านค้าได้ 5 รูป
+                    {locale === "th" ? "✓ อัปโหลดรูปร้านค้าได้ 5 รูป" : "✓ Upload up to 5 shop photos"}
                   </Text>
                   <Text style={styles.featureItem}>
-                    ✓ โชว์ชื่อร้านบนแผนที่ตลอดเวลา
+                    {locale === "th" ? "✓ โชว์ชื่อร้านบนแผนที่ตลอดเวลา" : "✓ Always show shop name on map"}
                   </Text>
                   <Text style={styles.featureItem}>
-                    ✓ หมุดกรอบสีทอง (Gold) หนากว่าปกติ
+                    {locale === "th" ? "✓ หมุดกรอบสีทอง (Gold) หนากว่าปกติ" : "✓ Gold border pin (thicker)"}
                   </Text>
                   <Text style={styles.featureItem}>
-                    ✓ โอกาสโชว์ในการค้นหาที่มากกว่า
+                    {locale === "th" ? "✓ โอกาสโชว์ในการค้นหาที่มากกว่า" : "✓ Higher search visibility"}
                   </Text>
                 </View>
 
@@ -657,7 +694,7 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
                   }}
                 >
                   <Text style={[styles.selectBtnText, { color: "#000" }]}>
-                    เลือกแพ็กเกจนี้
+                    {locale === "th" ? "เลือกแพ็กเกจนี้" : "Select this package"}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -681,7 +718,7 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
                     Destination
                   </Text>
                   <Text style={styles.packageTagline}>
-                    เปลี่ยนยอดวิวเป็นยอดขาย
+                    {locale === "th" ? "เปลี่ยนยอดวิวเป็นยอดขาย" : "Convert views into sales"}
                   </Text>
                 </View>
                 <View
@@ -694,9 +731,11 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
               <View style={styles.packageBody}>
                 <View style={styles.priceContainer}>
                   <Text style={styles.promoPrice}>฿699</Text>
-                  <Text style={styles.perMonth}>/เดือน</Text>
+                  <Text style={styles.perMonth}>{locale === "th" ? "/เดือน" : "/month"}</Text>
                 </View>
-                <Text style={styles.originalPrice}>ปกติ ฿899/เดือน</Text>
+                <Text style={styles.originalPrice}>
+                  {locale === "th" ? "ปกติ ฿899/เดือน" : "Regular ฿899/month"}
+                </Text>
 
                 <View style={styles.featuresList}>
                   <Text
@@ -705,16 +744,16 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
                       { fontWeight: "bold", color: "#FF4B72" },
                     ]}
                   >
-                    ✨ ขอเส้นทางได้
+                    {locale === "th" ? "✨ ขอเส้นทางได้" : "✨ Get directions"}
                   </Text>
                   <Text style={[styles.featureItem, { fontWeight: "700" }]}>
-                    ✓ อัปโหลดรูปร้านค้าได้ 10 รูป
+                    {locale === "th" ? "✓ อัปโหลดรูปร้านค้าได้ 10 รูป" : "✓ Upload up to 10 shop photos"}
                   </Text>
                   <Text style={styles.featureItem}>
-                    ✓ หมุดกรอบสีชมพู (Pink) สุดพรีเมียม
+                    {locale === "th" ? "✓ หมุดกรอบสีชมพู (Pink) สุดพรีเมียม" : "✓ Premium pink border pin"}
                   </Text>
                   <Text style={styles.featureItem}>
-                    ✓ แสดงผลอันดับ 1 ในการค้นหา (Top Priority)
+                    {locale === "th" ? "✓ แสดงผลอันดับ 1 ในการค้นหา (Top Priority)" : "✓ Top priority search ranking"}
                   </Text>
                 </View>
 
@@ -725,7 +764,9 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
                     setShowEssentialUpload(true);
                   }}
                 >
-                  <Text style={styles.selectBtnText}>เลือกแพ็กเกจนี้</Text>
+                  <Text style={styles.selectBtnText}>
+                    {locale === "th" ? "เลือกแพ็กเกจนี้" : "Select this package"}
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -1091,6 +1132,22 @@ const THAI_PROVINCES = [
   "ประจวบคีรีขันธ์",
   "อื่นๆ"
 ];
+
+const PROVINCE_MAP_EN: Record<string, string> = {
+  "กรุงเทพมหานคร": "Bangkok",
+  "เชียงใหม่": "Chiang Mai",
+  "ชลบุรี": "Chonburi",
+  "ภูเก็ต": "Phuket",
+  "นนทบุรี": "Nonthaburi",
+  "สมุทรปราการ": "Samut Prakan",
+  "ปทุมธานี": "Pathum Thani",
+  "นครราชสีมา": "Nakhon Ratchasima",
+  "ขอนแก่น": "Khon Kaen",
+  "สงขลา": "Songkhla",
+  "สุราษฎร์ธานี": "Surat Thani",
+  "ประจวบคีรีขันธ์": "Prachuap Khiri Khan",
+  "อื่นๆ": "Others"
+};
 
 const provinceStyles = StyleSheet.create({
   badgeContainer: {
