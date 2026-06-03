@@ -43,6 +43,21 @@ jobs:
     - name: Install dependencies
       run: npm ci
 
+    - name: Patch PermissionsService.kt for SDK 35 Nullability
+      run: |
+        node -e "
+        const fs = require('fs');
+        const file = 'node_modules/expo-modules-core/android/src/main/java/expo/modules/adapters/react/permissions/PermissionsService.kt';
+        if (fs.existsSync(file)) {
+          let content = fs.readFileSync(file, 'utf8');
+          content = content.replace('return requestedPermissions.contains(permission)', 'return requestedPermissions?.contains(permission) ?: false');
+          fs.writeFileSync(file, content, 'utf8');
+          console.log('Successfully patched PermissionsService.kt');
+        } else {
+          console.log('PermissionsService.kt not found');
+        }
+        "
+
     - name: Expo Prebuild
       run: npx expo prebuild --platform android --clean
 
