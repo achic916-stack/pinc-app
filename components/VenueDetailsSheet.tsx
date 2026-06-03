@@ -1389,7 +1389,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                 <View style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT, justifyContent: "center", alignItems: "center" }}>
                   <Image
                     source={{ uri: item }}
-                    style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT * 0.8 }}
+                    style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT }}
                     contentFit="contain"
                   />
                 </View>

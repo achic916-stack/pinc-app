@@ -42,6 +42,8 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
   const [description, setDescription] = useState("");
   const [socialLinks, setSocialLinks] = useState<SocialLinksData>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedProvince, setSelectedProvince] = useState("กรุงเทพมหานคร");
+  const [customProvince, setCustomProvince] = useState("");
 
   const getMaxImages = () => {
     if (selectedPackage === 'essential') return 3;
@@ -152,6 +154,10 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
       if (selectedPackage === 'signature') tier = 2;
       else if (selectedPackage === 'destination') tier = 3;
 
+      const finalProvince = selectedProvince === "อื่นๆ"
+        ? (customProvince.trim() || "อื่นๆ")
+        : selectedProvince;
+
       const venueData = {
         name: shopName.trim(),
         ownerId: currentUserId,
@@ -168,6 +174,7 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
         is_sponsored: true,
         sponsor_tier: tier,
         subscription_status: 'ACTIVE',
+        province: finalProvince,
         campaign_start_date: serverTimestamp(),
         campaign_end_date: new Date(Date.now() + 30 * 24 * 3600 * 1000)
       };
@@ -195,6 +202,8 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
               setDescription("");
               setSocialLinks({});
               setSelectedPackage(null);
+              setSelectedProvince("กรุงเทพมหานคร");
+              setCustomProvince("");
               onClose();
             },
           },
@@ -222,6 +231,8 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
             setDescription("");
             setSocialLinks({});
             setSelectedPackage(null);
+            setSelectedProvince("กรุงเทพมหานคร");
+            setCustomProvince("");
           },
         },
       ]);
@@ -315,6 +326,40 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
                   multiline={true}
                   maxLength={200}
                 />
+
+                <Text style={uploadStyles.inputLabel}>จังหวัดที่ตั้งของร้านค้า</Text>
+                <View style={provinceStyles.badgeContainer}>
+                  {THAI_PROVINCES.map((prov) => (
+                    <TouchableOpacity
+                      key={prov}
+                      style={[
+                        provinceStyles.badge,
+                        selectedProvince === prov && provinceStyles.badgeActive
+                      ]}
+                      onPress={() => setSelectedProvince(prov)}
+                    >
+                      <Text
+                        style={[
+                          provinceStyles.badgeText,
+                          selectedProvince === prov && provinceStyles.badgeTextActive
+                        ]}
+                      >
+                        {prov}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                {selectedProvince === "อื่นๆ" && (
+                  <TextInput
+                    style={[uploadStyles.textInput, { marginTop: 10 }]}
+                    value={customProvince}
+                    onChangeText={setCustomProvince}
+                    placeholder="ระบุชื่อจังหวัดของคุณ เช่น นครปฐม"
+                    placeholderTextColor={PincTheme.colors.textTertiary}
+                    maxLength={30}
+                  />
+                )}
 
                 <SocialLinksInput socialLinks={socialLinks} onChange={setSocialLinks} />
               </View>
@@ -1025,5 +1070,55 @@ const uploadStyles = StyleSheet.create({
     fontFamily: PincTheme.fonts.body,
     textAlign: "center",
     marginTop: 12,
+  },
+});
+
+// ══════════════════════════════════════════
+// Province Config and Styles
+// ══════════════════════════════════════════
+const THAI_PROVINCES = [
+  "กรุงเทพมหานคร",
+  "เชียงใหม่",
+  "ชลบุรี",
+  "ภูเก็ต",
+  "นนทบุรี",
+  "สมุทรปราการ",
+  "ปทุมธานี",
+  "นครราชสีมา",
+  "ขอนแก่น",
+  "สงขลา",
+  "สุราษฎร์ธานี",
+  "ประจวบคีรีขันธ์",
+  "อื่นๆ"
+];
+
+const provinceStyles = StyleSheet.create({
+  badgeContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginVertical: 8,
+  },
+  badge: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: "#F5F5F5",
+    borderWidth: 1,
+    borderColor: PincTheme.colors.border,
+  },
+  badgeActive: {
+    backgroundColor: PincTheme.colors.primaryLight,
+    borderColor: PincTheme.colors.primary,
+  },
+  badgeText: {
+    fontSize: 12,
+    fontFamily: PincTheme.fonts.body,
+    color: PincTheme.colors.textSecondary,
+    fontWeight: "600",
+  },
+  badgeTextActive: {
+    color: PincTheme.colors.primary,
+    fontWeight: "700",
   },
 });

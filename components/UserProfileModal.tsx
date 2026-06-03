@@ -35,6 +35,7 @@ import { UserListModal } from "./UserListModal";
 import { ChatModal } from "./ChatModal";
 import { WatermarkShare } from "./WatermarkShare";
 import { ChatInboxModal } from "./ChatInboxModal";
+import { AdminStatsModal } from "./AdminStatsModal";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -86,6 +87,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const [showBusinessPackages, setShowBusinessPackages] = useState(false);
   const [isChatVisible, setIsChatVisible] = useState(false);
   const [sharePin, setSharePin] = useState<Pin | null>(null);
+  const [showAdminStats, setShowAdminStats] = useState(false);
   
   // New States for Follower Lists and Chat
   const [userListType, setUserListType] = useState<"followers" | "following" | null>(null);
@@ -425,6 +427,16 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                         <Text style={[styles.editProfileBtnText, { color: "#FF4B72" }]}>🏪 สำหรับร้านค้า</Text>
                       </TouchableOpacity>
 
+                      {profile.role === "ADMIN" && (
+                        <TouchableOpacity
+                          style={[styles.editProfileBtn, { backgroundColor: "#E6F0FA", borderColor: "#007AFF", marginTop: 10, width: "100%", minWidth: 0 }]}
+                          onPress={() => setShowAdminStats(true)}
+                          activeOpacity={0.8}
+                        >
+                          <Text style={[styles.editProfileBtnText, { color: "#007AFF" }]}>📊 สถิติระบบ (สำหรับแอดมิน)</Text>
+                        </TouchableOpacity>
+                      )}
+
                       {/* My Shops list */}
                       {myShops.length > 0 && (
                         <View style={{ marginTop: 16, width: "100%", paddingHorizontal: 12 }}>
@@ -721,6 +733,12 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         currentUserId={currentUserId}
         onClose={() => setIsInboxVisible(false)}
         locale={locale}
+      />
+
+      {/* Admin Stats Modal */}
+      <AdminStatsModal
+        visible={showAdminStats}
+        onClose={() => setShowAdminStats(false)}
       />
     </Modal>
   );
