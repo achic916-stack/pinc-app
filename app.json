@@ -21,7 +21,8 @@
         "googleMapsApiKey": "AIzaSyCNz0jI3_1nKLiUxQzsTpELei-BKTNzIWM"
       },
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "pinc uses your GPS location to verify if you are within 50 meters of the venue for the Live Reality Check."
+        "NSLocationWhenInUseUsageDescription": "pinc uses your GPS location to verify if you are within 50 meters of the venue for the Live Reality Check.",
+        "NSMicrophoneUsageDescription": "pinc uses your microphone to record audio for videos."
       }
     },
     "android": {
@@ -52,7 +53,8 @@
         "expo-image-picker",
         {
           "photosPermission": "Allow pinc to access your photos to set a profile picture.",
-          "cameraPermission": "Allow pinc to access your camera to take reality check photos."
+          "cameraPermission": "Allow pinc to access your camera to take reality check photos.",
+          "microphonePermission": "Allow pinc to access your microphone to record audio with videos."
         }
       ],
       [
