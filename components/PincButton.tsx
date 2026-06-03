@@ -39,6 +39,39 @@ const MOCK_TRACKS = [
 ];
 
 
+const BLACKLISTED_WORDS = [
+  "ร้าน", "โปรโมชั่น", "โปรโมท", "ลดราคา", "เปิดจอง", "ราคาพิเศษ", "บาท", "จองด่วน",
+  "จำหน่าย", "ขาย", "สั่งซื้อ", "ตัวแทน", "พรีออเดอร์", "พร้อมส่ง", "รับหิ้ว", "พิกัดร้าน",
+  "promotion", "discount", "special price", "pre-order", "on sale", "order now",
+  "สนใจติดต่อ", "โทร", "เบอร์โทร", "ติดต่อเรา", "แอดไลน์", "line id", "add line", "ig:", "fb:"
+];
+
+function checkCommercialText(text: string): string | null {
+  const lowerText = text.toLowerCase();
+  
+  // 1. Check exact keywords
+  for (const word of BLACKLISTED_WORDS) {
+    if (lowerText.includes(word.toLowerCase())) {
+      return word;
+    }
+  }
+
+  // 2. Check for phone numbers
+  const normalizedText = lowerText.replace(/[-\s]/g, "");
+  const phoneRegex = /0[2-9]\d{7,8}/;
+  if (phoneRegex.test(normalizedText)) {
+    return "เบอร์โทรศัพท์ (Phone Number)";
+  }
+
+  // 3. Check for external social links
+  const linkRegex = /(?:facebook\.com|instagram\.com|line\.me|t\.me|twitter\.com|youtube\.com|tiktok\.com)/;
+  if (linkRegex.test(lowerText)) {
+    return "ลิงก์โซเชียลมีเดีย (Social Link)";
+  }
+
+  return null;
+}
+
 export interface PincButtonProps {
   venues: Venue[];
   userLocation: { latitude: number; longitude: number } | null;
@@ -62,7 +95,7 @@ export const PincButton: React.FC<PincButtonProps> = ({
   currentUser,
   locationTrackingEnabled = true
 }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [modalVisible, setModalVisible] = useState(false);
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
   const [capturedMediaType, setCapturedMediaType] = useState<"image" | "video">("image");
@@ -240,6 +273,23 @@ export const PincButton: React.FC<PincButtonProps> = ({
     if (!capturedPhoto) {
       Alert.alert("Photo Required", t("photoRequired"));
       return;
+    }
+
+    // Validate commercial keywords for regular users
+    const isPremium = currentUser.role === "PREMIUM_STORE" || currentUser.role === "ADMIN";
+    if (!isPremium && text) {
+      const blacklistedWord = checkCommercialText(text);
+      if (blacklistedWord) {
+        const isThai = i18n.language === "th";
+        Alert.alert(
+          isThai ? "ไม่สามารถโพสต์ได้" : "Post Blocked",
+          isThai
+            ? `ข้อความของคุณมีคำหรือช่องทางการติดต่อเชิงพาณิชย์: "${blacklistedWord}"\n\nหากคุณเป็นเจ้าของร้านค้าและต้องการลงโฆษณา กรุณาสมัครแพ็กเกจร้านค้า`
+            : `Your post contains commercial keywords or contact details: "${blacklistedWord}".\n\nIf you want to advertise your shop, please subscribe to a Business Package.`,
+          [{ text: "OK" }]
+        );
+        return;
+      }
     }
 
     let finalVenue = nearestVenue;
