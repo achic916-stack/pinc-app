@@ -11,7 +11,8 @@ import {
   Alert,
   Linking,
   Platform,
-  TextInput
+  TextInput,
+  FlatList
 } from "react-native";
 import { Image } from "expo-image";
 import { PincTheme } from "../styles/theme";
@@ -62,7 +63,7 @@ interface VenueDetailsSheetProps {
   isEditing?: boolean;
 }
 
-const { height: SCREEN_HEIGHT } = Dimensions.get("window");
+const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get("window");
 
 export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
   venue,
@@ -82,7 +83,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
   const [sharePin, setSharePin] = useState<Pin | null>(null);
   const [localLikes, setLocalLikes] = useState<{ [pinId: string]: { liked: boolean; count: number } }>({});
   const [commentsCounts, setCommentsCounts] = useState<{ [pinId: string]: number }>({});
-  const [selectedFullScreenImage, setSelectedFullScreenImage] = useState<string | null>(null);
+  const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null);
 
   // Owner checking & sponsored checks
   const isOwner = venue ? (venue.ownerId === currentUser.userId || currentUser.role === "ADMIN") : false;
@@ -818,7 +819,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                   key={index}
                   style={styles.gridImageWrapper}
                   activeOpacity={0.9}
-                  onPress={() => setSelectedFullScreenImage(uri)}
+                  onPress={() => setSelectedImageIndex(index)}
                   onLongPress={() => handleLongPressImage(uri)}
                 >
                   <Image source={{ uri }} style={styles.gridImage} contentFit="cover" />
@@ -1318,25 +1319,43 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
       )}
 
       {/* Full Screen Image Preview Modal */}
-      {selectedFullScreenImage && (
+      {selectedImageIndex !== null && (
         <Modal
           visible={true}
           transparent={true}
           animationType="fade"
-          onRequestClose={() => setSelectedFullScreenImage(null)}
+          onRequestClose={() => setSelectedImageIndex(null)}
         >
           <View style={styles.fullScreenOverlay}>
             <TouchableOpacity
               style={styles.fullScreenCloseBtn}
-              onPress={() => setSelectedFullScreenImage(null)}
+              onPress={() => setSelectedImageIndex(null)}
               activeOpacity={0.7}
             >
               <Ionicons name="close" size={32} color="#FFF" />
             </TouchableOpacity>
-            <Image
-              source={{ uri: selectedFullScreenImage }}
-              style={styles.fullScreenImage}
-              contentFit="contain"
+
+            <FlatList
+              data={shopImages}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              keyExtractor={(item, index) => index.toString()}
+              initialScrollIndex={selectedImageIndex}
+              getItemLayout={(data, index) => ({
+                length: SCREEN_WIDTH,
+                offset: SCREEN_WIDTH * index,
+                index
+              })}
+              renderItem={({ item }) => (
+                <View style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT, justifyContent: "center", alignItems: "center" }}>
+                  <Image
+                    source={{ uri: item }}
+                    style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT * 0.8 }}
+                    contentFit="contain"
+                  />
+                </View>
+              )}
             />
           </View>
         </Modal>
