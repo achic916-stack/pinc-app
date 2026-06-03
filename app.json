@@ -80,7 +80,7 @@
           }
         }
       ],
-      "expo-localization",
+      "expo-localization"
     ],
     "web": {
       "favicon": "./assets/favicon.png"
