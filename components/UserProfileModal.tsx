@@ -25,7 +25,8 @@ import {
   checkIsFollowing,
   getUserStats,
   updateUserProfile,
-  uploadProfileImage
+  uploadProfileImage,
+  subscribeToActiveChats
 } from "../services/firebase";
 import { t } from "../services/localization";
 import * as ImagePicker from "expo-image-picker";
@@ -33,6 +34,7 @@ import { BusinessPackagesModal } from "./BusinessPackagesModal";
 import { UserListModal } from "./UserListModal";
 import { ChatModal } from "./ChatModal";
 import { WatermarkShare } from "./WatermarkShare";
+import { ChatInboxModal } from "./ChatInboxModal";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -87,6 +89,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   
   // New States for Follower Lists and Chat
   const [userListType, setUserListType] = useState<"followers" | "following" | null>(null);
+  const [isInboxVisible, setIsInboxVisible] = useState(false);
+  const [unreadInboxCount, setUnreadInboxCount] = useState(0);
   const myShops = (venues || []).filter((v) => 
     v.ownerId === currentUserId && 
     (v.is_sponsored || (v.sponsor_tier && v.sponsor_tier >= 1))
@@ -152,6 +156,23 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         console.warn("Failed to subscribe to user pins:", err);
       }
     );
+
+    return () => unsubscribe();
+  }, [visible, userId, currentUserId]);
+
+  useEffect(() => {
+    if (!visible || userId !== currentUserId || !currentUserId) {
+      setUnreadInboxCount(0);
+      return;
+    }
+
+    const unsubscribe = subscribeToActiveChats(currentUserId, (activeChats) => {
+      let count = 0;
+      activeChats.forEach(chat => {
+        count += (chat[`unreadCount_${currentUserId}`] || 0);
+      });
+      setUnreadInboxCount(count);
+    });
 
     return () => unsubscribe();
   }, [visible, userId, currentUserId]);
@@ -348,17 +369,56 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   </View>
 
                   {userId === currentUserId ? (
-                    <View style={{ alignItems: "center" }}>
-                      <TouchableOpacity
-                        style={styles.editProfileBtn}
-                        onPress={handleOpenEditModal}
-                        activeOpacity={0.8}
-                      >
-                        <Text style={styles.editProfileBtnText}>✏️  Edit Profile</Text>
-                      </TouchableOpacity>
+                    <View style={{ alignItems: "center", width: "100%", paddingHorizontal: 16 }}>
+                      <View style={{ flexDirection: "row", gap: 10, marginTop: 16, width: "100%" }}>
+                        <TouchableOpacity
+                          style={[styles.editProfileBtn, { marginTop: 0, flex: 1, minWidth: 0 }]}
+                          onPress={handleOpenEditModal}
+                          activeOpacity={0.8}
+                        >
+                          <Text style={styles.editProfileBtnText}>✏️ Edit Profile</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={[
+                            styles.editProfileBtn,
+                            { 
+                              marginTop: 0, 
+                              flex: 1, 
+                              minWidth: 0,
+                              backgroundColor: "#F0F0F0", 
+                              borderColor: "#E0E0E0",
+                              position: "relative"
+                            }
+                          ]}
+                          onPress={() => setIsInboxVisible(true)}
+                          activeOpacity={0.8}
+                        >
+                          <Ionicons name="chatbubble-ellipses-outline" size={16} color={PincTheme.colors.textPrimary} style={{ marginRight: 6 }} />
+                          <Text style={styles.editProfileBtnText}>{locale === "th" ? "ข้อความ" : "Messages"}</Text>
+                          {unreadInboxCount > 0 && (
+                            <View style={{
+                              position: "absolute",
+                              top: -6,
+                              right: -6,
+                              backgroundColor: PincTheme.colors.primary,
+                              borderRadius: 10,
+                              minWidth: 20,
+                              height: 20,
+                              justifyContent: "center",
+                              alignItems: "center",
+                              paddingHorizontal: 5,
+                              borderWidth: 1.5,
+                              borderColor: "#FFF"
+                            }}>
+                              <Text style={{ color: "#FFF", fontSize: 9, fontWeight: "bold" }}>{unreadInboxCount}</Text>
+                            </View>
+                          )}
+                        </TouchableOpacity>
+                      </View>
 
                       <TouchableOpacity
-                        style={[styles.editProfileBtn, { backgroundColor: "#FFF0F4", borderColor: "#FF4B72", marginTop: 10 }]}
+                        style={[styles.editProfileBtn, { backgroundColor: "#FFF0F4", borderColor: "#FF4B72", marginTop: 10, width: "100%", minWidth: 0 }]}
                         onPress={() => setShowBusinessPackages(true)}
                         activeOpacity={0.8}
                       >
@@ -654,6 +714,14 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           />
         </Modal>
       )}
+
+      {/* Chat Inbox Modal */}
+      <ChatInboxModal
+        visible={isInboxVisible}
+        currentUserId={currentUserId}
+        onClose={() => setIsInboxVisible(false)}
+        locale={locale}
+      />
     </Modal>
   );
 };

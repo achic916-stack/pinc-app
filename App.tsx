@@ -50,7 +50,8 @@ import {
   withTimeout,
   subscribeToFollowingIds,
   getFollowingList,
-  unfollowUser
+  unfollowUser,
+  subscribeToActiveChats
 } from "./services/firebase";
 import { doc, setDoc, query, collection, where, onSnapshot, deleteDoc } from "firebase/firestore";
 import './i18n';
@@ -75,6 +76,7 @@ export default function App() {
   // Session States
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [isAuthChecking, setIsAuthChecking] = useState(true);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   // Active Navigation & Shelf States
   const [activeTab, setActiveTab] = useState<"home" | "photo" | "video" | "search" | "profile">("home");
@@ -320,6 +322,24 @@ export default function App() {
         setIsLoadingVenues(false);
       }
     );
+
+    return () => unsubscribe();
+  }, [currentUser]);
+
+  // Subscribe to active chats for unread count badge
+  useEffect(() => {
+    if (!currentUser) {
+      setUnreadCount(0);
+      return;
+    }
+
+    const unsubscribe = subscribeToActiveChats(currentUser.userId, (activeChats) => {
+      let count = 0;
+      activeChats.forEach(chat => {
+        count += (chat[`unreadCount_${currentUser.userId}`] || 0);
+      });
+      setUnreadCount(count);
+    });
 
     return () => unsubscribe();
   }, [currentUser]);
@@ -773,7 +793,7 @@ export default function App() {
 
             {/* Tab 5: Profile (IG-Style Avatar) */}
             <TouchableOpacity 
-              style={styles.tabBtn} 
+              style={[styles.tabBtn, { position: "relative" }]} 
               onPress={handleProfileTabPress}
               activeOpacity={0.7}
             >
@@ -786,6 +806,19 @@ export default function App() {
                   style={styles.tabProfileImg} 
                 />
               </View>
+              {unreadCount > 0 && (
+                <View style={{
+                  position: "absolute",
+                  top: 12,
+                  right: 20,
+                  backgroundColor: PincTheme.colors.primary,
+                  width: 10,
+                  height: 10,
+                  borderRadius: 5,
+                  borderWidth: 1.5,
+                  borderColor: "rgba(26, 26, 26, 0.75)"
+                }} />
+              )}
             </TouchableOpacity>
           </View>
 

@@ -19,7 +19,8 @@ import {
   arrayRemove,
   getCountFromServer,
   updateDoc,
-  writeBatch
+  writeBatch,
+  increment
 } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL, uploadString } from "firebase/storage";
 import * as FileSystem from 'expo-file-system';
@@ -1183,6 +1184,20 @@ export async function sendMessage(chatId: string, senderId: string, text: string
     text,
     timestamp: Date.now()
   });
+
+  // Extract recipientId from chatId
+  const parts = chatId.split("_");
+  const recipientId = parts.find(id => id !== senderId) || "";
+
+  if (recipientId) {
+    const chatDocRef = doc(db, "chats", chatId);
+    await setDoc(chatDocRef, {
+      participants: [senderId, recipientId],
+      lastMessage: text,
+      lastTimestamp: Date.now(),
+      [`unreadCount_${recipientId}`]: increment(1)
+    }, { merge: true });
+  }
 }
 
 export function subscribeToMessages(
@@ -1205,4 +1220,41 @@ export function subscribeToMessages(
     console.warn("Firestore subscribeToMessages failed:", error);
     if (onError) onError(error);
   });
+}
+
+export function subscribeToActiveChats(
+  userId: string,
+  onUpdate: (chats: any[]) => void,
+  onError?: (error: any) => void
+) {
+  if (!userId) {
+    onUpdate([]);
+    return () => {};
+  }
+  const q = query(
+    collection(db, "chats"),
+    where("participants", "array-contains", userId)
+  );
+  return onSnapshot(q, (snapshot) => {
+    const chats: any[] = [];
+    snapshot.forEach(doc => {
+      chats.push({ id: doc.id, ...doc.data() });
+    });
+    onUpdate(chats);
+  }, (error) => {
+    console.warn("Firestore subscribeToActiveChats failed:", error);
+    if (onError) onError(error);
+  });
+}
+
+export async function markChatAsRead(chatId: string, userId: string) {
+  if (chatId === "invalid_chat_id" || !chatId || !userId) return;
+  try {
+    const chatDocRef = doc(db, "chats", chatId);
+    await setDoc(chatDocRef, {
+      [`unreadCount_${userId}`]: 0
+    }, { merge: true });
+  } catch (error) {
+    console.warn("Firestore markChatAsRead failed:", error);
+  }
 }
