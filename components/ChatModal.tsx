@@ -66,57 +66,64 @@ export const ChatModal: React.FC<ChatModalProps> = ({
   if (!visible) return null;
 
   return (
-    <View style={[StyleSheet.absoluteFill, { backgroundColor: "#F8F8F8", zIndex: 9999 }]}>
-      <SafeAreaView style={styles.modalContent}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={onClose} style={styles.backBtn}>
-            <Text style={styles.backBtnText}>‹ Back</Text>
-          </TouchableOpacity>
-          <View style={styles.headerTitleContainer}>
-            <Image 
-              source={{ uri: targetProfilePic || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80" }} 
-              style={styles.headerAvatar} 
-            />
-            <Text style={styles.headerTitle}>@{targetUsername}</Text>
-          </View>
-          <View style={{ width: 60 }} /> {/* spacer */}
-        </View>
-
-        <KeyboardAvoidingView 
-          style={{ flex: 1 }} 
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-        >
-          <FlatList
-            data={messages}
-            keyExtractor={item => item.id}
-            contentContainerStyle={styles.messageList}
-            renderItem={({ item }) => {
-              const isMe = item.senderId === currentUserId;
-              return (
-                <View style={[styles.messageBubble, isMe ? styles.messageMe : styles.messageThem]}>
-                  <Text style={[styles.messageText, isMe ? styles.messageTextMe : styles.messageTextThem]}>
-                    {item.text}
-                  </Text>
-                </View>
-              );
-            }}
-          />
-
-          <View style={styles.inputContainer}>
-            <TextInput
-              style={styles.input}
-              placeholder="Message..."
-              value={inputText}
-              onChangeText={setInputText}
-              onSubmitEditing={handleSend}
-            />
-            <TouchableOpacity style={styles.sendBtn} onPress={handleSend} disabled={!inputText.trim()}>
-              <Text style={[styles.sendBtnText, !inputText.trim() && { opacity: 0.5 }]}>Send</Text>
+    <Modal
+      visible={visible}
+      animationType="slide"
+      transparent={false}
+      onRequestClose={onClose}
+    >
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: "#F8F8F8" }]}>
+        <SafeAreaView style={styles.modalContent}>
+          <View style={styles.header}>
+            <TouchableOpacity onPress={onClose} style={styles.backBtn}>
+              <Text style={styles.backBtnText}>‹ Back</Text>
             </TouchableOpacity>
+            <View style={styles.headerTitleContainer}>
+              <Image 
+                source={{ uri: targetProfilePic || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80" }} 
+                style={styles.headerAvatar} 
+              />
+              <Text style={styles.headerTitle}>@{targetUsername}</Text>
+            </View>
+            <View style={{ width: 60 }} /> {/* spacer */}
           </View>
-        </KeyboardAvoidingView>
-      </SafeAreaView>
-    </View>
+
+          <KeyboardAvoidingView 
+            style={{ flex: 1 }} 
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+          >
+            <FlatList
+              data={messages}
+              keyExtractor={item => item.id}
+              contentContainerStyle={styles.messageList}
+              renderItem={({ item }) => {
+                const isMe = item.senderId === currentUserId;
+                return (
+                  <View style={[styles.messageBubble, isMe ? styles.messageMe : styles.messageThem]}>
+                    <Text style={[styles.messageText, isMe ? styles.messageTextMe : styles.messageTextThem]}>
+                      {item.text}
+                    </Text>
+                  </View>
+                );
+              }}
+            />
+
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={styles.input}
+                placeholder="Message..."
+                value={inputText}
+                onChangeText={setInputText}
+                onSubmitEditing={handleSend}
+              />
+              <TouchableOpacity style={styles.sendBtn} onPress={handleSend} disabled={!inputText.trim()}>
+                <Text style={[styles.sendBtnText, !inputText.trim() && { opacity: 0.5 }]}>Send</Text>
+              </TouchableOpacity>
+            </View>
+          </KeyboardAvoidingView>
+        </SafeAreaView>
+      </View>
+    </Modal>
   );
 };
 
