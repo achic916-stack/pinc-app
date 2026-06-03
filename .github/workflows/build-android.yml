@@ -46,9 +46,30 @@ jobs:
     - name: Expo Prebuild
       run: npx expo prebuild --platform android --clean
 
-    - name: Apply Gradle Properties Fixes
+    - name: Apply Gradle Workarounds for SDK 35
       run: |
-        echo "android.disableAutomaticComponentCreation=false" >> android/gradle.properties
+        cat << 'EOF' >> android/build.gradle
+
+        subprojects { project ->
+            project.plugins.withId('maven-publish') {
+                def registerDummy = {
+                    def releaseComponent = project.components.findByName('release')
+                    if (releaseComponent == null) {
+                        def softwareComponentFactory = project.services.get(org.gradle.api.component.SoftwareComponentFactory)
+                        def dummyComponent = softwareComponentFactory.adhoc('release')
+                        project.components.add(dummyComponent)
+                    }
+                }
+                if (project.state.executed) {
+                    registerDummy()
+                } else {
+                    project.afterEvaluate {
+                        registerDummy()
+                    }
+                }
+            }
+        }
+        EOF
 
     - name: Build App Bundle (AAB) and APK
       run: |

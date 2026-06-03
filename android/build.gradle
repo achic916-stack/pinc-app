@@ -38,3 +38,23 @@ allprojects {
         maven { url 'https://www.jitpack.io' }
     }
 }
+
+subprojects { project ->
+    project.plugins.withId('maven-publish') {
+        def registerDummy = {
+            def releaseComponent = project.components.findByName('release')
+            if (releaseComponent == null) {
+                def softwareComponentFactory = project.services.get(org.gradle.api.component.SoftwareComponentFactory)
+                def dummyComponent = softwareComponentFactory.adhoc('release')
+                project.components.add(dummyComponent)
+            }
+        }
+        if (project.state.executed) {
+            registerDummy()
+        } else {
+            project.afterEvaluate {
+                registerDummy()
+            }
+        }
+    }
+}
