@@ -1038,6 +1038,17 @@ export const MapScreen: React.FC<MapScreenProps> = ({
         <Ionicons name="locate" size={24} color={PincTheme.colors.primary} />
       </TouchableOpacity>
 
+      {/* Settings Gear Button */}
+      {onOpenSettings && (
+        <TouchableOpacity
+          style={styles.settingsBtn}
+          onPress={onOpenSettings}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="settings" size={24} color={PincTheme.colors.primary} />
+        </TouchableOpacity>
+      )}
+
       {/* IG Reels-Style Feed */}
       <ReelsFeedModal
         visible={reelsFeedPins.length > 0}
@@ -1061,6 +1072,19 @@ const styles = StyleSheet.create({
   gpsButton: {
     position: "absolute",
     top: Platform.OS === 'android' ? 110 : 120,
+    right: 16,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#FFFFFF",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 998,
+    ...PincTheme.shadows.md,
+  },
+  settingsBtn: {
+    position: "absolute",
+    top: Platform.OS === 'android' ? 168 : 178,
     right: 16,
     width: 48,
     height: 48,
