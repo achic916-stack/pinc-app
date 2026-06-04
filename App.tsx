@@ -209,7 +209,7 @@ export default function App() {
         if (Platform.OS === 'ios') {
           await Purchases.configure({ apiKey: "rc_mock_ios_public_key" });
         } else if (Platform.OS === 'android') {
-          await Purchases.configure({ apiKey: "rc_mock_android_public_key" });
+          await Purchases.configure({ apiKey: "goog_LTqRNrPiXfbFEAvhSxXaHAyfYyU" });
         }
         console.log("RevenueCat: Initialized successfully.");
       } catch (rcErr) {
