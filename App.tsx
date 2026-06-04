@@ -94,7 +94,6 @@ export default function App() {
   // Settings & GDPR States
   const [locale, setLocale] = useState<"en" | "th">("en");
   const [locationTrackingEnabled, setLocationTrackingEnabled] = useState(true);
-  const [settingsModalVisible, setSettingsModalVisible] = useState(false);
 
   // Social Follow & Filter States
   const [followingIds, setFollowingIds] = useState<string[]>([]);
@@ -218,6 +217,11 @@ export default function App() {
     };
     initRevenueCat();
   }, []);
+
+  // 0.5. Synchronize app language translation whenever locale state changes
+  useEffect(() => {
+    i18n.changeLanguage(locale);
+  }, [locale]);
 
   // 1. Check Auth Status & Auto-Seed Database on mount
   useEffect(() => {
@@ -396,10 +400,6 @@ export default function App() {
         setSelectedVenue(null);
         return true;
       }
-      if (settingsModalVisible) {
-        setSettingsModalVisible(false);
-        return true;
-      }
       return false; // Allow default behavior (exit app)
     };
 
@@ -409,7 +409,7 @@ export default function App() {
     );
 
     return () => backHandler.remove();
-  }, [selectedUserProfileId, selectedVenue, settingsModalVisible]);
+  }, [selectedUserProfileId, selectedVenue]);
 
   // 5. Subscribe to real-time Following user IDs
   useEffect(() => {
@@ -539,7 +539,7 @@ export default function App() {
     try {
       await signOutUser();
       setCurrentUser(null);
-      setSettingsModalVisible(false);
+      setSelectedUserProfileId(null);
     } catch (err: any) {
       Alert.alert("Sign Out Failed", err.message || "Something went wrong.");
     }
@@ -560,7 +560,7 @@ export default function App() {
             try {
               await deleteUserAccount(currentUser.userId);
               setCurrentUser(null);
-              setSettingsModalVisible(false);
+              setSelectedUserProfileId(null);
               Alert.alert("Success", t("accountDeleted"));
             } catch (err: any) {
               console.error(err);
@@ -597,7 +597,6 @@ export default function App() {
             userLocation={userLocation}
             isLoadingVenues={isLoadingVenues}
             onSelectVenue={handleSelectVenue}
-            onOpenSettings={() => setSettingsModalVisible(true)}
             followingVenueIds={followingVenueIds}
             locale={locale}
             cameraTarget={cameraTarget}
@@ -687,6 +686,10 @@ export default function App() {
               setIsEditingVenue(true);
             }}
             onUpdateProfile={handleAuthSuccess}
+            locationTrackingEnabled={locationTrackingEnabled}
+            setLocationTrackingEnabled={setLocationTrackingEnabled}
+            onSignOut={handleSignOut}
+            onDeleteAccount={handleDeleteAccount}
           />
 
           {/* Reality Check Sliding Shelf (User Pins Photo Drawer) */}
@@ -858,132 +861,7 @@ export default function App() {
             }}
           />
 
-          {/* GDPR & Settings Modal */}
-          <Modal
-            animationType="slide"
-            transparent={true}
-            visible={settingsModalVisible}
-            onRequestClose={() => { setSettingsModalVisible(false); setActiveTab("home"); }}
-          >
-            <View style={styles.modalOverlay}>
-              <SafeAreaView style={styles.modalContent}>
-                {/* Modal Header */}
-                <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle}>{t("settingsTitle")}</Text>
-                  <TouchableOpacity 
-                    onPress={() => { setSettingsModalVisible(false); setActiveTab("home"); }} 
-                    style={styles.closeButton}
-                  >
-                    <Text style={styles.closeButtonText}>✕</Text>
-                  </TouchableOpacity>
-                </View>
-
-                <ScrollView 
-                  style={styles.modalScrollView} 
-                  contentContainerStyle={styles.modalScrollContent}
-                  showsVerticalScrollIndicator={false}
-                >
-                  {/* Current User Profile Summary */}
-                  <View style={styles.profileHeaderSection}>
-                    <Image source={{ uri: currentUser.profile_pic }} style={styles.profileAvatar} />
-                    <View style={styles.profileMeta}>
-                      <Text style={styles.profileUsername}>@{currentUser.username}</Text>
-                      <Text style={styles.profileBio}>{currentUser.bio}</Text>
-                      
-                      <TouchableOpacity 
-                        style={styles.editProfileBtnApp} 
-                        onPress={() => {
-                          setSettingsModalVisible(false);
-                          setSelectedUserProfileId(currentUser.userId);
-                          setActiveTab("home");
-                        }}
-                      >
-                        <Text style={styles.editProfileBtnAppText}>✏️ {t("editProfile")}</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-
-                  {/* Social Following List */}
-                  <View style={styles.settingSection}>
-                    <Text style={styles.settingHeading}>{t("followingListTitle")} ({followingList.length})</Text>
-                    {followingList.length === 0 ? (
-                      <Text style={styles.noFollowingText}>{t("followingNoUsers")}</Text>
-                    ) : (
-                      <View style={styles.followingList}>
-                        {followingList.map((friend) => (
-                          <View key={friend.userId} style={styles.friendRow}>
-                            <TouchableOpacity 
-                              style={{ flexDirection: "row", alignItems: "center", flex: 1 }}
-                              onPress={() => {
-                                setSettingsModalVisible(false);
-                                setSelectedUserProfileId(friend.userId);
-                              }}
-                              activeOpacity={0.7}
-                            >
-                              <Image source={{ uri: friend.profile_pic }} style={styles.friendAvatar} />
-                              <Text style={styles.friendUsername}>@{friend.username}</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                              style={styles.unfollowBtn}
-                              onPress={() => handleUnfollowUser(friend.userId)}
-                            >
-                              <Text style={styles.unfollowBtnText}>{t("unfollow")}</Text>
-                            </TouchableOpacity>
-                          </View>
-                        ))}
-                      </View>
-                    )}
-                  </View>
-
-                  {/* Language Section */}
-                  <View style={styles.settingSection}>
-                    <Text style={styles.settingHeading}>{t("languageLabel")}</Text>
-                    <View style={styles.languageOptions}>
-                      <TouchableOpacity
-                        style={[styles.langBtn, locale === "en" && styles.langBtnActive]}
-                        onPress={() => { setLocale("en"); i18n.changeLanguage("en"); }}
-                      >
-                        <Text style={[styles.langText, locale === "en" && styles.langTextActive]}>English</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[styles.langBtn, locale === "th" && styles.langBtnActive]}
-                        onPress={() => { setLocale("th"); i18n.changeLanguage("th"); }}
-                      >
-                        <Text style={[styles.langText, locale === "th" && styles.langTextActive]}>ภาษาไทย</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-
-                  {/* Location Privacy Toggle */}
-                  <View style={styles.settingSection}>
-                    <View style={styles.settingRow}>
-                      <View style={styles.settingTextContainer}>
-                        <Text style={styles.settingLabel}>{t("locationTrackingLabel")}</Text>
-                        <Text style={styles.settingDesc}>{t("locationTrackingDesc")}</Text>
-                      </View>
-                      <Switch
-                        value={locationTrackingEnabled}
-                        onValueChange={setLocationTrackingEnabled}
-                        trackColor={{ false: PincTheme.colors.divider, true: PincTheme.colors.primary }}
-                        thumbColor={locationTrackingEnabled ? "#FFF" : PincTheme.colors.textTertiary}
-                      />
-                    </View>
-                  </View>
-
-                  {/* Danger Zone */}
-                  <View style={[styles.settingSection, { borderBottomWidth: 0, marginTop: 20 }]}>
-                    <TouchableOpacity style={styles.signOutBtn} onPress={handleSignOut}>
-                      <Text style={styles.signOutBtnText}>{t("signOut")}</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity style={styles.deleteBtn} onPress={handleDeleteAccount}>
-                      <Text style={styles.deleteBtnText}>{t("deleteAccountBtn")}</Text>
-                    </TouchableOpacity>
-                  </View>
-                </ScrollView>
-              </SafeAreaView>
-            </View>
-          </Modal>
+          {/* Redundant settings modal removed in favor of UserProfileModal settings integration */}
         </>
       )}
     </View>

@@ -11,7 +11,8 @@ import {
   SafeAreaView,
   Alert,
   TextInput,
-  Dimensions
+  Dimensions,
+  Switch
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { PincTheme } from "../styles/theme";
@@ -53,6 +54,10 @@ interface UserProfileModalProps {
   venues?: Venue[];
   onSelectEditVenue?: (venue: Venue) => void;
   onUpdateProfile?: (updatedProfile: UserProfile) => void;
+  locationTrackingEnabled?: boolean;
+  setLocationTrackingEnabled?: (enabled: boolean) => void;
+  onSignOut?: () => void;
+  onDeleteAccount?: () => void;
 }
 
 export const UserProfileModal: React.FC<UserProfileModalProps> = ({
@@ -68,7 +73,11 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   currentUserProfile,
   venues = [],
   onSelectEditVenue,
-  onUpdateProfile
+  onUpdateProfile,
+  locationTrackingEnabled = true,
+  setLocationTrackingEnabled,
+  onSignOut,
+  onDeleteAccount
 }) => {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [pins, setPins] = useState<Pin[]>([]);
@@ -496,6 +505,101 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                           ))}
                         </View>
                       )}
+
+                      {/* Settings & Privacy Section */}
+                      <View style={{ marginTop: 24, width: "100%", paddingHorizontal: 12 }}>
+                        <Text style={{
+                          fontSize: 12,
+                          fontWeight: "bold",
+                          color: PincTheme.colors.textSecondary,
+                          alignSelf: "flex-start",
+                          marginBottom: 12,
+                          textTransform: "uppercase",
+                          letterSpacing: 0.5,
+                          fontFamily: PincTheme.fonts.heading
+                        }}>
+                          ⚙️ {locale === "th" ? "ตั้งค่าและความเป็นส่วนตัว" : "Settings & Privacy"}
+                        </Text>
+
+                        {/* Location Proximity Tracking Row */}
+                        <View style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          backgroundColor: "#FAFAFA",
+                          borderWidth: 1,
+                          borderColor: PincTheme.colors.border,
+                          borderRadius: PincTheme.borderRadius.md,
+                          paddingVertical: 12,
+                          paddingHorizontal: 14,
+                          marginBottom: 12,
+                          width: "100%",
+                        }}>
+                          <View style={{ flex: 1, marginRight: 16, alignItems: 'flex-start' }}>
+                            <Text style={{ fontSize: 13, fontWeight: "bold", color: PincTheme.colors.textPrimary, fontFamily: PincTheme.fonts.heading, marginBottom: 2 }}>
+                              {t(locale, "locationTrackingLabel")}
+                            </Text>
+                            <Text style={{ fontSize: 10, color: PincTheme.colors.textTertiary, fontFamily: PincTheme.fonts.body, textAlign: 'left' }}>
+                              {t(locale, "locationTrackingDesc")}
+                            </Text>
+                          </View>
+                          <Switch
+                            value={locationTrackingEnabled}
+                            onValueChange={setLocationTrackingEnabled}
+                            trackColor={{ false: PincTheme.colors.divider, true: PincTheme.colors.primary }}
+                            thumbColor={locationTrackingEnabled ? "#FFF" : PincTheme.colors.textTertiary}
+                          />
+                        </View>
+
+                        {/* Sign Out Button */}
+                        <TouchableOpacity
+                          style={[
+                            styles.editProfileBtn, 
+                            { 
+                              backgroundColor: "#FFF8F9", 
+                              borderColor: "#E0E0E0", 
+                              marginTop: 0, 
+                              marginBottom: 10,
+                              width: "100%", 
+                              minWidth: 0, 
+                              flexDirection: 'row', 
+                              justifyContent: 'center', 
+                              alignItems: 'center' 
+                            }
+                          ]}
+                          onPress={onSignOut}
+                          activeOpacity={0.8}
+                        >
+                          <Ionicons name="log-out-outline" size={16} color={PincTheme.colors.textSecondary} style={{ marginRight: 6 }} />
+                          <Text style={[styles.editProfileBtnText, { color: PincTheme.colors.textSecondary }]}>
+                            {t(locale, "signOut")}
+                          </Text>
+                        </TouchableOpacity>
+
+                        {/* Delete Account Button */}
+                        <TouchableOpacity
+                          style={[
+                            styles.editProfileBtn, 
+                            { 
+                              backgroundColor: "#FFF5F5", 
+                              borderColor: "#FFD3D3", 
+                              marginTop: 0, 
+                              width: "100%", 
+                              minWidth: 0, 
+                              flexDirection: 'row', 
+                              justifyContent: 'center', 
+                              alignItems: 'center' 
+                            }
+                          ]}
+                          onPress={onDeleteAccount}
+                          activeOpacity={0.8}
+                        >
+                          <Ionicons name="trash-outline" size={16} color="#FF3B30" style={{ marginRight: 6 }} />
+                          <Text style={[styles.editProfileBtnText, { color: "#FF3B30" }]}>
+                            {t(locale, "deleteAccountBtn")}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
                     </View>
                   ) : (
                     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginTop: 16 }}>
