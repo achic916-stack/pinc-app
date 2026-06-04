@@ -664,7 +664,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
           activeOpacity={0.8}
         >
           <Text style={[styles.toggleText, isFilterFriends && styles.toggleTextActive]}>
-            👥 {t("friendsOnly")}
+            👥 {locale === "th" ? "เพื่อนเท่านั้น" : "Friends Only"}
           </Text>
         </TouchableOpacity>
       </View>
@@ -1494,7 +1494,7 @@ const styles = StyleSheet.create({
   },
   togglesContainer: {
     position: "absolute",
-    top: Platform.OS === 'android' ? 12 : 50,
+    top: Platform.OS === 'android' ? 48 : 50,
     left: 16,
     right: 16,
     zIndex: 998,
