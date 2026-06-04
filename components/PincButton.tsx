@@ -695,7 +695,7 @@ export const PincButton: React.FC<PincButtonProps> = ({
 const styles = StyleSheet.create({
   fabContainer: {
     position: "absolute",
-    bottom: Platform.OS === "ios" ? 85 : 100,
+    bottom: Platform.OS === "ios" ? 98 : 130,
     left: 0,
     right: 0,
     alignItems: "center",

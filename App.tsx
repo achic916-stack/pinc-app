@@ -754,7 +754,7 @@ export default function App() {
           )}
 
           {/* Premium Instagram-Style User Bottom Toolbar */}
-          <View style={[styles.bottomTabBar, { bottom: Platform.OS === 'ios' ? 16 : 48 }]}>
+          <View style={[styles.bottomTabBar, { bottom: Platform.OS === 'ios' ? 24 : 56 }]}>
             {/* Tab 1: Home */}
             <TouchableOpacity 
               style={styles.tabBtn} 
