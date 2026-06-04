@@ -45,6 +45,7 @@
     },
     "plugins": [
       "./plugins/withAndroidBuildGradleFix",
+      "react-native-iap",
       [
         "expo-location",
         {
@@ -62,6 +63,9 @@
       [
         "expo-build-properties",
         {
+          "ios": {
+            "deploymentTarget": "15.0"
+          },
           "android": {
             "compileSdkVersion": 35,
             "targetSdkVersion": 35,

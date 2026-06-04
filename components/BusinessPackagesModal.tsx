@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -12,11 +12,14 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
+  Platform,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { withIAPContext, useIAP } from "react-native-iap";
 import * as ImagePicker from "expo-image-picker";
 import { PincTheme } from "../styles/theme";
 import { db, auth, uploadPinImage, encodeGeohash } from "../services/firebase";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, doc, updateDoc } from "firebase/firestore";
 import * as Location from "expo-location";
 import { compressImage } from "../services/imageCompressor";
 import { SocialLinksInput, SocialLinksData } from "./SocialLinks";
@@ -30,13 +33,272 @@ interface BusinessPackagesModalProps {
   locale?: string;
 }
 
-export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
+export const BusinessPackagesModalComponent: React.FC<BusinessPackagesModalProps> = ({
   visible,
   onClose,
   locale = "th",
 }) => {
+  // Product IDs for Apple StoreKit (In-App Purchase)
+  const subscriptionSkus = Platform.select({
+    ios: [
+      "com.achic.pinc.essential",
+      "com.achic.pinc.signature",
+      "com.achic.pinc.destination"
+    ],
+    android: [
+      "com.achic.pinc.essential",
+      "com.achic.pinc.signature",
+      "com.achic.pinc.destination"
+    ]
+  }) || [];
+
+  const {
+    connected,
+    currentPurchase,
+    currentPurchaseError,
+    finishTransaction,
+    getSubscriptions,
+    requestSubscription,
+  } = useIAP();
+
+  const [isLoadingSubscriptions, setIsLoadingSubscriptions] = useState(false);
+  const [storePrices, setStorePrices] = useState<Record<string, string>>({
+    'com.achic.pinc.essential': '฿199',
+    'com.achic.pinc.signature': '฿399',
+    'com.achic.pinc.destination': '฿699',
+  });
+
   // Generic upload flow states for all packages
   const [selectedPackage, setSelectedPackage] = useState<'essential' | 'signature' | 'destination' | null>(null);
+
+  // Initialize and Fetch subscriptions on mount/visible
+  useEffect(() => {
+    let active = true;
+    const initIAP = async () => {
+      if (!visible) return;
+      setIsLoadingSubscriptions(true);
+      try {
+        console.log("IAP: Fetching subscriptions...");
+        const subs: any = await getSubscriptions({ skus: subscriptionSkus });
+        console.log("IAP: Subscriptions fetched:", subs);
+        if (active && subs && subs.length > 0) {
+          const prices: Record<string, string> = {};
+          subs.forEach((sub: any) => {
+            if (sub.productId) {
+              prices[sub.productId] = sub.localizedPrice || (sub as any).price || '฿' + (sub as any).priceString;
+            }
+          });
+          setStorePrices((prev) => ({ ...prev, ...prices }));
+        }
+      } catch (err) {
+        console.warn("IAP: Error fetching subscriptions:", err);
+      } finally {
+        if (active) setIsLoadingSubscriptions(false);
+      }
+    };
+
+    initIAP();
+
+    return () => {
+      active = false;
+    };
+  }, [visible, connected]);
+
+  // Monitor purchases
+  useEffect(() => {
+    const handlePurchase = async () => {
+      if (currentPurchase) {
+        const purchase = currentPurchase;
+        console.log("IAP: Successful purchase detected:", purchase);
+        
+        let tier: 'essential' | 'signature' | 'destination' | null = null;
+        let tierNum = 1;
+        if (purchase.productId === 'com.achic.pinc.essential') {
+          tier = 'essential';
+          tierNum = 1;
+        } else if (purchase.productId === 'com.achic.pinc.signature') {
+          tier = 'signature';
+          tierNum = 2;
+        } else if (purchase.productId === 'com.achic.pinc.destination') {
+          tier = 'destination';
+          tierNum = 3;
+        }
+
+        if (tier) {
+          try {
+            const currentUserId = auth.currentUser?.uid;
+            if (currentUserId) {
+              const userRef = doc(db, "users", currentUserId);
+              await updateDoc(userRef, {
+                role: "PREMIUM_STORE",
+                subscriptionStatus: "ACTIVE",
+                subscriptionTier: tierNum,
+                subscriptionProductId: purchase.productId,
+                lastTransactionId: purchase.transactionId,
+                subscriptionExpiry: new Date(Date.now() + 30 * 24 * 3600 * 1000),
+              });
+              console.log("IAP: User document updated in Firestore successfully.");
+            }
+            
+            await finishTransaction({ purchase, isConsumable: false });
+            console.log("IAP: Transaction finished in StoreKit.");
+
+            setSelectedPackage(tier);
+            setShowEssentialUpload(true);
+            
+            Alert.alert(
+              locale === "th" ? "จ่ายเงินสำเร็จ!" : "Payment Successful!",
+              locale === "th"
+                ? "การชำระเงินเสร็จสิ้นแล้ว กรุณากรอกข้อมูลเพื่อลงทะเบียนร้านค้าของคุณ"
+                : "Payment completed successfully. Please fill in the details to register your shop."
+            );
+          } catch (err: any) {
+            console.error("IAP: Error handling successful purchase:", err);
+            Alert.alert("Error", err.message || "Failed to update subscription status");
+          }
+        }
+      }
+    };
+
+    handlePurchase();
+  }, [currentPurchase]);
+
+  // Monitor purchase errors
+  useEffect(() => {
+    if (currentPurchaseError) {
+      console.warn("IAP: Purchase error:", currentPurchaseError);
+      const isCancel = currentPurchaseError.code === 'E_USER_CANCELLED' || 
+                       currentPurchaseError.message?.includes('cancel') ||
+                       currentPurchaseError.message?.includes('cancelled');
+      if (!isCancel) {
+        Alert.alert(
+          locale === "th" ? "การซื้อล้มเหลว" : "Purchase Failed",
+          currentPurchaseError.message || (locale === "th" ? "เกิดข้อผิดพลาดในการทำรายการ" : "An error occurred during transaction")
+        );
+      }
+    }
+  }, [currentPurchaseError]);
+
+  const handleRestorePurchase = async () => {
+    try {
+      console.log("IAP: Restoring purchases...");
+      const { getAvailablePurchases } = require('react-native-iap');
+      const purchases: any[] = await getAvailablePurchases();
+      console.log("IAP: Restored purchases:", purchases);
+      
+      if (purchases && purchases.length > 0) {
+        const subPurchases = purchases.filter((p: any) => 
+          subscriptionSkus.includes(p.productId)
+        );
+        
+        if (subPurchases.length > 0) {
+          subPurchases.sort((a: any, b: any) => Number(b.transactionDate) - Number(a.transactionDate));
+          const latestPurchase = subPurchases[0];
+          
+          let tier: 'essential' | 'signature' | 'destination' | null = null;
+          let tierNum = 1;
+          if (latestPurchase.productId === 'com.achic.pinc.essential') {
+            tier = 'essential';
+            tierNum = 1;
+          } else if (latestPurchase.productId === 'com.achic.pinc.signature') {
+            tier = 'signature';
+            tierNum = 2;
+          } else if (latestPurchase.productId === 'com.achic.pinc.destination') {
+            tier = 'destination';
+            tierNum = 3;
+          }
+
+          if (tier) {
+            const currentUserId = auth.currentUser?.uid;
+            if (currentUserId) {
+              const userRef = doc(db, "users", currentUserId);
+              await updateDoc(userRef, {
+                role: "PREMIUM_STORE",
+                subscriptionStatus: "ACTIVE",
+                subscriptionTier: tierNum,
+                subscriptionProductId: latestPurchase.productId,
+                lastTransactionId: latestPurchase.transactionId,
+                subscriptionExpiry: new Date(Date.now() + 30 * 24 * 3600 * 1000),
+              });
+            }
+
+            try {
+              await finishTransaction({ purchase: latestPurchase, isConsumable: false });
+            } catch (finishErr) {
+              console.warn("IAP: Restored purchase finishTransaction warn:", finishErr);
+            }
+
+            setSelectedPackage(tier);
+            setShowEssentialUpload(true);
+            
+            Alert.alert(
+              locale === "th" ? "กู้คืนสำเร็จ!" : "Restore Successful!",
+              locale === "th"
+                ? `พบข้อมูลการสมัครสมาชิกแพ็กเกจ ${tier.toUpperCase()} ก่อนหน้านี้ ระบบได้กู้คืนสิทธิ์ให้คุณเรียบร้อยแล้ว`
+                : `Found previous subscription for ${tier.toUpperCase()} package. Restored successfully.`
+            );
+            return;
+          }
+        }
+      }
+
+      Alert.alert(
+        locale === "th" ? "ไม่พบประวัติการซื้อ" : "No Purchase History Found",
+        locale === "th"
+          ? "ไม่พบข้อมูลการซื้อแพ็กเกจที่ยังใช้งานได้ในบัญชี Apple ID นี้"
+          : "No active subscriptions found for this Apple ID."
+      );
+    } catch (err: any) {
+      console.error("IAP: Restore failed:", err);
+      Alert.alert(
+        locale === "th" ? "กู้คืนไม่สำเร็จ" : "Restore Failed",
+        err.message || (locale === "th" ? "ไม่สามารถกู้คืนสิทธิ์ได้ในขณะนี้" : "Unable to restore purchases at this time")
+      );
+    }
+  };
+
+  const getSkuFromPackageType = (type: 'essential' | 'signature' | 'destination' | null) => {
+    if (type === 'essential') return 'com.achic.pinc.essential';
+    if (type === 'signature') return 'com.achic.pinc.signature';
+    if (type === 'destination') return 'com.achic.pinc.destination';
+    return '';
+  };
+
+  const handleSelectPackageTrigger = async () => {
+    if (!selectedPackage) {
+      Alert.alert(
+        locale === "th" ? "กรุณาเลือกแพ็กเกจ" : "Please select a package",
+        locale === "th" ? "กรุณาคลิกเลือกแพ็กเกจที่ต้องการก่อนทำรายการ" : "Please click to select a package first"
+      );
+      return;
+    }
+
+    const sku = getSkuFromPackageType(selectedPackage);
+    if (!sku) return;
+
+    try {
+      console.log(`IAP: Requesting subscription for SKU: ${sku}`);
+      await requestSubscription({ sku });
+    } catch (err: any) {
+      console.error("IAP: Request subscription error:", err);
+      Alert.alert(
+        locale === "th" ? "การสั่งซื้อขัดข้อง" : "Purchase Request Failed",
+        err.message || (locale === "th" ? "ไม่สามารถเชื่อมต่อกับ App Store ได้" : "Could not connect to App Store")
+      );
+    }
+  };
+
+  const getButtonColor = () => {
+    if (selectedPackage === 'essential') return "#777777";
+    if (selectedPackage === 'signature') return "#FFC107";
+    if (selectedPackage === 'destination') return "#FF4B72";
+    return "#E0E0E0";
+  };
+
+  const getButtonTextColor = () => {
+    if (selectedPackage === 'signature') return "#000000";
+    return "#FFFFFF";
+  };
   const [showEssentialUpload, setShowEssentialUpload] = useState(false);
   const [essentialImages, setEssentialImages] = useState<string[]>([]);
   const [shopName, setShopName] = useState("");
@@ -554,11 +816,14 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
         <SafeAreaView style={styles.modalContent}>
           {/* Header */}
           <View style={styles.header}>
-            <View style={styles.headerLeft}>
-              <Text style={styles.headerTitle}>{locale === "th" ? "🏪 สำหรับร้านค้า" : "🏪 For Business"}</Text>
-              <Text style={styles.headerSubtitle}>
-                {locale === "th" ? "เพิ่มยอดขายด้วยพิกัดที่โดดเด่น" : "Boost sales with outstanding pin locations"}
-              </Text>
+            <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
+              <Ionicons name="storefront-outline" size={24} color="#FF4B72" style={{ marginRight: 12 }} />
+              <View style={styles.headerLeft}>
+                <Text style={styles.headerTitle}>{locale === "th" ? "🏪 สำหรับร้านค้า" : "🏪 For Business"}</Text>
+                <Text style={styles.headerSubtitle}>
+                  {locale === "th" ? "เพิ่มยอดขายด้วยพิกัดที่โดดเด่น" : "Boost sales with outstanding pin locations"}
+                </Text>
+              </View>
             </View>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
               <Text style={styles.closeBtnText}>✕</Text>
@@ -570,17 +835,30 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
             showsVerticalScrollIndicator={false}
           >
             {/* Package 1: Essential */}
-            <View style={[styles.packageCard, { borderColor: "#A6A6A6" }]}>
+            <TouchableOpacity
+              style={[
+                styles.packageCard,
+                { borderColor: "#E5E5E5", borderWidth: 1.5 },
+                selectedPackage === 'essential' && { borderColor: "#A6A6A6", borderWidth: 2.5, backgroundColor: "rgba(166, 166, 166, 0.03)" }
+              ]}
+              onPress={() => setSelectedPackage('essential')}
+              activeOpacity={0.9}
+            >
               <View
                 style={[
                   styles.packageHeader,
-                  { backgroundColor: "rgba(166, 166, 166, 0.1)" },
+                  { backgroundColor: "rgba(166, 166, 166, 0.08)" },
                 ]}
               >
-                <View>
-                  <Text style={[styles.packageName, { color: "#777777" }]}>
-                    Essential
-                  </Text>
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <Text style={[styles.packageName, { color: "#777777" }]}>
+                      Essential
+                    </Text>
+                    {selectedPackage === 'essential' && (
+                      <Ionicons name="checkmark-circle" size={20} color="#A6A6A6" />
+                    )}
+                  </View>
                   <Text style={styles.packageTagline}>
                     {locale === "th" ? "เรียบง่าย แต่มีตัวตน" : "Simple yet visible"}
                   </Text>
@@ -591,7 +869,7 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
               </View>
               <View style={styles.packageBody}>
                 <View style={styles.priceContainer}>
-                  <Text style={styles.promoPrice}>฿199</Text>
+                  <Text style={styles.promoPrice}>{storePrices['com.achic.pinc.essential']}</Text>
                   <Text style={styles.perMonth}>{locale === "th" ? "/เดือน" : "/month"}</Text>
                 </View>
                 <Text style={styles.originalPrice}>
@@ -612,27 +890,18 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
                     {locale === "th" ? "✓ อัปโหลดรูปร้านค้าได้ 3 รูป" : "✓ Upload up to 3 shop photos"}
                   </Text>
                 </View>
-
-                <TouchableOpacity
-                  style={[styles.selectBtn, { backgroundColor: "#A6A6A6" }]}
-                  onPress={() => {
-                    setSelectedPackage('essential');
-                    setShowEssentialUpload(true);
-                  }}
-                >
-                  <Text style={styles.selectBtnText}>
-                    {locale === "th" ? "เลือกแพ็กเกจนี้" : "Select this package"}
-                  </Text>
-                </TouchableOpacity>
               </View>
-            </View>
+            </TouchableOpacity>
 
             {/* Package 2: Signature */}
-            <View
+            <TouchableOpacity
               style={[
                 styles.packageCard,
-                { borderColor: "#FFC107", borderWidth: 2 },
+                { borderColor: "#E5E5E5", borderWidth: 1.5 },
+                selectedPackage === 'signature' && { borderColor: "#FFC107", borderWidth: 2.5, backgroundColor: "rgba(255, 193, 7, 0.03)" }
               ]}
+              onPress={() => setSelectedPackage('signature')}
+              activeOpacity={0.9}
             >
               {/* Recommend Badge */}
               <View style={styles.recommendBadge}>
@@ -644,13 +913,18 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
               <View
                 style={[
                   styles.packageHeader,
-                  { backgroundColor: "rgba(255, 193, 7, 0.1)" },
+                  { backgroundColor: "rgba(255, 193, 7, 0.08)" },
                 ]}
               >
-                <View>
-                  <Text style={[styles.packageName, { color: "#D4A000" }]}>
-                    Signature
-                  </Text>
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <Text style={[styles.packageName, { color: "#D4A000" }]}>
+                      Signature
+                    </Text>
+                    {selectedPackage === 'signature' && (
+                      <Ionicons name="checkmark-circle" size={20} color="#FFC107" />
+                    )}
+                  </View>
                   <Text style={styles.packageTagline}>
                     {locale === "th" ? "สร้างภาพจำแบรนด์" : "Build brand recognition"}
                   </Text>
@@ -658,13 +932,13 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
                 <View
                   style={[
                     styles.iconPlaceholder,
-                    { borderColor: "#FFC107", borderWidth: 2 },
+                    { borderColor: "#FFC107", borderWidth: 1.5 },
                   ]}
                 />
               </View>
               <View style={styles.packageBody}>
                 <View style={styles.priceContainer}>
-                  <Text style={styles.promoPrice}>฿399</Text>
+                  <Text style={styles.promoPrice}>{storePrices['com.achic.pinc.signature']}</Text>
                   <Text style={styles.perMonth}>{locale === "th" ? "/เดือน" : "/month"}</Text>
                 </View>
                 <Text style={styles.originalPrice}>
@@ -685,38 +959,34 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
                     {locale === "th" ? "✓ โอกาสโชว์ในการค้นหาที่มากกว่า" : "✓ Higher search visibility"}
                   </Text>
                 </View>
-
-                <TouchableOpacity
-                  style={[styles.selectBtn, { backgroundColor: "#FFC107" }]}
-                  onPress={() => {
-                    setSelectedPackage('signature');
-                    setShowEssentialUpload(true);
-                  }}
-                >
-                  <Text style={[styles.selectBtnText, { color: "#000" }]}>
-                    {locale === "th" ? "เลือกแพ็กเกจนี้" : "Select this package"}
-                  </Text>
-                </TouchableOpacity>
               </View>
-            </View>
+            </TouchableOpacity>
 
             {/* Package 3: Destination */}
-            <View
+            <TouchableOpacity
               style={[
                 styles.packageCard,
-                { borderColor: "#FF4B72", borderWidth: 2.5 },
+                { borderColor: "#E5E5E5", borderWidth: 1.5 },
+                selectedPackage === 'destination' && { borderColor: "#FF4B72", borderWidth: 2.5, backgroundColor: "rgba(255, 75, 114, 0.03)" }
               ]}
+              onPress={() => setSelectedPackage('destination')}
+              activeOpacity={0.9}
             >
               <View
                 style={[
                   styles.packageHeader,
-                  { backgroundColor: "rgba(255, 75, 114, 0.1)" },
+                  { backgroundColor: "rgba(255, 75, 114, 0.08)" },
                 ]}
               >
-                <View>
-                  <Text style={[styles.packageName, { color: "#FF4B72" }]}>
-                    Destination
-                  </Text>
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <Text style={[styles.packageName, { color: "#FF4B72" }]}>
+                      Destination
+                    </Text>
+                    {selectedPackage === 'destination' && (
+                      <Ionicons name="checkmark-circle" size={20} color="#FF4B72" />
+                    )}
+                  </View>
                   <Text style={styles.packageTagline}>
                     {locale === "th" ? "เปลี่ยนยอดวิวเป็นยอดขาย" : "Convert views into sales"}
                   </Text>
@@ -724,13 +994,13 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
                 <View
                   style={[
                     styles.iconPlaceholder,
-                    { borderColor: "#FF4B72", borderWidth: 2.5 },
+                    { borderColor: "#FF4B72", borderWidth: 1.5 },
                   ]}
                 />
               </View>
               <View style={styles.packageBody}>
                 <View style={styles.priceContainer}>
-                  <Text style={styles.promoPrice}>฿699</Text>
+                  <Text style={styles.promoPrice}>{storePrices['com.achic.pinc.destination']}</Text>
                   <Text style={styles.perMonth}>{locale === "th" ? "/เดือน" : "/month"}</Text>
                 </View>
                 <Text style={styles.originalPrice}>
@@ -756,23 +1026,39 @@ export const BusinessPackagesModal: React.FC<BusinessPackagesModalProps> = ({
                     {locale === "th" ? "✓ แสดงผลอันดับ 1 ในการค้นหา (Top Priority)" : "✓ Top priority search ranking"}
                   </Text>
                 </View>
-
-                <TouchableOpacity
-                  style={[styles.selectBtn, { backgroundColor: "#FF4B72" }]}
-                  onPress={() => {
-                    setSelectedPackage('destination');
-                    setShowEssentialUpload(true);
-                  }}
-                >
-                  <Text style={styles.selectBtnText}>
-                    {locale === "th" ? "เลือกแพ็กเกจนี้" : "Select this package"}
-                  </Text>
-                </TouchableOpacity>
               </View>
-            </View>
+            </TouchableOpacity>
 
             <View style={styles.bottomSpacer} />
           </ScrollView>
+
+          {/* Sticky Bottom Panel */}
+          <View style={styles.stickyFooter}>
+            <TouchableOpacity
+              style={[
+                styles.stickySelectBtn,
+                { backgroundColor: getButtonColor() },
+                !selectedPackage && styles.stickySelectBtnDisabled
+              ]}
+              onPress={handleSelectPackageTrigger}
+              disabled={!selectedPackage}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.stickySelectBtnText, { color: getButtonTextColor() }]}>
+                {locale === "th" ? "เลือกแพ็กเกจนี้" : "Select this package"}
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={styles.restoreBtn}
+              onPress={handleRestorePurchase}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.restoreBtnText}>
+                {locale === "th" ? "กู้คืนสิทธิ์การซื้อ (Restore Purchase)" : "Restore Purchase"}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </SafeAreaView>
       </View>
 
@@ -938,6 +1224,42 @@ const styles = StyleSheet.create({
   },
   bottomSpacer: {
     height: 40,
+  },
+  stickyFooter: {
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    borderTopWidth: 1,
+    borderTopColor: PincTheme.colors.border,
+    backgroundColor: "#FFFFFF",
+    ...PincTheme.shadows.md,
+  },
+  stickySelectBtn: {
+    paddingVertical: 16,
+    borderRadius: 14,
+    alignItems: "center",
+    ...PincTheme.shadows.md,
+  },
+  stickySelectBtnDisabled: {
+    backgroundColor: "#E0E0E0",
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  stickySelectBtnText: {
+    fontFamily: PincTheme.fonts.heading,
+    fontWeight: "800",
+    fontSize: 16,
+  },
+  restoreBtn: {
+    alignItems: "center",
+    marginTop: 12,
+    paddingVertical: 4,
+  },
+  restoreBtnText: {
+    fontSize: 12,
+    color: PincTheme.colors.textSecondary,
+    fontFamily: PincTheme.fonts.body,
+    fontWeight: "600",
+    textDecorationLine: "underline",
   },
 });
 
@@ -1179,3 +1501,5 @@ const provinceStyles = StyleSheet.create({
     fontWeight: "700",
   },
 });
+
+export const BusinessPackagesModal = withIAPContext(BusinessPackagesModalComponent);

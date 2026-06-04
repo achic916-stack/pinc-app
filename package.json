@@ -34,6 +34,7 @@
     "react-i18next": "^17.0.8",
     "react-native": "0.73.6",
     "react-native-compressor": "^1.18.2",
+    "react-native-iap": "^13.0.4",
     "react-native-map-clustering": "^4.0.0",
     "react-native-maps": "1.10.0",
     "react-native-view-shot": "3.8.0",
