@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import Purchases from "react-native-purchases";
 import { 
   StyleSheet, 
   View, 
@@ -199,6 +200,24 @@ export default function App() {
   const currentUserPins = allPins
     .filter(pin => pin.userId === currentUser?.userId)
     .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+  // 0. Initialize RevenueCat SDK on mount
+  useEffect(() => {
+    const initRevenueCat = async () => {
+      try {
+        Purchases.setLogLevel(Purchases.LOG_LEVEL.DEBUG);
+        if (Platform.OS === 'ios') {
+          await Purchases.configure({ apiKey: "rc_mock_ios_public_key" });
+        } else if (Platform.OS === 'android') {
+          await Purchases.configure({ apiKey: "rc_mock_android_public_key" });
+        }
+        console.log("RevenueCat: Initialized successfully.");
+      } catch (rcErr) {
+        console.warn("RevenueCat: Initialization failed:", rcErr);
+      }
+    };
+    initRevenueCat();
+  }, []);
 
   // 1. Check Auth Status & Auto-Seed Database on mount
   useEffect(() => {

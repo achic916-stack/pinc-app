@@ -45,7 +45,6 @@
     },
     "plugins": [
       "./plugins/withAndroidBuildGradleFix",
-      "react-native-iap",
       [
         "expo-location",
         {

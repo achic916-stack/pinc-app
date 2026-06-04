@@ -15,7 +15,7 @@ import {
   Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { withIAPContext, useIAP } from "react-native-iap";
+import Purchases, { PurchasesPackage } from "react-native-purchases";
 import * as ImagePicker from "expo-image-picker";
 import { PincTheme } from "../styles/theme";
 import { db, auth, uploadPinImage, encodeGeohash } from "../services/firebase";
@@ -38,7 +38,7 @@ export const BusinessPackagesModalComponent: React.FC<BusinessPackagesModalProps
   onClose,
   locale = "th",
 }) => {
-  // Product IDs for Apple StoreKit (In-App Purchase)
+  // Product IDs for Apple StoreKit / RevenueCat (In-App Purchase)
   const subscriptionSkus = Platform.select({
     ios: [
       "com.achic.pinc.essential",
@@ -52,20 +52,19 @@ export const BusinessPackagesModalComponent: React.FC<BusinessPackagesModalProps
     ]
   }) || [];
 
-  const {
-    connected,
-    currentPurchase,
-    currentPurchaseError,
-    finishTransaction,
-    getSubscriptions,
-    requestSubscription,
-  } = useIAP();
-
   const [isLoadingSubscriptions, setIsLoadingSubscriptions] = useState(false);
+  const [isPurchasing, setIsPurchasing] = useState(false);
   const [storePrices, setStorePrices] = useState<Record<string, string>>({
     'com.achic.pinc.essential': '฿199',
     'com.achic.pinc.signature': '฿399',
     'com.achic.pinc.destination': '฿699',
+  });
+
+  // Track the resolved Packages from RevenueCat
+  const [rcPackages, setRcPackages] = useState<Record<'essential' | 'signature' | 'destination', PurchasesPackage | null>>({
+    essential: null,
+    signature: null,
+    destination: null,
   });
 
   // Generic upload flow states for all packages
@@ -74,195 +73,55 @@ export const BusinessPackagesModalComponent: React.FC<BusinessPackagesModalProps
   // Initialize and Fetch subscriptions on mount/visible
   useEffect(() => {
     let active = true;
-    const initIAP = async () => {
+    const fetchOfferings = async () => {
       if (!visible) return;
       setIsLoadingSubscriptions(true);
       try {
-        console.log("IAP: Fetching subscriptions...");
-        const subs: any = await getSubscriptions({ skus: subscriptionSkus });
-        console.log("IAP: Subscriptions fetched:", subs);
-        if (active && subs && subs.length > 0) {
-          const prices: Record<string, string> = {};
-          subs.forEach((sub: any) => {
-            if (sub.productId) {
-              prices[sub.productId] = sub.localizedPrice || (sub as any).price || '฿' + (sub as any).priceString;
+        console.log("RevenueCat: Fetching offerings...");
+        const offerings = await Purchases.getOfferings();
+        console.log("RevenueCat: Offerings fetched:", offerings);
+        if (active && offerings.current && offerings.current.availablePackages.length > 0) {
+          const packagesMap: Record<'essential' | 'signature' | 'destination', PurchasesPackage | null> = {
+            essential: null,
+            signature: null,
+            destination: null,
+          };
+          const pricesMap: Record<string, string> = {
+            'com.achic.pinc.essential': '฿199',
+            'com.achic.pinc.signature': '฿399',
+            'com.achic.pinc.destination': '฿699',
+          };
+
+          offerings.current.availablePackages.forEach((pkg) => {
+            const prodId = pkg.product.identifier;
+            if (prodId === 'com.achic.pinc.essential') {
+              packagesMap.essential = pkg;
+              pricesMap[prodId] = pkg.product.priceString;
+            } else if (prodId === 'com.achic.pinc.signature') {
+              packagesMap.signature = pkg;
+              pricesMap[prodId] = pkg.product.priceString;
+            } else if (prodId === 'com.achic.pinc.destination') {
+              packagesMap.destination = pkg;
+              pricesMap[prodId] = pkg.product.priceString;
             }
           });
-          setStorePrices((prev) => ({ ...prev, ...prices }));
+
+          setRcPackages(packagesMap);
+          setStorePrices((prev) => ({ ...prev, ...pricesMap }));
         }
       } catch (err) {
-        console.warn("IAP: Error fetching subscriptions:", err);
+        console.warn("RevenueCat: Error fetching offerings:", err);
       } finally {
         if (active) setIsLoadingSubscriptions(false);
       }
     };
 
-    initIAP();
+    fetchOfferings();
 
     return () => {
       active = false;
     };
-  }, [visible, connected]);
-
-  // Monitor purchases
-  useEffect(() => {
-    const handlePurchase = async () => {
-      if (currentPurchase) {
-        const purchase = currentPurchase;
-        console.log("IAP: Successful purchase detected:", purchase);
-        
-        let tier: 'essential' | 'signature' | 'destination' | null = null;
-        let tierNum = 1;
-        if (purchase.productId === 'com.achic.pinc.essential') {
-          tier = 'essential';
-          tierNum = 1;
-        } else if (purchase.productId === 'com.achic.pinc.signature') {
-          tier = 'signature';
-          tierNum = 2;
-        } else if (purchase.productId === 'com.achic.pinc.destination') {
-          tier = 'destination';
-          tierNum = 3;
-        }
-
-        if (tier) {
-          try {
-            const currentUserId = auth.currentUser?.uid;
-            if (currentUserId) {
-              const userRef = doc(db, "users", currentUserId);
-              await updateDoc(userRef, {
-                role: "PREMIUM_STORE",
-                subscriptionStatus: "ACTIVE",
-                subscriptionTier: tierNum,
-                subscriptionProductId: purchase.productId,
-                lastTransactionId: purchase.transactionId,
-                subscriptionExpiry: new Date(Date.now() + 30 * 24 * 3600 * 1000),
-              });
-              console.log("IAP: User document updated in Firestore successfully.");
-            }
-            
-            await finishTransaction({ purchase, isConsumable: false });
-            console.log("IAP: Transaction finished in StoreKit.");
-
-            setSelectedPackage(tier);
-            setShowEssentialUpload(true);
-            
-            Alert.alert(
-              locale === "th" ? "จ่ายเงินสำเร็จ!" : "Payment Successful!",
-              locale === "th"
-                ? "การชำระเงินเสร็จสิ้นแล้ว กรุณากรอกข้อมูลเพื่อลงทะเบียนร้านค้าของคุณ"
-                : "Payment completed successfully. Please fill in the details to register your shop."
-            );
-          } catch (err: any) {
-            console.error("IAP: Error handling successful purchase:", err);
-            Alert.alert("Error", err.message || "Failed to update subscription status");
-          }
-        }
-      }
-    };
-
-    handlePurchase();
-  }, [currentPurchase]);
-
-  // Monitor purchase errors
-  useEffect(() => {
-    if (currentPurchaseError) {
-      console.warn("IAP: Purchase error:", currentPurchaseError);
-      const isCancel = currentPurchaseError.code === 'E_USER_CANCELLED' || 
-                       currentPurchaseError.message?.includes('cancel') ||
-                       currentPurchaseError.message?.includes('cancelled');
-      if (!isCancel) {
-        Alert.alert(
-          locale === "th" ? "การซื้อล้มเหลว" : "Purchase Failed",
-          currentPurchaseError.message || (locale === "th" ? "เกิดข้อผิดพลาดในการทำรายการ" : "An error occurred during transaction")
-        );
-      }
-    }
-  }, [currentPurchaseError]);
-
-  const handleRestorePurchase = async () => {
-    try {
-      console.log("IAP: Restoring purchases...");
-      const { getAvailablePurchases } = require('react-native-iap');
-      const purchases: any[] = await getAvailablePurchases();
-      console.log("IAP: Restored purchases:", purchases);
-      
-      if (purchases && purchases.length > 0) {
-        const subPurchases = purchases.filter((p: any) => 
-          subscriptionSkus.includes(p.productId)
-        );
-        
-        if (subPurchases.length > 0) {
-          subPurchases.sort((a: any, b: any) => Number(b.transactionDate) - Number(a.transactionDate));
-          const latestPurchase = subPurchases[0];
-          
-          let tier: 'essential' | 'signature' | 'destination' | null = null;
-          let tierNum = 1;
-          if (latestPurchase.productId === 'com.achic.pinc.essential') {
-            tier = 'essential';
-            tierNum = 1;
-          } else if (latestPurchase.productId === 'com.achic.pinc.signature') {
-            tier = 'signature';
-            tierNum = 2;
-          } else if (latestPurchase.productId === 'com.achic.pinc.destination') {
-            tier = 'destination';
-            tierNum = 3;
-          }
-
-          if (tier) {
-            const currentUserId = auth.currentUser?.uid;
-            if (currentUserId) {
-              const userRef = doc(db, "users", currentUserId);
-              await updateDoc(userRef, {
-                role: "PREMIUM_STORE",
-                subscriptionStatus: "ACTIVE",
-                subscriptionTier: tierNum,
-                subscriptionProductId: latestPurchase.productId,
-                lastTransactionId: latestPurchase.transactionId,
-                subscriptionExpiry: new Date(Date.now() + 30 * 24 * 3600 * 1000),
-              });
-            }
-
-            try {
-              await finishTransaction({ purchase: latestPurchase, isConsumable: false });
-            } catch (finishErr) {
-              console.warn("IAP: Restored purchase finishTransaction warn:", finishErr);
-            }
-
-            setSelectedPackage(tier);
-            setShowEssentialUpload(true);
-            
-            Alert.alert(
-              locale === "th" ? "กู้คืนสำเร็จ!" : "Restore Successful!",
-              locale === "th"
-                ? `พบข้อมูลการสมัครสมาชิกแพ็กเกจ ${tier.toUpperCase()} ก่อนหน้านี้ ระบบได้กู้คืนสิทธิ์ให้คุณเรียบร้อยแล้ว`
-                : `Found previous subscription for ${tier.toUpperCase()} package. Restored successfully.`
-            );
-            return;
-          }
-        }
-      }
-
-      Alert.alert(
-        locale === "th" ? "ไม่พบประวัติการซื้อ" : "No Purchase History Found",
-        locale === "th"
-          ? "ไม่พบข้อมูลการซื้อแพ็กเกจที่ยังใช้งานได้ในบัญชี Apple ID นี้"
-          : "No active subscriptions found for this Apple ID."
-      );
-    } catch (err: any) {
-      console.error("IAP: Restore failed:", err);
-      Alert.alert(
-        locale === "th" ? "กู้คืนไม่สำเร็จ" : "Restore Failed",
-        err.message || (locale === "th" ? "ไม่สามารถกู้คืนสิทธิ์ได้ในขณะนี้" : "Unable to restore purchases at this time")
-      );
-    }
-  };
-
-  const getSkuFromPackageType = (type: 'essential' | 'signature' | 'destination' | null) => {
-    if (type === 'essential') return 'com.achic.pinc.essential';
-    if (type === 'signature') return 'com.achic.pinc.signature';
-    if (type === 'destination') return 'com.achic.pinc.destination';
-    return '';
-  };
+  }, [visible]);
 
   const handleSelectPackageTrigger = async () => {
     if (!selectedPackage) {
@@ -273,18 +132,136 @@ export const BusinessPackagesModalComponent: React.FC<BusinessPackagesModalProps
       return;
     }
 
-    const sku = getSkuFromPackageType(selectedPackage);
-    if (!sku) return;
-
-    try {
-      console.log(`IAP: Requesting subscription for SKU: ${sku}`);
-      await requestSubscription({ sku });
-    } catch (err: any) {
-      console.error("IAP: Request subscription error:", err);
+    const pkgToPurchase = rcPackages[selectedPackage];
+    if (!pkgToPurchase) {
       Alert.alert(
-        locale === "th" ? "การสั่งซื้อขัดข้อง" : "Purchase Request Failed",
-        err.message || (locale === "th" ? "ไม่สามารถเชื่อมต่อกับ App Store ได้" : "Could not connect to App Store")
+        locale === "th" ? "ไม่พบข้อมูลแพ็กเกจ" : "Package Not Available",
+        locale === "th" ? "ไม่พบการตั้งค่าแพ็กเกจนี้ในระบบการชำระเงิน กรุณาลองใหม่อีกครั้ง" : "This package is not configured in the payment system. Please try again."
       );
+      return;
+    }
+
+    setIsPurchasing(true);
+    try {
+      console.log(`RevenueCat: Purchasing package: ${pkgToPurchase.product.identifier}`);
+      const { customerInfo } = await Purchases.purchasePackage(pkgToPurchase);
+      console.log("RevenueCat: Purchase successful, customerInfo:", customerInfo);
+      
+      // Verify active entitlement
+      if (customerInfo.entitlements.active['premium'] !== undefined) {
+        let tierNum = 1;
+        if (selectedPackage === 'essential') tierNum = 1;
+        else if (selectedPackage === 'signature') tierNum = 2;
+        else if (selectedPackage === 'destination') tierNum = 3;
+
+        const currentUserId = auth.currentUser?.uid;
+        if (currentUserId) {
+          const userRef = doc(db, "users", currentUserId);
+          await updateDoc(userRef, {
+            role: "PREMIUM_STORE",
+            subscriptionStatus: "ACTIVE",
+            subscriptionTier: tierNum,
+            subscriptionProductId: pkgToPurchase.product.identifier,
+            subscriptionExpiry: new Date(Date.now() + 30 * 24 * 3600 * 1000), // Fallback local expiry
+          });
+          console.log("RevenueCat: Firestore user updated successfully.");
+        }
+
+        setShowEssentialUpload(true);
+        Alert.alert(
+          locale === "th" ? "สมัครสมาชิกสำเร็จ!" : "Subscription Successful!",
+          locale === "th"
+            ? "ยินดีต้อนรับสู่ระบบพรีเมียม กรุณากรอกข้อมูลลงทะเบียนร้านค้าของคุณ"
+            : "Welcome to Premium! Please enter your shop details to register."
+        );
+      } else {
+        console.warn("RevenueCat: Purchase succeeded but entitlement 'premium' is not active.");
+        Alert.alert(
+          locale === "th" ? "ไม่มีสิทธิ์ใช้งาน" : "Entitlement Inactive",
+          locale === "th"
+            ? "ชำระเงินสำเร็จ แต่ระบบยังไม่เปิดใช้งานสิทธิ์ 'premium' กรุณาติดต่อทีมงาน"
+            : "Payment completed but the 'premium' entitlement is not active. Please contact support."
+        );
+      }
+    } catch (err: any) {
+      console.log("RevenueCat: Purchase error:", err);
+      // Catch user cancellation to prevent annoying alerts
+      if (err.userCancelled) {
+        console.log("RevenueCat: User cancelled purchase flow.");
+      } else {
+        Alert.alert(
+          locale === "th" ? "การสมัครสมาชิกขัดข้อง" : "Subscription Failed",
+          err.message || (locale === "th" ? "เกิดข้อผิดพลาดระหว่างทำรายการ" : "An error occurred during checkout.")
+        );
+      }
+    } finally {
+      setIsPurchasing(false);
+    }
+  };
+
+  const handleRestorePurchase = async () => {
+    setIsPurchasing(true);
+    try {
+      console.log("RevenueCat: Restoring purchases...");
+      const customerInfo = await Purchases.restorePurchases();
+      console.log("RevenueCat: Restore response:", customerInfo);
+
+      if (customerInfo.entitlements.active['premium'] !== undefined) {
+        const activeEntitlement = customerInfo.entitlements.active['premium'];
+        const prodId = activeEntitlement.productIdentifier;
+        
+        let tier: 'essential' | 'signature' | 'destination' = 'essential';
+        let tierNum = 1;
+        if (prodId === 'com.achic.pinc.essential') {
+          tier = 'essential';
+          tierNum = 1;
+        } else if (prodId === 'com.achic.pinc.signature') {
+          tier = 'signature';
+          tierNum = 2;
+        } else if (prodId === 'com.achic.pinc.destination') {
+          tier = 'destination';
+          tierNum = 3;
+        }
+
+        const currentUserId = auth.currentUser?.uid;
+        if (currentUserId) {
+          const userRef = doc(db, "users", currentUserId);
+          await updateDoc(userRef, {
+            role: "PREMIUM_STORE",
+            subscriptionStatus: "ACTIVE",
+            subscriptionTier: tierNum,
+            subscriptionProductId: prodId,
+            subscriptionExpiry: activeEntitlement.expirationDate 
+              ? new Date(activeEntitlement.expirationDate) 
+              : new Date(Date.now() + 30 * 24 * 3600 * 1000),
+          });
+        }
+
+        setSelectedPackage(tier);
+        setShowEssentialUpload(true);
+
+        Alert.alert(
+          locale === "th" ? "กู้คืนสิทธิ์การซื้อสำเร็จ!" : "Restore Successful!",
+          locale === "th"
+            ? `พบข้อมูลการสมัครสมาชิกแพ็กเกจ ${tier.toUpperCase()} ที่ยังใช้งานได้ ระบบได้กู้คืนสิทธิ์ให้คุณเรียบร้อยแล้ว`
+            : `Active subscription found for ${tier.toUpperCase()} package. Restored successfully.`
+        );
+      } else {
+        Alert.alert(
+          locale === "th" ? "ไม่พบสิทธิ์การซื้อ" : "No Purchase History Found",
+          locale === "th"
+            ? "ไม่พบข้อมูลการซื้อแพ็กเกจที่ยังใช้งานได้ในระบบ"
+            : "No active subscriptions found for this account."
+        );
+      }
+    } catch (err: any) {
+      console.error("RevenueCat: Restore failed:", err);
+      Alert.alert(
+        locale === "th" ? "กู้คืนสิทธิ์ไม่สำเร็จ" : "Restore Failed",
+        err.message || (locale === "th" ? "ไม่สามารถกู้คืนสิทธิ์การซื้อได้ในขณะนี้" : "Unable to restore purchases at this time.")
+      );
+    } finally {
+      setIsPurchasing(false);
     }
   };
 
@@ -1038,20 +1015,25 @@ export const BusinessPackagesModalComponent: React.FC<BusinessPackagesModalProps
               style={[
                 styles.stickySelectBtn,
                 { backgroundColor: getButtonColor() },
-                !selectedPackage && styles.stickySelectBtnDisabled
+                (!selectedPackage || isPurchasing) && styles.stickySelectBtnDisabled
               ]}
               onPress={handleSelectPackageTrigger}
-              disabled={!selectedPackage}
+              disabled={!selectedPackage || isPurchasing}
               activeOpacity={0.8}
             >
-              <Text style={[styles.stickySelectBtnText, { color: getButtonTextColor() }]}>
-                {locale === "th" ? "เลือกแพ็กเกจนี้" : "Select this package"}
-              </Text>
+              {isPurchasing ? (
+                <ActivityIndicator size="small" color={selectedPackage === 'signature' ? "#000000" : "#FFFFFF"} />
+              ) : (
+                <Text style={[styles.stickySelectBtnText, { color: getButtonTextColor() }]}>
+                  {locale === "th" ? "เลือกแพ็กเกจนี้" : "Select this package"}
+                </Text>
+              )}
             </TouchableOpacity>
             
             <TouchableOpacity
               style={styles.restoreBtn}
               onPress={handleRestorePurchase}
+              disabled={isPurchasing}
               activeOpacity={0.7}
             >
               <Text style={styles.restoreBtnText}>
@@ -1502,4 +1484,4 @@ const provinceStyles = StyleSheet.create({
   },
 });
 
-export const BusinessPackagesModal = withIAPContext(BusinessPackagesModalComponent);
+export const BusinessPackagesModal = BusinessPackagesModalComponent;
