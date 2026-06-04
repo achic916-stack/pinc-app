@@ -119,6 +119,16 @@ missingDimensionStrategy "store", "play"
         jniLibs {
             useLegacyPackaging (findProperty('expo.useLegacyPackaging')?.toBoolean() ?: false)
         }
+        pickFirst 'META-INF/LICENSE'
+        pickFirst 'META-INF/LICENSE.txt'
+        pickFirst 'META-INF/license.txt'
+        pickFirst 'META-INF/NOTICE'
+        pickFirst 'META-INF/NOTICE.txt'
+        pickFirst 'META-INF/notice.txt'
+        pickFirst 'META-INF/DEPENDENCIES'
+        pickFirst 'META-INF/ASL2.0'
+        pickFirst 'META-INF/AL2.0'
+        pickFirst 'META-INF/LGPL2.1'
     }
 }
 
