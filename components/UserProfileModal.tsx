@@ -12,7 +12,8 @@ import {
   Alert,
   TextInput,
   Dimensions,
-  Switch
+  Switch,
+  ScrollView
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { PincTheme } from "../styles/theme";
@@ -506,100 +507,6 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                         </View>
                       )}
 
-                      {/* Settings & Privacy Section */}
-                      <View style={{ marginTop: 24, width: "100%", paddingHorizontal: 12 }}>
-                        <Text style={{
-                          fontSize: 12,
-                          fontWeight: "bold",
-                          color: PincTheme.colors.textSecondary,
-                          alignSelf: "flex-start",
-                          marginBottom: 12,
-                          textTransform: "uppercase",
-                          letterSpacing: 0.5,
-                          fontFamily: PincTheme.fonts.heading
-                        }}>
-                          ⚙️ {locale === "th" ? "ตั้งค่าและความเป็นส่วนตัว" : "Settings & Privacy"}
-                        </Text>
-
-                        {/* Location Proximity Tracking Row */}
-                        <View style={{
-                          flexDirection: "row",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          backgroundColor: "#FAFAFA",
-                          borderWidth: 1,
-                          borderColor: PincTheme.colors.border,
-                          borderRadius: PincTheme.borderRadius.md,
-                          paddingVertical: 12,
-                          paddingHorizontal: 14,
-                          marginBottom: 12,
-                          width: "100%",
-                        }}>
-                          <View style={{ flex: 1, marginRight: 16, alignItems: 'flex-start' }}>
-                            <Text style={{ fontSize: 13, fontWeight: "bold", color: PincTheme.colors.textPrimary, fontFamily: PincTheme.fonts.heading, marginBottom: 2 }}>
-                              {t(locale, "locationTrackingLabel")}
-                            </Text>
-                            <Text style={{ fontSize: 10, color: PincTheme.colors.textTertiary, fontFamily: PincTheme.fonts.body, textAlign: 'left' }}>
-                              {t(locale, "locationTrackingDesc")}
-                            </Text>
-                          </View>
-                          <Switch
-                            value={locationTrackingEnabled}
-                            onValueChange={setLocationTrackingEnabled}
-                            trackColor={{ false: PincTheme.colors.divider, true: PincTheme.colors.primary }}
-                            thumbColor={locationTrackingEnabled ? "#FFF" : PincTheme.colors.textTertiary}
-                          />
-                        </View>
-
-                        {/* Sign Out Button */}
-                        <TouchableOpacity
-                          style={[
-                            styles.editProfileBtn, 
-                            { 
-                              backgroundColor: "#FFF8F9", 
-                              borderColor: "#E0E0E0", 
-                              marginTop: 0, 
-                              marginBottom: 10,
-                              width: "100%", 
-                              minWidth: 0, 
-                              flexDirection: 'row', 
-                              justifyContent: 'center', 
-                              alignItems: 'center' 
-                            }
-                          ]}
-                          onPress={onSignOut}
-                          activeOpacity={0.8}
-                        >
-                          <Ionicons name="log-out-outline" size={16} color={PincTheme.colors.textSecondary} style={{ marginRight: 6 }} />
-                          <Text style={[styles.editProfileBtnText, { color: PincTheme.colors.textSecondary }]}>
-                            {t(locale, "signOut")}
-                          </Text>
-                        </TouchableOpacity>
-
-                        {/* Delete Account Button */}
-                        <TouchableOpacity
-                          style={[
-                            styles.editProfileBtn, 
-                            { 
-                              backgroundColor: "#FFF5F5", 
-                              borderColor: "#FFD3D3", 
-                              marginTop: 0, 
-                              width: "100%", 
-                              minWidth: 0, 
-                              flexDirection: 'row', 
-                              justifyContent: 'center', 
-                              alignItems: 'center' 
-                            }
-                          ]}
-                          onPress={onDeleteAccount}
-                          activeOpacity={0.8}
-                        >
-                          <Ionicons name="trash-outline" size={16} color="#FF3B30" style={{ marginRight: 6 }} />
-                          <Text style={[styles.editProfileBtnText, { color: "#FF3B30" }]}>
-                            {t(locale, "deleteAccountBtn")}
-                          </Text>
-                        </TouchableOpacity>
-                      </View>
                     </View>
                   ) : (
                     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginTop: 16 }}>
@@ -711,7 +618,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         </SafeAreaView>
       </View>
 
-      {/* ── Edit Profile Modal ── */}
+      {/* ── Edit Profile & Settings Modal ── */}
       <Modal
         visible={showEditModal}
         animationType="slide"
@@ -719,56 +626,170 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         onRequestClose={() => setShowEditModal(false)}
       >
         <View style={styles.editModalOverlay}>
-          <View style={styles.editModalSheet}>
+          <View style={[styles.editModalSheet, { maxHeight: '90%' }]}>
             {/* Handle bar */}
             <View style={styles.editModalHandle} />
 
-            <Text style={styles.editModalTitle}>Edit Profile</Text>
+            <Text style={styles.editModalTitle}>
+              {locale === 'th' ? '✏️ แก้ไขโปรไฟล์ & ตั้งค่า' : '✏️ Edit Profile & Settings'}
+            </Text>
 
-            {/* Avatar picker */}
-            <TouchableOpacity style={styles.editAvatarWrapper} onPress={handlePickImage} activeOpacity={0.85}>
-              <Image
-                source={{ uri: editPreviewPic || profile?.profile_pic }}
-                style={styles.editAvatar}
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              {/* Avatar picker */}
+              <TouchableOpacity style={styles.editAvatarWrapper} onPress={handlePickImage} activeOpacity={0.85}>
+                <Image
+                  source={{ uri: editPreviewPic || profile?.profile_pic }}
+                  style={styles.editAvatar}
+                />
+                <View style={styles.editAvatarOverlay}>
+                  <Text style={styles.editAvatarOverlayText}>📸{"\n"}Change Photo</Text>
+                </View>
+              </TouchableOpacity>
+
+              {/* Display name */}
+              <Text style={styles.editFieldLabel}>{locale === 'th' ? 'ชื่อที่แสดง' : 'Display Name'}</Text>
+              <TextInput
+                style={styles.editFieldInput}
+                value={editDisplayName}
+                onChangeText={setEditDisplayName}
+                placeholder="Your name"
+                placeholderTextColor={PincTheme.colors.textTertiary}
+                maxLength={30}
+                autoCapitalize="none"
               />
-              <View style={styles.editAvatarOverlay}>
-                <Text style={styles.editAvatarOverlayText}>📸{"\n"}Change Photo</Text>
+
+              {/* Bio */}
+              <Text style={styles.editFieldLabel}>{locale === 'th' ? 'คำอธิบายตัวเอง' : 'Bio'}</Text>
+              <TextInput
+                style={[styles.editFieldInput, styles.editFieldInputMulti]}
+                value={editBio}
+                onChangeText={setEditBio}
+                placeholder="Tell people about yourself..."
+                placeholderTextColor={PincTheme.colors.textTertiary}
+                multiline
+                maxLength={100}
+                textAlignVertical="top"
+              />
+
+              {/* ─── Divider ─── */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 20 }}>
+                <View style={{ flex: 1, height: 1, backgroundColor: PincTheme.colors.border }} />
+                <Text style={{ marginHorizontal: 12, fontSize: 11, fontWeight: '700', color: PincTheme.colors.textTertiary, letterSpacing: 1, textTransform: 'uppercase' }}>
+                  {locale === 'th' ? 'ตั้งค่าและความเป็นส่วนตัว' : 'Settings & Privacy'}
+                </Text>
+                <View style={{ flex: 1, height: 1, backgroundColor: PincTheme.colors.border }} />
               </View>
-            </TouchableOpacity>
 
-            {/* Display name */}
-            <Text style={styles.editFieldLabel}>Display Name</Text>
-            <TextInput
-              style={styles.editFieldInput}
-              value={editDisplayName}
-              onChangeText={setEditDisplayName}
-              placeholder="Your name"
-              placeholderTextColor={PincTheme.colors.textTertiary}
-              maxLength={30}
-              autoCapitalize="none"
-            />
+              {/* Language Toggle */}
+              <View style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                backgroundColor: "#FAFAFA",
+                borderWidth: 1,
+                borderColor: PincTheme.colors.border,
+                borderRadius: PincTheme.borderRadius.md,
+                paddingVertical: 12,
+                paddingHorizontal: 14,
+                marginBottom: 12
+              }}>
+                <View style={{ flex: 1, marginRight: 16 }}>
+                  <Text style={{ fontSize: 13, fontWeight: "bold", color: PincTheme.colors.textPrimary, fontFamily: PincTheme.fonts.heading, marginBottom: 2 }}>
+                    🌐 {locale === 'th' ? 'ภาษา / Language' : 'Language / ภาษา'}
+                  </Text>
+                  <Text style={{ fontSize: 10, color: PincTheme.colors.textTertiary, fontFamily: PincTheme.fonts.body }}>
+                    {locale === 'th' ? 'สลับภาษาแอป' : 'Switch app language'}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => setLocale && setLocale(locale === 'en' ? 'th' : 'en')}
+                  style={{
+                    backgroundColor: PincTheme.colors.primary,
+                    borderRadius: 16,
+                    paddingHorizontal: 16,
+                    paddingVertical: 6
+                  }}
+                >
+                  <Text style={{ color: '#FFF', fontWeight: '800', fontSize: 13 }}>
+                    {locale === 'en' ? 'TH' : 'EN'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
 
-            {/* Bio */}
-            <Text style={styles.editFieldLabel}>Bio</Text>
-            <TextInput
-              style={[styles.editFieldInput, styles.editFieldInputMulti]}
-              value={editBio}
-              onChangeText={setEditBio}
-              placeholder="Tell people about yourself..."
-              placeholderTextColor={PincTheme.colors.textTertiary}
-              multiline
-              maxLength={100}
-              textAlignVertical="top"
-            />
+              {/* Location Proximity Tracking Toggle */}
+              <View style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                backgroundColor: "#FAFAFA",
+                borderWidth: 1,
+                borderColor: PincTheme.colors.border,
+                borderRadius: PincTheme.borderRadius.md,
+                paddingVertical: 12,
+                paddingHorizontal: 14,
+                marginBottom: 12
+              }}>
+                <View style={{ flex: 1, marginRight: 16, alignItems: 'flex-start' }}>
+                  <Text style={{ fontSize: 13, fontWeight: "bold", color: PincTheme.colors.textPrimary, fontFamily: PincTheme.fonts.heading, marginBottom: 2 }}>
+                    {t(locale, "locationTrackingLabel")}
+                  </Text>
+                  <Text style={{ fontSize: 10, color: PincTheme.colors.textTertiary, fontFamily: PincTheme.fonts.body, textAlign: 'left' }}>
+                    {t(locale, "locationTrackingDesc")}
+                  </Text>
+                </View>
+                <Switch
+                  value={locationTrackingEnabled}
+                  onValueChange={setLocationTrackingEnabled}
+                  trackColor={{ false: PincTheme.colors.divider, true: PincTheme.colors.primary }}
+                  thumbColor={locationTrackingEnabled ? "#FFF" : PincTheme.colors.textTertiary}
+                />
+              </View>
 
-            {/* Actions */}
-            <View style={styles.editModalActions}>
+              {/* Sign Out */}
+              <TouchableOpacity
+                style={[
+                  styles.editProfileBtn,
+                  { backgroundColor: "#FFF8F9", borderColor: "#E0E0E0", marginTop: 0, marginBottom: 10, width: "100%", minWidth: 0, flexDirection: 'row', justifyContent: 'center', alignItems: 'center' }
+                ]}
+                onPress={() => {
+                  setShowEditModal(false);
+                  if (onSignOut) setTimeout(onSignOut, 350);
+                }}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="log-out-outline" size={16} color={PincTheme.colors.textSecondary} style={{ marginRight: 6 }} />
+                <Text style={[styles.editProfileBtnText, { color: PincTheme.colors.textSecondary }]}>
+                  {t(locale, "signOut")}
+                </Text>
+              </TouchableOpacity>
+
+              {/* Delete Account */}
+              <TouchableOpacity
+                style={[
+                  styles.editProfileBtn,
+                  { backgroundColor: "#FFF5F5", borderColor: "#FFD3D3", marginTop: 0, marginBottom: 24, width: "100%", minWidth: 0, flexDirection: 'row', justifyContent: 'center', alignItems: 'center' }
+                ]}
+                onPress={() => {
+                  setShowEditModal(false);
+                  if (onDeleteAccount) setTimeout(onDeleteAccount, 350);
+                }}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="trash-outline" size={16} color="#FF3B30" style={{ marginRight: 6 }} />
+                <Text style={[styles.editProfileBtnText, { color: "#FF3B30" }]}>
+                  {t(locale, "deleteAccountBtn")}
+                </Text>
+              </TouchableOpacity>
+            </ScrollView>
+
+            {/* Save / Cancel Actions */}
+            <View style={[styles.editModalActions, { marginTop: 0 }]}>
               <TouchableOpacity
                 style={styles.editCancelBtn}
                 onPress={() => setShowEditModal(false)}
                 disabled={isSaving}
               >
-                <Text style={styles.editCancelBtnText}>Cancel</Text>
+                <Text style={styles.editCancelBtnText}>{locale === 'th' ? 'ยกเลิก' : 'Cancel'}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.editSaveBtn, isSaving && { opacity: 0.6 }]}
@@ -777,7 +798,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               >
                 {isSaving
                   ? <ActivityIndicator size="small" color="#FFF" />
-                  : <Text style={styles.editSaveBtnText}>Save Changes</Text>
+                  : <Text style={styles.editSaveBtnText}>{locale === 'th' ? 'บันทึก' : 'Save Changes'}</Text>
                 }
               </TouchableOpacity>
             </View>

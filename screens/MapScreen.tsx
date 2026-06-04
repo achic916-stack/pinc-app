@@ -54,7 +54,6 @@ interface MapScreenProps {
   userLocation: { latitude: number; longitude: number } | null;
   onSelectVenue: (venue: Venue) => void;
   isLoadingVenues: boolean;
-  onOpenSettings?: () => void;
   followingVenueIds?: Set<string>;
   locale?: "en" | "th";
   cameraTarget?: { latitude: number; longitude: number; timestamp: number } | null;
@@ -310,7 +309,6 @@ export const MapScreen: React.FC<MapScreenProps> = ({
   userLocation,
   onSelectVenue,
   isLoadingVenues,
-  onOpenSettings,
   followingVenueIds = new Set<string>(),
   locale = "en",
   cameraTarget = null,
@@ -1038,16 +1036,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
         <Ionicons name="locate" size={24} color={PincTheme.colors.primary} />
       </TouchableOpacity>
 
-      {/* Settings Gear Button */}
-      {onOpenSettings && (
-        <TouchableOpacity
-          style={styles.settingsBtn}
-          onPress={onOpenSettings}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="settings" size={24} color={PincTheme.colors.primary} />
-        </TouchableOpacity>
-      )}
+
 
       {/* IG Reels-Style Feed */}
       <ReelsFeedModal
@@ -1082,19 +1071,7 @@ const styles = StyleSheet.create({
     zIndex: 998,
     ...PincTheme.shadows.md,
   },
-  settingsBtn: {
-    position: "absolute",
-    top: Platform.OS === 'android' ? 168 : 178,
-    right: 16,
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "#FFFFFF",
-    justifyContent: "center",
-    alignItems: "center",
-    zIndex: 998,
-    ...PincTheme.shadows.md,
-  },
+
   searchContainer: {
     position: "absolute",
     top: 50,
