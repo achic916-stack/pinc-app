@@ -89,8 +89,7 @@
           }
         }
       ],
-      "expo-localization",
-      "react-native-purchases"
+      "expo-localization"
     ],
     "web": {
       "favicon": "./assets/favicon.png"
