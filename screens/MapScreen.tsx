@@ -439,7 +439,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
       for (const otherPin of sortedPins) {
         if (processed.has(otherPin.pinId!)) continue;
         const distance = calculateDistance(pin.latitude, pin.longitude, otherPin.latitude, otherPin.longitude);
-        if (distance <= 500) {
+        if (distance <= 500 && pin.userId === otherPin.userId) {
           currentGroup.push(otherPin);
           processed.add(otherPin.pinId!);
         }
@@ -779,9 +779,9 @@ export const MapScreen: React.FC<MapScreenProps> = ({
           const isDeleteMode = deleteModePinId === pin.pinId;
           const pinKey = `pin-${pin.pinId || `${pin.latitude}-${pin.longitude}-${pin.timestamp}`}-${pin.user_profile_pic || ''}`;
 
-          // Check if close to a sponsored venue (within 35 meters)
+          // Check if close to a sponsored venue (within 10 meters)
           const closeSponsor = displayedVenues.find(
-            v => v.is_sponsored && calculateDistance(pin.latitude, pin.longitude, v.latitude, v.longitude) < 35
+            v => v.is_sponsored && calculateDistance(pin.latitude, pin.longitude, v.latitude, v.longitude) < 10
           );
 
           let displayLat = pin.latitude;
