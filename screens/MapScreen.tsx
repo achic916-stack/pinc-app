@@ -905,7 +905,28 @@ export const MapScreen: React.FC<MapScreenProps> = ({
         )}
 
         {/* Advertiser Pins */}
-        {displayedVenues.filter(venue => venue.is_sponsored).map(venue => {
+        {(() => {
+          const sponsored = displayedVenues.filter(venue => venue.is_sponsored);
+          const coordsCount: Record<string, number> = {};
+          return sponsored.map(venue => {
+            const latKey = venue.latitude.toFixed(4);
+            const lngKey = venue.longitude.toFixed(4);
+            const key = `${latKey},${lngKey}`;
+            let lat = venue.latitude;
+            let lng = venue.longitude;
+            if (coordsCount[key] !== undefined) {
+              coordsCount[key]++;
+              const count = coordsCount[key];
+              const radius = 0.00015 + (Math.floor(count/6) * 0.0001); 
+              const angle = count * (Math.PI / 3);
+              lat += Math.sin(angle) * radius;
+              lng += Math.cos(angle) * radius;
+            } else {
+              coordsCount[key] = 0;
+            }
+            return { ...venue, _renderLat: lat, _renderLng: lng };
+          });
+        })().map(venue => {
           const imageUri = venue.custom_icon_url || venue.cover_image || '';
           const sponsorKey = `sponsor-${venue.venueId}-${imageUri}-${venue.aesthetic_rating}-${venue.crowd_status}`;
           const isTier1 = venue.sponsor_tier === 1;
@@ -928,7 +949,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
           return (
             <CustomMapMarker
               key={sponsorKey}
-              coordinate={{ latitude: venue.latitude, longitude: venue.longitude }}
+              coordinate={{ latitude: venue._renderLat, longitude: venue._renderLng }}
               onPress={() => onSelectVenue(venue)}
               zIndex={998}
               anchor={{ x: 0.5, y: 0.5 }}
