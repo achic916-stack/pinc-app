@@ -733,7 +733,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                   )}
                 </View>
                 {displayName ? (
-                  <Text style={{ marginTop: 0, fontSize: textSize, fontWeight: '800', color: PincTheme.colors.textPrimary, textShadowColor: '#FFF', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 }}>
+                  <Text style={{ marginTop: 0, fontSize: textSize, fontWeight: '800', color: PincTheme.colors.textPrimary, textShadowColor: '#FFF', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3, paddingBottom: 4, paddingHorizontal: 4, lineHeight: Math.max(14, textSize * 1.3) }}>
                     {displayName}
                   </Text>
                 ) : null}
@@ -883,7 +883,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                   )}
                 </View>
                 {pin.username ? (
-                  <Text style={{ marginTop: 2, fontSize: 11, fontWeight: '800', color: PincTheme.colors.textPrimary, textShadowColor: '#FFF', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 }}>
+                  <Text style={{ marginTop: 2, fontSize: 11, fontWeight: '800', color: PincTheme.colors.textPrimary, textShadowColor: '#FFF', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3, paddingBottom: 4, paddingHorizontal: 4, lineHeight: 15 }}>
                     {pin.username}
                   </Text>
                 ) : null}
@@ -991,6 +991,9 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                   textShadowRadius: 3,
                   maxWidth: 150,
                   textAlign: 'center',
+                  paddingBottom: 4,
+                  paddingHorizontal: 4,
+                  lineHeight: 15,
                 }} numberOfLines={2}>
                   {venue.name}
                 </Text>
