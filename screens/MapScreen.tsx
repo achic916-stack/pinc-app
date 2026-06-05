@@ -724,16 +724,18 @@ export const MapScreen: React.FC<MapScreenProps> = ({
 
           return (
             <CustomMapMarker key={clusterKey} coordinate={{ latitude: centerLat, longitude: centerLng }} onPress={onPress} zoomScale={zoomScale}>
-              <View style={{ alignItems: 'center', paddingBottom: 10, backgroundColor: 'transparent', ...PincTheme.shadows.md }}>
-                <View style={{ width: scaledSize, height: scaledSize, borderRadius: scaledRadius, padding: 3, backgroundColor: tierColor, overflow: 'hidden' }}>
-                  {profilePicUrl ? (
-                    <RNImage source={{ uri: profilePicUrl }} style={{ width: innerSize, height: innerSize, borderRadius: innerRadius }} resizeMode="cover" />
-                  ) : (
-                    <View style={{ width: innerSize, height: innerSize, borderRadius: innerRadius, backgroundColor: PincTheme.colors.card }} />
-                  )}
+              <View style={{ alignItems: 'center', paddingBottom: 10, paddingHorizontal: 10, backgroundColor: 'transparent' }}>
+                <View style={{ ...PincTheme.shadows.md, borderRadius: scaledRadius }}>
+                  <View style={{ width: scaledSize, height: scaledSize, borderRadius: scaledRadius, padding: 3, backgroundColor: tierColor, overflow: 'hidden' }}>
+                    {profilePicUrl ? (
+                      <RNImage source={{ uri: profilePicUrl }} style={{ width: innerSize, height: innerSize, borderRadius: innerRadius }} resizeMode="cover" />
+                    ) : (
+                      <View style={{ width: innerSize, height: innerSize, borderRadius: innerRadius, backgroundColor: PincTheme.colors.card }} />
+                    )}
+                  </View>
                 </View>
                 {displayName ? (
-                  <Text style={{ marginTop: 0, fontSize: textSize, fontWeight: '800', color: PincTheme.colors.textPrimary, textShadowColor: '#FFF', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3, paddingBottom: 4, paddingHorizontal: 4, lineHeight: Math.max(14, textSize * 1.3) }}>
+                  <Text style={{ marginTop: 0, fontSize: textSize, fontWeight: '800', color: PincTheme.colors.textPrimary, textShadowColor: '#FFF', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3, paddingBottom: 4, paddingHorizontal: 4, lineHeight: Math.max(14, textSize * 1.3), maxWidth: 120, textAlign: 'center' }}>
                     {displayName}
                   </Text>
                 ) : null}
@@ -839,8 +841,8 @@ export const MapScreen: React.FC<MapScreenProps> = ({
               )}
 
               {/* Unified Profile Marker */}
-              <View style={{ alignItems: 'center', paddingBottom: 10, backgroundColor: 'transparent', ...PincTheme.shadows.md }}>
-                <View style={{ position: 'relative' }}>
+              <View style={{ alignItems: 'center', paddingBottom: 10, paddingHorizontal: 10, backgroundColor: 'transparent' }}>
+                <View style={{ position: 'relative', ...PincTheme.shadows.md, borderRadius: getMarkerSize(zoomScale) / 2 }}>
                   <View style={{
                     width: getMarkerSize(zoomScale),
                     height: getMarkerSize(zoomScale),
@@ -883,7 +885,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                   )}
                 </View>
                 {pin.username ? (
-                  <Text style={{ marginTop: 2, fontSize: 11, fontWeight: '800', color: PincTheme.colors.textPrimary, textShadowColor: '#FFF', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3, paddingBottom: 4, paddingHorizontal: 4, lineHeight: 15 }}>
+                  <Text style={{ marginTop: 2, fontSize: 11, fontWeight: '800', color: PincTheme.colors.textPrimary, textShadowColor: '#FFF', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3, paddingBottom: 4, paddingHorizontal: 4, lineHeight: 15, maxWidth: 120, textAlign: 'center' }}>
                     {pin.username}
                   </Text>
                 ) : null}
