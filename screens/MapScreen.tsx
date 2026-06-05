@@ -724,7 +724,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
 
           return (
             <CustomMapMarker key={clusterKey} coordinate={{ latitude: centerLat, longitude: centerLng }} onPress={onPress} zoomScale={zoomScale}>
-              <View style={{ alignItems: 'center', ...PincTheme.shadows.md }}>
+              <View style={{ alignItems: 'center', paddingBottom: 10, backgroundColor: 'transparent', ...PincTheme.shadows.md }}>
                 <View style={{ width: scaledSize, height: scaledSize, borderRadius: scaledRadius, padding: 3, backgroundColor: tierColor, overflow: 'hidden' }}>
                   {profilePicUrl ? (
                     <RNImage source={{ uri: profilePicUrl }} style={{ width: innerSize, height: innerSize, borderRadius: innerRadius }} resizeMode="cover" />
@@ -839,7 +839,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
               )}
 
               {/* Unified Profile Marker */}
-              <View style={{ alignItems: 'center', ...PincTheme.shadows.md }}>
+              <View style={{ alignItems: 'center', paddingBottom: 10, backgroundColor: 'transparent', ...PincTheme.shadows.md }}>
                 <View style={{ position: 'relative' }}>
                   <View style={{
                     width: getMarkerSize(zoomScale),
@@ -956,7 +956,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
               zoomScale={zoomScale}
               cluster={false}
             >
-              <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+              <View style={{ alignItems: 'center', justifyContent: 'center', paddingBottom: 10, backgroundColor: 'transparent' }}>
                 <View style={{
                   width: markerSize,
                   height: markerSize,
