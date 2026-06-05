@@ -30,6 +30,7 @@ interface ReelsFeedModalProps {
   currentUserId: string;
   initialIndex?: number;
   onOpenUserProfile?: (userId: string) => void;
+  locale?: "en" | "th";
 }
 
 const FeedItem = ({ 
@@ -39,7 +40,8 @@ const FeedItem = ({
   onCommentPress,
   onSharePress,
   currentUserId,
-  onOpenUserProfile
+  onOpenUserProfile,
+  locale = "en"
 }: { 
   item: Pin; 
   isVisible: boolean;
@@ -48,11 +50,11 @@ const FeedItem = ({
   onSharePress: () => void;
   currentUserId: string;
   onOpenUserProfile?: (userId: string) => void;
+  locale?: "en" | "th";
 }) => {
   const [liked, setLiked] = useState(item.likes?.includes(currentUserId) || false);
   const [likesCount, setLikesCount] = useState(item.likes?.length || item.likesCount || 0);
   const [commentsCount, setCommentsCount] = useState(item.commentsCount || 0);
-  const [backgroundSound, setBackgroundSound] = useState<Audio.Sound | null>(null);
 
   const [isFollowing, setIsFollowing] = useState(false);
   const [isTogglingFollow, setIsTogglingFollow] = useState(false);
@@ -100,56 +102,6 @@ const FeedItem = ({
     });
     return () => unsubscribe();
   }, [item.pinId]);
-
-  useEffect(() => {
-    let soundObj: Audio.Sound | null = null;
-    let isActive = true;
-
-    const startAudio = async () => {
-      if (item.music_url && isVisible) {
-        try {
-          await Audio.setAudioModeAsync({
-            playsInSilentModeIOS: true,
-            staysActiveInBackground: false,
-            playThroughEarpieceAndroid: false,
-          });
-
-          const { sound } = await Audio.Sound.createAsync(
-            { uri: item.music_url },
-            { shouldPlay: true, isLooping: true, volume: 1.0 }
-          );
-          soundObj = sound;
-          if (isActive) {
-            setBackgroundSound(sound);
-          } else {
-            await sound.unloadAsync();
-          }
-        } catch (error) {
-          console.warn("Error playing background music in FeedItem:", error);
-        }
-      }
-    };
-
-    if (isVisible) {
-      startAudio();
-    }
-
-    return () => {
-      isActive = false;
-      const cleanupAudio = async () => {
-        if (soundObj) {
-          try {
-            await soundObj.stopAsync();
-            await soundObj.unloadAsync();
-          } catch (e) {
-            console.warn("Unloading audio error in FeedItem cleanup:", e);
-          }
-        }
-      };
-      cleanupAudio();
-      setBackgroundSound(null);
-    };
-  }, [isVisible, item.music_url]);
 
   const handleLike = async () => {
     const nextLiked = !liked;
@@ -245,7 +197,7 @@ const FeedItem = ({
         
         <View style={styles.musicRow}>
           <Ionicons name="musical-note" size={12} color="#FFF" />
-          <Text style={styles.musicText}>{item.music_title || "pinc. original audio"}</Text>
+          <Text style={styles.musicText}>{locale === "th" ? "เสียงต้นฉบับ (original audio)" : "pinc. original audio"}</Text>
         </View>
       </View>
 
@@ -280,7 +232,8 @@ export const ReelsFeedModal: React.FC<ReelsFeedModalProps> = ({
   onClose,
   currentUserId,
   initialIndex = 0,
-  onOpenUserProfile
+  onOpenUserProfile,
+  locale = "en"
 }) => {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [activeCommentPinId, setActiveCommentPinId] = useState<string | null>(null);
@@ -367,6 +320,7 @@ export const ReelsFeedModal: React.FC<ReelsFeedModalProps> = ({
                 onSharePress={() => setSharePin(item)}
                 currentUserId={currentUserId}
                 onOpenUserProfile={onOpenUserProfile}
+                locale={locale}
               />
             )}
             onViewableItemsChanged={handleViewableItemsChanged}
@@ -396,7 +350,7 @@ export const ReelsFeedModal: React.FC<ReelsFeedModalProps> = ({
           pinId={activeCommentPinId}
           currentUser={currentUserProfile}
           onClose={() => setActiveCommentPinId(null)}
-          locale="en"
+          locale={locale}
           onOpenUserProfile={onOpenUserProfile}
         />
 

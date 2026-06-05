@@ -16,7 +16,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { PincTheme } from "../styles/theme";
-import { Venue, Pin, UserProfile, toggleLikePin, subscribeToComments, deletePin, db, uploadPinImage } from "../services/firebase";
+import { Venue, Pin, UserProfile, toggleLikePin, subscribeToComments, deletePin, db, uploadPinImage, toggleFollow, checkIsFollowing } from "../services/firebase";
 import { doc, updateDoc, deleteDoc } from "firebase/firestore";
 import { t } from "../services/localization";
 import { Ionicons } from "@expo/vector-icons";
@@ -98,6 +98,51 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
   const [editedImages, setEditedImages] = useState<string[]>(venue ? (venue.images || []) : []);
   const [isUploading, setIsUploading] = useState(false);
   const [isCategoryStatusCollapsed, setIsCategoryStatusCollapsed] = useState(true);
+
+  const getCatLabel = (c: string) => {
+    if (!c) return "";
+    if (locale !== "th") return c === "art/books" ? "ART / BOOKS" : c.toUpperCase();
+    switch(c.toLowerCase()) {
+      case "café": return "คาเฟ่"; case "food": return "ร้านอาหาร"; case "bar": return "บาร์";
+      case "shop": return "ร้านค้า"; case "clothes": return "เสื้อผ้า"; case "beauty": return "ความงาม";
+      case "art/books": return "ศิลปะ/หนังสือ"; case "realestate": return "อสังหาฯ"; case "gym": return "ฟิตเนส";
+      case "event": return "อีเวนต์"; case "concert": return "คอนเสิร์ต"; case "school": return "สถานศึกษา";
+      case "showroom": return "โชว์รูม"; case "sport": return "กีฬา";
+      default: return c.toUpperCase();
+    }
+  };
+
+  const [isFollowingVenue, setIsFollowingVenue] = useState(false);
+  const [isTogglingFollowVenue, setIsTogglingFollowVenue] = useState(false);
+
+  useEffect(() => {
+    const checkFollowStatus = async () => {
+      if (!currentUser.userId || !venue?.ownerId || currentUser.userId === venue.ownerId) return;
+      try {
+        const status = await checkIsFollowing(currentUser.userId, venue.ownerId);
+        setIsFollowingVenue(status);
+      } catch (err) {
+        console.warn("Failed to check venue follow status:", err);
+      }
+    };
+    checkFollowStatus();
+  }, [venue, currentUser.userId]);
+
+  const handleToggleFollowVenue = async () => {
+    if (!currentUser.userId || !venue?.ownerId || currentUser.userId === venue.ownerId || isTogglingFollowVenue) return;
+    setIsTogglingFollowVenue(true);
+    const prevStatus = isFollowingVenue;
+    setIsFollowingVenue(!prevStatus);
+    try {
+      const nowFollowing = await toggleFollow(currentUser.userId, venue.ownerId);
+      setIsFollowingVenue(nowFollowing);
+    } catch (err) {
+      console.warn("Failed to toggle follow venue:", err);
+      setIsFollowingVenue(prevStatus);
+    } finally {
+      setIsTogglingFollowVenue(false);
+    }
+  };
 
   useEffect(() => {
     if (venue) {
@@ -600,11 +645,11 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
 
             {!isCategoryStatusCollapsed && (
               <View style={{ gap: 12, marginTop: 8, paddingHorizontal: 4 }}>
-                {/* Category Option ("CAFÉ", "FOOD", "BAR", "SHOP", "CLOTHES", "BEAUTY", "ART/BOOKS") */}
+                {/* Category Options */}
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                   <Text style={{ fontSize: 12, fontWeight: '700', color: PincTheme.colors.textSecondary }}>CATEGORY:</Text>
                   <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
-                    {["café", "food", "bar", "shop", "clothes", "beauty", "art/books"].map((cat) => (
+                    {["café", "food", "bar", "shop", "clothes", "beauty", "art/books", "realestate", "gym", "event", "concert", "school", "showroom", "sport"].map((cat) => (
                       <TouchableOpacity
                         key={cat}
                         style={{
@@ -622,7 +667,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                           fontWeight: 'bold',
                           color: editedCategory === cat ? PincTheme.colors.primary : PincTheme.colors.textSecondary
                         }}>
-                          {cat === "art/books" ? "ART / BOOKS" : cat.toUpperCase()}
+                          {getCatLabel(cat)}
                         </Text>
                       </TouchableOpacity>
                     ))}
@@ -722,6 +767,29 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
             <View style={styles.titleRow}>
               <Text style={styles.venueName}>{venue.name}</Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                {isShopPackage && currentUser.userId !== venue.ownerId && venue.ownerId && (
+                  <TouchableOpacity
+                    style={{
+                      borderWidth: 1.5,
+                      borderColor: isFollowingVenue ? "transparent" : PincTheme.colors.primary,
+                      backgroundColor: isFollowingVenue ? PincTheme.colors.backgroundTertiary : "#FFF",
+                      paddingHorizontal: 12,
+                      paddingVertical: 4,
+                      borderRadius: 16
+                    }}
+                    onPress={handleToggleFollowVenue}
+                    disabled={isTogglingFollowVenue}
+                  >
+                    <Text style={{
+                      color: isFollowingVenue ? PincTheme.colors.textSecondary : PincTheme.colors.primary,
+                      fontSize: 12,
+                      fontWeight: "bold",
+                      fontFamily: PincTheme.fonts.heading
+                    }}>
+                      {isFollowingVenue ? (locale === "th" ? "กำลังติดตาม" : "Following") : (locale === "th" ? "+ ติดตาม" : "+ Follow")}
+                    </Text>
+                  </TouchableOpacity>
+                )}
                 <View style={styles.ratingBadge}>
                   <Text style={styles.ratingText}>★ {venue.aesthetic_rating.toFixed(1)}</Text>
                 </View>
@@ -729,7 +797,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
             </View>
 
             <View style={styles.metaRow}>
-              <Text style={styles.categoryText}>{venue.category.toUpperCase()}</Text>
+              <Text style={styles.categoryText}>{getCatLabel(venue.category)}</Text>
               <View style={styles.bulletSeparator} />
 
               {/* Dynamic Crowd Status Badge */}

@@ -112,76 +112,9 @@ export const PincButton: React.FC<PincButtonProps> = ({
   const [isSensorsLoading, setIsSensorsLoading] = useState(false);
   const [isMediaSelectorVisible, setIsMediaSelectorVisible] = useState(false);
 
-  // States for Music Picker
-  const [selectedTrack, setSelectedTrack] = useState<typeof MOCK_TRACKS[0]>(MOCK_TRACKS[0]);
-  const [musicPickerVisible, setMusicPickerVisible] = useState(false);
-  const [playingTrackId, setPlayingTrackId] = useState<string | null>(null);
-  const [soundObject, setSoundObject] = useState<Audio.Sound | null>(null);
-
-
-  // Preview Music Logic
-  const handlePlayPreview = async (track: typeof MOCK_TRACKS[0]) => {
-    if (playingTrackId === track.id) {
-      if (soundObject) {
-        await soundObject.pauseAsync();
-      }
-      setPlayingTrackId(null);
-      return;
-    }
-
-    if (soundObject) {
-      try {
-        await soundObject.unloadAsync();
-      } catch (e) {
-        console.warn("Unloading previous sound error:", e);
-      }
-    }
-
-    if (track.id === "original" || !track.url) {
-      setPlayingTrackId(null);
-      setSoundObject(null);
-      return;
-    }
-
-    try {
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: track.url },
-        { shouldPlay: true, isLooping: false }
-      );
-      setSoundObject(sound);
-      setPlayingTrackId(track.id);
-      
-      sound.setOnPlaybackStatusUpdate((status) => {
-        if (status.isLoaded && status.didJustFinish) {
-          setPlayingTrackId(null);
-        }
-      });
-    } catch (err) {
-      console.error("Preview sound error:", err);
-      Alert.alert("Error", t("errorSubmission") || "Failed to preview sound.");
-    }
-  };
-
-  const closeMusicPicker = async () => {
-    if (soundObject) {
-      try {
-        await soundObject.stopAsync();
-        await soundObject.unloadAsync();
-      } catch (e) {
-        console.warn("Unloading sound error on close:", e);
-      }
-      setSoundObject(null);
-    }
-    setPlayingTrackId(null);
-    setMusicPickerVisible(false);
-  };
-
   const handleCloseComposer = async () => {
-    await closeMusicPicker();
     setModalVisible(false);
-    setSelectedTrack(MOCK_TRACKS[0]);
   };
-
 
   // 1. Prompt User to select Photo or Video
   const promptCameraAction = () => {
@@ -377,13 +310,12 @@ export const PincButton: React.FC<PincButtonProps> = ({
         postDuration: postDuration,
         situationDetails: postType === "live_news" ? text : "",
         mediaType: capturedMediaType,
-        musicTitle: selectedTrack.id !== "original" ? selectedTrack.title : "",
-        musicUrl: selectedTrack.id !== "original" ? selectedTrack.url : "",
+        musicTitle: "",
+        musicUrl: "",
         thumbnailUri: thumbnailUri,
         postDelayMins: postDelay
       });
 
-      await closeMusicPicker();
       Alert.alert("Success", t("successPost"));
       setModalVisible(false);
       setCapturedPhoto(null);
@@ -392,7 +324,6 @@ export const PincButton: React.FC<PincButtonProps> = ({
       setPostType("standard");
       setPostDuration("permanent");
       setPostDelay(0);
-      setSelectedTrack(MOCK_TRACKS[0]);
       onPinCreated();
     } catch (error: any) {
       console.error(error);
@@ -619,46 +550,6 @@ export const PincButton: React.FC<PincButtonProps> = ({
               <Text style={[styles.charCountText, text.length >= 260 && styles.charCountWarn]}>
                 {text.length} / 280
               </Text>
-            </View>
-
-            {/* Music Picker (Horizontal Scroll) */}
-            <View style={styles.horizontalMusicContainer}>
-              <Text style={styles.musicPickerTitle}>{t("musicPickerTitle")}</Text>
-              <ScrollView 
-                horizontal 
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.horizontalMusicScroll}
-              >
-                {MOCK_TRACKS.map((track) => {
-                  const isSelected = selectedTrack.id === track.id;
-                  const isPlaying = playingTrackId === track.id;
-                  return (
-                    <TouchableOpacity
-                      key={track.id}
-                      style={[
-                        styles.horizontalMusicItem,
-                        isSelected && styles.horizontalMusicItemSelected
-                      ]}
-                      onPress={() => setSelectedTrack(track)}
-                      activeOpacity={0.8}
-                    >
-                      <TouchableOpacity
-                        style={styles.playPauseBtnInline}
-                        onPress={() => handlePlayPreview(track)}
-                      >
-                        <Ionicons 
-                          name={isPlaying ? "pause-circle" : "play-circle"} 
-                          size={28} 
-                          color={isPlaying ? "#FF6B6B" : "#FFF"} 
-                        />
-                      </TouchableOpacity>
-                      <Text style={[styles.horizontalMusicTitle, isSelected && { color: "#FF6B6B" }]} numberOfLines={1}>
-                        {track.id === "original" ? t("originalAudio") : track.title}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
             </View>
 
           </ScrollView>

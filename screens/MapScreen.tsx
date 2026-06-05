@@ -264,6 +264,7 @@ interface CustomMapMarkerProps {
   zIndex?: number;
   zoomScale: number;
   children: React.ReactNode;
+  cluster?: boolean;
 }
 
 const CustomMapMarker: React.FC<CustomMapMarkerProps> = ({
@@ -273,7 +274,8 @@ const CustomMapMarker: React.FC<CustomMapMarkerProps> = ({
   anchor,
   zIndex,
   zoomScale,
-  children
+  children,
+  cluster
 }) => {
   const [tracksView, setTracksView] = useState(true);
 
@@ -292,6 +294,9 @@ const CustomMapMarker: React.FC<CustomMapMarkerProps> = ({
     zIndex,
     tracksViewChanges: tracksView,
   };
+  if (cluster !== undefined) {
+    markerProps.cluster = cluster;
+  }
   if (onLongPress) {
     markerProps.onLongPress = onLongPress;
   }
@@ -688,7 +693,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
         onRegionChangeComplete={handleRegionChangeComplete}
         clusterColor={PincTheme.colors.primary}
         clusterTextColor="#FFFFFF"
-        radius={35}
+        radius={15}
         renderCluster={(cluster: any) => {
           const { id, geometry, onPress, properties } = cluster;
           const points = properties.point_count;
@@ -878,7 +883,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                   )}
                 </View>
                 {pin.username ? (
-                  <Text style={{ marginTop: 0, fontSize: Math.max(9, Math.floor(11 * zoomScale)), fontWeight: '800', color: PincTheme.colors.textPrimary, textShadowColor: '#FFF', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 }}>
+                  <Text style={{ marginTop: 2, fontSize: 11, fontWeight: '800', color: PincTheme.colors.textPrimary, textShadowColor: '#FFF', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 }}>
                     {pin.username}
                   </Text>
                 ) : null}
@@ -928,6 +933,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
               zIndex={998}
               anchor={{ x: 0.5, y: 0.5 }}
               zoomScale={zoomScale}
+              cluster={false}
             >
               <View style={{ alignItems: 'center', justifyContent: 'center' }}>
                 <View style={{
@@ -956,15 +962,15 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                 </View>
                 <Text style={{
                   marginTop: 4,
-                  fontSize: Math.max(9, Math.floor(11 * zoomScale)),
+                  fontSize: 11,
                   fontWeight: '800',
                   color: PincTheme.colors.textPrimary,
                   textShadowColor: '#FFF',
                   textShadowOffset: { width: 0, height: 1 },
                   textShadowRadius: 3,
-                  maxWidth: 100,
+                  maxWidth: 150,
                   textAlign: 'center',
-                }} numberOfLines={1}>
+                }} numberOfLines={2}>
                   {venue.name}
                 </Text>
               </View>
@@ -984,6 +990,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
         }}
         currentUserId={currentUserId || auth.currentUser?.uid || ""} // Pass appropriately if needed
         onOpenUserProfile={onOpenUserProfile}
+        locale={locale}
       />
 
       {/* Main Bottom Dashboard Tab Bar Overlay */}
@@ -1045,6 +1052,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
         onClose={() => setReelsFeedPins([])}
         currentUserId={currentUserId || auth.currentUser?.uid || ""}
         onOpenUserProfile={onOpenUserProfile}
+        locale={locale}
       />
     </SafeAreaView>
   );

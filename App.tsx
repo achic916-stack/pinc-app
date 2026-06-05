@@ -859,6 +859,7 @@ export default function App() {
               setSelectedUserProfileId(userId);
               setAppReelsPins([]);
             }}
+            locale={locale}
           />
 
           {/* Redundant settings modal removed in favor of UserProfileModal settings integration */}
