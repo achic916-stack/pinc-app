@@ -18,8 +18,8 @@ import { Ionicons } from "@expo/vector-icons";
 import Purchases, { PurchasesPackage } from "react-native-purchases";
 import * as ImagePicker from "expo-image-picker";
 import { PincTheme } from "../styles/theme";
-import { db, auth, uploadPinImage, encodeGeohash } from "../services/firebase";
-import { collection, addDoc, serverTimestamp, doc, updateDoc } from "firebase/firestore";
+import { db, auth, uploadPinImage, encodeGeohash, claimEarlyBirdPackage } from "../services/firebase";
+import { collection, addDoc, serverTimestamp, doc, updateDoc, getDoc } from "firebase/firestore";
 import * as Location from "expo-location";
 import { compressImage } from "../services/imageCompressor";
 import { SocialLinksInput, SocialLinksData } from "./SocialLinks";
@@ -60,15 +60,18 @@ export const BusinessPackagesModalComponent: React.FC<BusinessPackagesModalProps
     'com.achic.pinc.destination': '฿699',
   });
 
+  const [earlyBirdQuota, setEarlyBirdQuota] = useState<number | null>(null);
+  const [isClaimingEarlyBird, setIsClaimingEarlyBird] = useState(false);
+
   // Track the resolved Packages from RevenueCat
-  const [rcPackages, setRcPackages] = useState<Record<'essential' | 'signature' | 'destination', PurchasesPackage | null>>({
+  const [rcPackages, setRcPackages] = useState<Record<'destination' | 'essential' | 'signature', PurchasesPackage | null>>({
+    destination: null,
     essential: null,
     signature: null,
-    destination: null,
   });
 
   // Generic upload flow states for all packages
-  const [selectedPackage, setSelectedPackage] = useState<'essential' | 'signature' | 'destination' | null>(null);
+  const [selectedPackage, setSelectedPackage] = useState<'destination' | 'essential' | 'signature' | null>('destination');
 
   // Initialize and Fetch subscriptions on mount/visible
   useEffect(() => {
@@ -76,33 +79,48 @@ export const BusinessPackagesModalComponent: React.FC<BusinessPackagesModalProps
     const fetchOfferings = async () => {
       if (!visible) return;
       setIsLoadingSubscriptions(true);
+      
+      // Fetch Early Bird Quota
+      try {
+        const campaignDoc = await getDoc(doc(db, "system", "campaigns"));
+        if (campaignDoc.exists()) {
+          const data = campaignDoc.data();
+          const claimedCount = data?.early_bird?.claimedCount || 0;
+          setEarlyBirdQuota(100 - claimedCount);
+        } else {
+          setEarlyBirdQuota(100);
+        }
+      } catch (err) {
+        console.warn("Failed to fetch early bird quota", err);
+      }
+
       try {
         console.log("RevenueCat: Fetching offerings...");
         const offerings = await Purchases.getOfferings();
         console.log("RevenueCat: Offerings fetched:", offerings);
         if (active && offerings.current && offerings.current.availablePackages.length > 0) {
-          const packagesMap: Record<'essential' | 'signature' | 'destination', PurchasesPackage | null> = {
+          const packagesMap: Record<'destination' | 'essential' | 'signature', PurchasesPackage | null> = {
+            destination: null,
             essential: null,
             signature: null,
-            destination: null,
           };
           const pricesMap: Record<string, string> = {
+            'com.achic.pinc.destination': '฿299',
             'com.achic.pinc.essential': '฿199',
             'com.achic.pinc.signature': '฿399',
-            'com.achic.pinc.destination': '฿699',
           };
 
           offerings.current.availablePackages.forEach((pkg) => {
             const prodId = pkg.product.identifier;
-            if (prodId === 'com.achic.pinc.essential') {
-              packagesMap.essential = pkg;
-              pricesMap[prodId] = pkg.product.priceString;
-            } else if (prodId === 'com.achic.pinc.signature') {
-              packagesMap.signature = pkg;
-              pricesMap[prodId] = pkg.product.priceString;
-            } else if (prodId === 'com.achic.pinc.destination') {
+            if (prodId.startsWith('com.achic.pinc.destination')) {
               packagesMap.destination = pkg;
-              pricesMap[prodId] = pkg.product.priceString;
+              pricesMap['com.achic.pinc.destination'] = pkg.product.priceString;
+            } else if (prodId.startsWith('com.achic.pinc.essential')) {
+              packagesMap.essential = pkg;
+              pricesMap['com.achic.pinc.essential'] = pkg.product.priceString;
+            } else if (prodId.startsWith('com.achic.pinc.signature')) {
+              packagesMap.signature = pkg;
+              pricesMap['com.achic.pinc.signature'] = pkg.product.priceString;
             }
           });
 
@@ -199,6 +217,39 @@ export const BusinessPackagesModalComponent: React.FC<BusinessPackagesModalProps
     }
   };
 
+  const handleClaimEarlyBird = async () => {
+    const currentUserId = auth.currentUser?.uid;
+    if (!currentUserId) {
+      Alert.alert(locale === "th" ? "กรุณาเข้าสู่ระบบ" : "Please log in");
+      return;
+    }
+
+    setIsClaimingEarlyBird(true);
+    try {
+      const success = await claimEarlyBirdPackage(currentUserId);
+      if (success) {
+        setEarlyBirdQuota(prev => (prev ? prev - 1 : 0));
+        setShowEssentialUpload(true);
+        Alert.alert(
+          locale === "th" ? "จองสิทธิ์สำเร็จ!" : "Claim Successful!",
+          locale === "th" 
+            ? "คุณได้รับสิทธิ์ Premium ฟรี 3 เดือน สถานะตอนนี้คือ 'รอตรวจสอบ' กรุณากรอกข้อมูลหน้าร้านของคุณให้ครบถ้วนเพื่อรอแอดมินอนุมัติครับ" 
+            : "You have claimed the 3 months free Premium! Your status is 'Pending Approval'. Please fill in your shop details to wait for admin approval."
+        );
+      } else {
+        Alert.alert(
+          locale === "th" ? "โควต้าเต็มแล้ว" : "Quota Full",
+          locale === "th" ? "ขออภัย สิทธิ์โปรโมชั่น 100 ร้านแรกเต็มแล้วครับ" : "Sorry, the 100 early bird spots are full."
+        );
+        setEarlyBirdQuota(0);
+      }
+    } catch (err: any) {
+      Alert.alert(locale === "th" ? "เกิดข้อผิดพลาด" : "Error", err.message);
+    } finally {
+      setIsClaimingEarlyBird(false);
+    }
+  };
+
   const handleRestorePurchase = async () => {
     setIsPurchasing(true);
     try {
@@ -266,14 +317,10 @@ export const BusinessPackagesModalComponent: React.FC<BusinessPackagesModalProps
   };
 
   const getButtonColor = () => {
-    if (selectedPackage === 'essential') return "#777777";
-    if (selectedPackage === 'signature') return "#FFC107";
-    if (selectedPackage === 'destination') return "#FF4B72";
-    return "#E0E0E0";
+    return "#FF4B72";
   };
 
   const getButtonTextColor = () => {
-    if (selectedPackage === 'signature') return "#000000";
     return "#FFFFFF";
   };
   const [showEssentialUpload, setShowEssentialUpload] = useState(false);
@@ -287,10 +334,7 @@ export const BusinessPackagesModalComponent: React.FC<BusinessPackagesModalProps
   const [customProvince, setCustomProvince] = useState("");
 
   const getMaxImages = () => {
-    if (selectedPackage === 'essential') return 3;
-    if (selectedPackage === 'signature') return 5;
-    if (selectedPackage === 'destination') return 10;
-    return 1;
+    return 999;
   };
 
   const handlePickImage = async () => {
@@ -320,7 +364,7 @@ export const BusinessPackagesModalComponent: React.FC<BusinessPackagesModalProps
             }
             const result = await ImagePicker.launchCameraAsync({
               allowsEditing: true,
-              quality: 0.85,
+              quality: 1.0,
             });
             if (!result.canceled && result.assets?.length > 0) {
               setEssentialImages((prev) => [...prev, result.assets[0].uri]);
@@ -342,7 +386,7 @@ export const BusinessPackagesModalComponent: React.FC<BusinessPackagesModalProps
             const result = await ImagePicker.launchImageLibraryAsync({
               mediaTypes: ImagePicker.MediaTypeOptions.Images,
               allowsEditing: true,
-              quality: 0.85,
+              quality: 1.0,
             });
             if (!result.canceled && result.assets?.length > 0) {
               setEssentialImages((prev) => [...prev, result.assets[0].uri]);
@@ -626,6 +670,7 @@ export const BusinessPackagesModalComponent: React.FC<BusinessPackagesModalProps
                     placeholder={locale === "th" ? "ระบุชื่อจังหวัดของคุณ เช่น นครปฐม" : "Specify your province, e.g. Nakhon Pathom"}
                     placeholderTextColor={PincTheme.colors.textTertiary}
                     maxLength={30}
+                    autoFocus={true}
                   />
                 )}
 
@@ -807,144 +852,26 @@ export const BusinessPackagesModalComponent: React.FC<BusinessPackagesModalProps
             </TouchableOpacity>
           </View>
 
+          {/* Early Bird Banner */}
+          {earlyBirdQuota !== null && earlyBirdQuota > 0 && (
+            <View style={{ backgroundColor: 'rgba(255, 75, 114, 0.1)', paddingVertical: 12, paddingHorizontal: 24, borderBottomWidth: 1, borderBottomColor: 'rgba(255, 75, 114, 0.2)' }}>
+              <Text style={{ color: '#FF4B72', fontWeight: 'bold', fontSize: 13, textAlign: 'center', fontFamily: PincTheme.fonts.heading }}>
+                {locale === "th" 
+                  ? `🔥 แคมเปญ 100 ร้านแรก: สมัคร Premium ฟรี 3 เดือน! (เหลืออีก ${earlyBirdQuota} สิทธิ์)` 
+                  : `🔥 Early Bird: Free 3 Months Premium! (Only ${earlyBirdQuota} spots left)`}
+              </Text>
+            </View>
+          )}
+
           <ScrollView
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
           >
-            {/* Package 1: Essential */}
+            {/* Package 1: Destination (Only Package) */}
             <TouchableOpacity
               style={[
                 styles.packageCard,
-                { borderColor: "#E5E5E5", borderWidth: 1.5 },
-                selectedPackage === 'essential' && { borderColor: "#A6A6A6", borderWidth: 2.5, backgroundColor: "rgba(166, 166, 166, 0.03)" }
-              ]}
-              onPress={() => setSelectedPackage('essential')}
-              activeOpacity={0.9}
-            >
-              <View
-                style={[
-                  styles.packageHeader,
-                  { backgroundColor: "rgba(166, 166, 166, 0.08)" },
-                ]}
-              >
-                <View style={{ flex: 1 }}>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                    <Text style={[styles.packageName, { color: "#777777" }]}>
-                      Essential
-                    </Text>
-                    {selectedPackage === 'essential' && (
-                      <Ionicons name="checkmark-circle" size={20} color="#A6A6A6" />
-                    )}
-                  </View>
-                  <Text style={styles.packageTagline}>
-                    {locale === "th" ? "เรียบง่าย แต่มีตัวตน" : "Simple yet visible"}
-                  </Text>
-                </View>
-                <View
-                  style={[styles.iconPlaceholder, { borderColor: "#A6A6A6" }]}
-                />
-              </View>
-              <View style={styles.packageBody}>
-                <View style={styles.priceContainer}>
-                  <Text style={styles.promoPrice}>{storePrices['com.achic.pinc.essential']}</Text>
-                  <Text style={styles.perMonth}>{locale === "th" ? "/เดือน" : "/month"}</Text>
-                </View>
-                <Text style={styles.originalPrice}>
-                  {locale === "th" ? "ปกติ ฿399/เดือน" : "Regular ฿399/month"}
-                </Text>
-
-                <View style={styles.featuresList}>
-                  <Text style={styles.featureItem}>
-                    {locale === "th" ? "✓ โชว์ชื่อร้านบนแผนที่ตลอดเวลา" : "✓ Always show shop name on map"}
-                  </Text>
-                  <Text style={styles.featureItem}>
-                    {locale === "th" ? "✓ หมุดกรอบสีเงิน (Silver)" : "✓ Silver border pin"}
-                  </Text>
-                  <Text style={styles.featureItem}>
-                    {locale === "th" ? "✓ แสดงผลในการค้นหาระดับมาตรฐาน" : "✓ Standard search visibility"}
-                  </Text>
-                  <Text style={styles.featureItem}>
-                    {locale === "th" ? "✓ อัปโหลดรูปร้านค้าได้ 3 รูป" : "✓ Upload up to 3 shop photos"}
-                  </Text>
-                </View>
-              </View>
-            </TouchableOpacity>
-
-            {/* Package 2: Signature */}
-            <TouchableOpacity
-              style={[
-                styles.packageCard,
-                { borderColor: "#E5E5E5", borderWidth: 1.5 },
-                selectedPackage === 'signature' && { borderColor: "#FFC107", borderWidth: 2.5, backgroundColor: "rgba(255, 193, 7, 0.03)" }
-              ]}
-              onPress={() => setSelectedPackage('signature')}
-              activeOpacity={0.9}
-            >
-              {/* Recommend Badge */}
-              <View style={styles.recommendBadge}>
-                <Text style={styles.recommendBadgeText}>
-                  {locale === "th" ? "⭐ คุ้มค่าที่สุด (BEST VALUE)" : "⭐ BEST VALUE"}
-                </Text>
-              </View>
-
-              <View
-                style={[
-                  styles.packageHeader,
-                  { backgroundColor: "rgba(255, 193, 7, 0.08)" },
-                ]}
-              >
-                <View style={{ flex: 1 }}>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                    <Text style={[styles.packageName, { color: "#D4A000" }]}>
-                      Signature
-                    </Text>
-                    {selectedPackage === 'signature' && (
-                      <Ionicons name="checkmark-circle" size={20} color="#FFC107" />
-                    )}
-                  </View>
-                  <Text style={styles.packageTagline}>
-                    {locale === "th" ? "สร้างภาพจำแบรนด์" : "Build brand recognition"}
-                  </Text>
-                </View>
-                <View
-                  style={[
-                    styles.iconPlaceholder,
-                    { borderColor: "#FFC107", borderWidth: 1.5 },
-                  ]}
-                />
-              </View>
-              <View style={styles.packageBody}>
-                <View style={styles.priceContainer}>
-                  <Text style={styles.promoPrice}>{storePrices['com.achic.pinc.signature']}</Text>
-                  <Text style={styles.perMonth}>{locale === "th" ? "/เดือน" : "/month"}</Text>
-                </View>
-                <Text style={styles.originalPrice}>
-                  {locale === "th" ? "ปกติ ฿599/เดือน" : "Regular ฿599/month"}
-                </Text>
-
-                <View style={styles.featuresList}>
-                  <Text style={[styles.featureItem, { fontWeight: "700" }]}>
-                    {locale === "th" ? "✓ อัปโหลดรูปร้านค้าได้ 5 รูป" : "✓ Upload up to 5 shop photos"}
-                  </Text>
-                  <Text style={styles.featureItem}>
-                    {locale === "th" ? "✓ โชว์ชื่อร้านบนแผนที่ตลอดเวลา" : "✓ Always show shop name on map"}
-                  </Text>
-                  <Text style={styles.featureItem}>
-                    {locale === "th" ? "✓ หมุดกรอบสีทอง (Gold) หนากว่าปกติ" : "✓ Gold border pin (thicker)"}
-                  </Text>
-                  <Text style={styles.featureItem}>
-                    {locale === "th" ? "✓ โอกาสโชว์ในการค้นหาที่มากกว่า" : "✓ Higher search visibility"}
-                  </Text>
-                </View>
-              </View>
-            </TouchableOpacity>
-
-            {/* Package 3: Destination */}
-            <TouchableOpacity
-              style={[
-                styles.packageCard,
-                { borderColor: "#E5E5E5", borderWidth: 1.5 },
-                selectedPackage === 'destination' && { borderColor: "#FF4B72", borderWidth: 2.5, backgroundColor: "rgba(255, 75, 114, 0.03)" }
+                { borderColor: "#FF4B72", borderWidth: 2.5, backgroundColor: "rgba(255, 75, 114, 0.03)" }
               ]}
               onPress={() => setSelectedPackage('destination')}
               activeOpacity={0.9}
@@ -958,11 +885,9 @@ export const BusinessPackagesModalComponent: React.FC<BusinessPackagesModalProps
                 <View style={{ flex: 1 }}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                     <Text style={[styles.packageName, { color: "#FF4B72" }]}>
-                      Destination
+                      Pinc Business
                     </Text>
-                    {selectedPackage === 'destination' && (
-                      <Ionicons name="checkmark-circle" size={20} color="#FF4B72" />
-                    )}
+                    <Ionicons name="checkmark-circle" size={20} color="#FF4B72" />
                   </View>
                   <Text style={styles.packageTagline}>
                     {locale === "th" ? "เปลี่ยนยอดวิวเป็นยอดขาย" : "Convert views into sales"}
@@ -977,11 +902,11 @@ export const BusinessPackagesModalComponent: React.FC<BusinessPackagesModalProps
               </View>
               <View style={styles.packageBody}>
                 <View style={styles.priceContainer}>
-                  <Text style={styles.promoPrice}>{storePrices['com.achic.pinc.destination']}</Text>
+                  <Text style={styles.promoPrice}>฿299</Text>
                   <Text style={styles.perMonth}>{locale === "th" ? "/เดือน" : "/month"}</Text>
                 </View>
                 <Text style={styles.originalPrice}>
-                  {locale === "th" ? "ปกติ ฿899/เดือน" : "Regular ฿899/month"}
+                  {locale === "th" ? "อัปโหลดรูปภาพได้ไม่จำกัด" : "Unlimited photo uploads"}
                 </Text>
 
                 <View style={styles.featuresList}>
@@ -994,13 +919,13 @@ export const BusinessPackagesModalComponent: React.FC<BusinessPackagesModalProps
                     {locale === "th" ? "✨ ขอเส้นทางได้" : "✨ Get directions"}
                   </Text>
                   <Text style={[styles.featureItem, { fontWeight: "700" }]}>
-                    {locale === "th" ? "✓ อัปโหลดรูปร้านค้าได้ 10 รูป" : "✓ Upload up to 10 shop photos"}
+                    {locale === "th" ? "✓ อัปโหลดรูปร้านค้าได้ไม่จำกัด" : "✓ Unlimited photo uploads"}
                   </Text>
                   <Text style={styles.featureItem}>
-                    {locale === "th" ? "✓ หมุดกรอบสีชมพู (Pink) สุดพรีเมียม" : "✓ Premium pink border pin"}
+                    {locale === "th" ? "✓ หมุดสี่เหลี่ยมขอบสีชมพูสุดพรีเมียม" : "✓ Premium pink rectangular pin"}
                   </Text>
                   <Text style={styles.featureItem}>
-                    {locale === "th" ? "✓ แสดงผลอันดับ 1 ในการค้นหา (Top Priority)" : "✓ Top priority search ranking"}
+                    {locale === "th" ? "✓ แสดงผลอันดับ 1 ในการค้นหา" : "✓ Top priority search ranking"}
                   </Text>
                 </View>
               </View>
@@ -1011,24 +936,45 @@ export const BusinessPackagesModalComponent: React.FC<BusinessPackagesModalProps
 
           {/* Sticky Bottom Panel */}
           <View style={styles.stickyFooter}>
-            <TouchableOpacity
-              style={[
-                styles.stickySelectBtn,
-                { backgroundColor: getButtonColor() },
-                (!selectedPackage || isPurchasing) && styles.stickySelectBtnDisabled
-              ]}
-              onPress={handleSelectPackageTrigger}
-              disabled={!selectedPackage || isPurchasing}
-              activeOpacity={0.8}
-            >
-              {isPurchasing ? (
-                <ActivityIndicator size="small" color={selectedPackage === 'signature' ? "#000000" : "#FFFFFF"} />
-              ) : (
-                <Text style={[styles.stickySelectBtnText, { color: getButtonTextColor() }]}>
-                  {locale === "th" ? "เลือกแพ็กเกจนี้" : "Select this package"}
-                </Text>
-              )}
-            </TouchableOpacity>
+            {earlyBirdQuota !== null && earlyBirdQuota > 0 ? (
+              <TouchableOpacity
+                style={[
+                  styles.stickySelectBtn,
+                  { backgroundColor: "#FF4B72" },
+                  isClaimingEarlyBird && styles.stickySelectBtnDisabled
+                ]}
+                onPress={handleClaimEarlyBird}
+                disabled={isClaimingEarlyBird}
+                activeOpacity={0.8}
+              >
+                {isClaimingEarlyBird ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={[styles.stickySelectBtnText, { color: "#FFFFFF" }]}>
+                    {locale === "th" ? "รับสิทธิ์ฟรี 3 เดือน" : "Claim Free 3 Months"}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={[
+                  styles.stickySelectBtn,
+                  { backgroundColor: getButtonColor() },
+                  (!selectedPackage || isPurchasing) && styles.stickySelectBtnDisabled
+                ]}
+                onPress={handleSelectPackageTrigger}
+                disabled={!selectedPackage || isPurchasing}
+                activeOpacity={0.8}
+              >
+                {isPurchasing ? (
+                  <ActivityIndicator size="small" color={selectedPackage === 'signature' ? "#000000" : "#FFFFFF"} />
+                ) : (
+                  <Text style={[styles.stickySelectBtnText, { color: getButtonTextColor() }]}>
+                    {locale === "th" ? "เลือกแพ็กเกจนี้" : "Select this package"}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            )}
             
             <TouchableOpacity
               style={styles.restoreBtn}

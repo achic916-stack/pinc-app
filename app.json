@@ -2,7 +2,7 @@
   "expo": {
     "name": "pinc",
     "slug": "pinc",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -17,20 +17,22 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.achic.pinc",
+      "buildNumber": "24",
       "config": {
-        "googleMapsApiKey": "AIzaSyCNz0jI3_1nKLiUxQzsTpELei-BKTNzIWM"
+        "googleMapsApiKey": "AIzaSyDfr-uRaMSSgidufIlXi741b_fBv64-DA4"
       },
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "pinc uses your GPS location to verify if you are within 50 meters of the venue for the Live Reality Check.",
-        "NSMicrophoneUsageDescription": "pinc uses your microphone to record audio for videos."
+        "NSMicrophoneUsageDescription": "pinc uses your microphone to record audio for videos.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
       "package": "com.achic.pinc",
-      "versionCode": 11,
+      "versionCode": 24,
       "config": {
         "googleMaps": {
-          "apiKey": "AIzaSyCNz0jI3_1nKLiUxQzsTpELei-BKTNzIWM"
+          "apiKey": "AIzaSyDfr-uRaMSSgidufIlXi741b_fBv64-DA4"
         }
       },
       "adaptiveIcon": {
@@ -38,9 +40,13 @@
         "backgroundColor": "#FDFBF7"
       },
       "permissions": [
-        "ACCESS_COARSE_LOCATION",
-        "ACCESS_FINE_LOCATION",
-        "CAMERA"
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.CAMERA",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.RECORD_AUDIO",
+        "com.android.vending.BILLING"
       ]
     },
     "plugins": [
@@ -63,7 +69,8 @@
         "expo-build-properties",
         {
           "ios": {
-            "deploymentTarget": "15.0"
+            "deploymentTarget": "15.0",
+            "useGoogleMaps": true
           },
           "android": {
             "compileSdkVersion": 35,

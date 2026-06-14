@@ -75,6 +75,9 @@ export interface UserProfile {
     facebookUrl?: string;
     tiktokUrl?: string;
   };
+  subscriptionStatus?: "ACTIVE" | "EARLY_BIRD_PENDING" | "EARLY_BIRD_ACTIVE" | "EXPIRED" | "CANCELLED";
+  subscriptionExpiry?: Date;
+  subscriptionTier?: number;
 }
 
 export interface Venue {
@@ -262,11 +265,13 @@ export async function fetchUserProfile(userId: string): Promise<UserProfile | nu
   if (docSnap.exists()) {
     const data = docSnap.data();
     return {
+      ...data,
       userId: data.userId || docSnap.id,
       username: data.username,
       bio: data.bio,
       profile_pic: data.profile_pic,
-      created_at: (data.created_at as Timestamp)?.toDate() || new Date()
+      created_at: (data.created_at as Timestamp)?.toDate() || new Date(),
+      subscriptionExpiry: data.subscriptionExpiry ? (data.subscriptionExpiry.toDate ? data.subscriptionExpiry.toDate() : new Date(data.subscriptionExpiry)) : undefined
     } as UserProfile;
   }
   return null;
@@ -1256,5 +1261,56 @@ export async function markChatAsRead(chatId: string, userId: string) {
     }, { merge: true });
   } catch (error) {
     console.warn("Firestore markChatAsRead failed:", error);
+  }
+}
+
+// ==========================================
+// CAMPAIGNS & PROMOTIONS
+// ==========================================
+
+export async function claimEarlyBirdPackage(userId: string): Promise<boolean> {
+  if (!userId) return false;
+  const campaignRef = doc(db, "system", "campaigns");
+  const userRef = doc(db, "users", userId);
+
+  try {
+    const success = await runTransaction(db, async (transaction) => {
+      const campaignDoc = await transaction.get(campaignRef);
+      
+      let claimedCount = 0;
+      if (!campaignDoc.exists()) {
+        // Initialize if not exists
+        transaction.set(campaignRef, {
+          early_bird: { claimedCount: 0, maxLimit: 100 }
+        }, { merge: true });
+      } else {
+        const data = campaignDoc.data();
+        claimedCount = data?.early_bird?.claimedCount || 0;
+      }
+
+      if (claimedCount >= 100) {
+        throw new Error("QUOTA_FULL");
+      }
+
+      // Increment quota
+      transaction.set(campaignRef, {
+        early_bird: { claimedCount: claimedCount + 1, maxLimit: 100 }
+      }, { merge: true });
+
+      // Update user status to PENDING
+      transaction.set(userRef, {
+        subscriptionStatus: "EARLY_BIRD_PENDING"
+      }, { merge: true });
+
+      return true;
+    });
+
+    return success;
+  } catch (err: any) {
+    if (err.message === "QUOTA_FULL") {
+      return false; // Quota full
+    }
+    console.error("claimEarlyBirdPackage transaction failed:", err);
+    throw err;
   }
 }

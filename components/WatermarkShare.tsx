@@ -19,12 +19,14 @@ interface WatermarkShareProps {
   photoUri: string;
   locationName: string;
   onClose?: () => void;
+  isVideo?: boolean;
 }
 
 export const WatermarkShare: React.FC<WatermarkShareProps> = ({
   photoUri,
   locationName,
   onClose,
+  isVideo,
 }) => {
   const viewShotRef = useRef<ViewShot>(null);
   const [isSharing, setIsSharing] = useState(false);
@@ -94,6 +96,11 @@ export const WatermarkShare: React.FC<WatermarkShareProps> = ({
 
       {/* Action Buttons */}
       <View style={styles.actionsContainer}>
+        {isVideo && (
+          <Text style={styles.videoWarningText}>
+            ระบบรองรับการแชร์เป็นรูปภาพเท่านั้น
+          </Text>
+        )}
         <TouchableOpacity
           style={styles.shareButton}
           onPress={handleShare}
@@ -182,6 +189,13 @@ const styles = StyleSheet.create({
     marginTop: 30,
     width: PREVIEW_SIZE,
     alignItems: 'center',
+  },
+  videoWarningText: {
+    color: '#FFB8C6',
+    fontSize: 12,
+    marginBottom: 12,
+    textAlign: 'center',
+    fontWeight: '600',
   },
   shareButton: {
     backgroundColor: '#FF4B72',

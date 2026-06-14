@@ -15,7 +15,8 @@ export async function compressImage(uri: string): Promise<string> {
     const { width, height } = await ImageManipulator.manipulateAsync(uri, []);
 
     // 2. Compute resize action maintaining aspect ratio
-    const maxLimit = 1080;
+    // Increased max limit from 1080 to 1440 for higher resolution (competes with IG quality)
+    const maxLimit = 1440;
     const actions: ImageManipulator.Action[] = [];
 
     if (width > maxLimit || height > maxLimit) {
@@ -26,12 +27,12 @@ export async function compressImage(uri: string): Promise<string> {
       }
     }
 
-    // 3. Compress using JPEG format with 0.7 quality
+    // 3. Compress using JPEG format with 0.9 quality (reduced compression for sharper images)
     const result = await ImageManipulator.manipulateAsync(
       uri,
       actions,
       {
-        compress: 0.7,
+        compress: 0.9,
         format: ImageManipulator.SaveFormat.JPEG,
       }
     );

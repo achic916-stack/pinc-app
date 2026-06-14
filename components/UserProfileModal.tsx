@@ -272,7 +272,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             const result = await ImagePicker.launchCameraAsync({
               allowsEditing: true,
               aspect: [1, 1],
-              quality: 0.85
+              quality: 1.0
             });
             if (!result.canceled && result.assets?.length > 0) {
               setEditPreviewPic(result.assets[0].uri);
@@ -291,7 +291,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               mediaTypes: ImagePicker.MediaTypeOptions.Images,
               allowsEditing: true,
               aspect: [1, 1],
-              quality: 0.85
+              quality: 1.0
             });
             if (!result.canceled && result.assets?.length > 0) {
               setEditPreviewPic(result.assets[0].uri);
@@ -428,6 +428,34 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                           )}
                         </TouchableOpacity>
                       </View>
+
+                      {/* Early Bird Pending Banner */}
+                      {profile.subscriptionStatus === "EARLY_BIRD_PENDING" && (
+                        <View style={{ backgroundColor: "#FFF8E1", borderColor: "#FFCA28", borderWidth: 1, padding: 12, borderRadius: 8, marginTop: 12, width: "100%" }}>
+                          <Text style={{ color: "#FF8F00", fontWeight: "bold", fontSize: 13, textAlign: 'center' }}>
+                            {locale === "th" ? "⏳ รอแอดมินอนุมัติสิทธิ์ใช้งาน Premium ฟรี 3 เดือน" : "⏳ Pending Admin Approval for 3 Months Free Premium"}
+                          </Text>
+                        </View>
+                      )}
+
+                      {/* Expiration Warning Banner */}
+                      {profile.subscriptionStatus === "EARLY_BIRD_ACTIVE" && profile.subscriptionExpiry && (
+                        (() => {
+                          const daysLeft = Math.ceil((profile.subscriptionExpiry.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                          if (daysLeft <= 7 && daysLeft > 0) {
+                            return (
+                              <View style={{ backgroundColor: "#FFF0F4", borderColor: "#FF4B72", borderWidth: 1, padding: 12, borderRadius: 8, marginTop: 12, width: "100%" }}>
+                                <Text style={{ color: "#FF4B72", fontWeight: "bold", fontSize: 13, textAlign: 'center' }}>
+                                  {locale === "th" 
+                                    ? `⚠️ สิทธิ์ Premium ฟรีจะหมดอายุใน ${daysLeft} วัน\nกรุณาต่ออายุแพ็กเกจด้านล่างเพื่อคงสิทธิ์การมองเห็นพิเศษ` 
+                                    : `⚠️ Free Premium expires in ${daysLeft} days\nPlease renew your package below to keep your benefits.`}
+                                </Text>
+                              </View>
+                            );
+                          }
+                          return null;
+                        })()
+                      )}
 
                       <TouchableOpacity
                         style={[styles.editProfileBtn, { backgroundColor: "#FFF0F4", borderColor: "#FF4B72", marginTop: 10, width: "100%", minWidth: 0 }]}
@@ -849,6 +877,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             photoUri={sharePin.image_url} 
             locationName={sharePin.username || "Pinc Memory"} 
             onClose={() => setSharePin(null)} 
+            isVideo={sharePin.media_type === 'video'}
           />
         </Modal>
       )}

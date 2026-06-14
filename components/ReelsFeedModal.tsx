@@ -120,6 +120,13 @@ const FeedItem = ({
     }
   };
 
+  const formattedTime = item.timestamp 
+    ? new Date(item.timestamp).toLocaleString(locale === "th" ? "th-TH" : "en-GB", { 
+        day: 'numeric', month: 'short', year: 'numeric', 
+        hour: '2-digit', minute: '2-digit' 
+      }) 
+    : "";
+
   return (
     <View style={styles.itemContainer}>
       {/* Media Background */}
@@ -174,7 +181,10 @@ const FeedItem = ({
             style={{ flexDirection: 'row', alignItems: 'center' }}
           >
             <Image source={{ uri: item.user_profile_pic }} style={styles.avatar} />
-            <Text style={styles.username}>{item.username}</Text>
+            <View>
+              <Text style={styles.username}>{item.username}</Text>
+              {formattedTime ? <Text style={styles.timeText}>{formattedTime}</Text> : null}
+            </View>
           </TouchableOpacity>
           {item.userId !== currentUserId && (
             <TouchableOpacity 
@@ -366,6 +376,7 @@ export const ReelsFeedModal: React.FC<ReelsFeedModalProps> = ({
               photoUri={sharePin.image_url} 
               locationName={sharePin.username || "Pinc Memory"} 
               onClose={() => setSharePin(null)} 
+              isVideo={sharePin.media_type === 'video'}
             />
           </Modal>
         )}
@@ -445,6 +456,11 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     fontSize: 15,
     marginRight: 10,
+  },
+  timeText: {
+    color: "rgba(255, 255, 255, 0.7)",
+    fontSize: 11,
+    marginTop: 2,
   },
   followButton: {
     borderWidth: 1,

@@ -84,6 +84,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
   const [localLikes, setLocalLikes] = useState<{ [pinId: string]: { liked: boolean; count: number } }>({});
   const [commentsCounts, setCommentsCounts] = useState<{ [pinId: string]: number }>({});
   const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null);
+  const [fullScreenFeedImage, setFullScreenFeedImage] = useState<string | null>(null);
 
   // Owner checking & sponsored checks
   const isOwner = venue ? (venue.ownerId === currentUser.userId || currentUser.role === "ADMIN") : false;
@@ -203,7 +204,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
             }
             const result = await ImagePicker.launchCameraAsync({
               allowsEditing: true,
-              quality: 0.85,
+              quality: 1.0,
             });
             if (!result.canceled && result.assets?.length > 0) {
               uploadSingleImage(result.assets[0].uri);
@@ -221,7 +222,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
             const result = await ImagePicker.launchImageLibraryAsync({
               mediaTypes: ImagePicker.MediaTypeOptions.Images,
               allowsEditing: true,
-              quality: 0.85,
+              quality: 1.0,
             });
             if (!result.canceled && result.assets?.length > 0) {
               uploadSingleImage(result.assets[0].uri);
@@ -570,7 +571,12 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
       <View style={styles.venueInfo}>
         {showEditPanel ? (
           /* Owner Administration Panel */
-          <View style={{ gap: 14 }}>
+          <ScrollView 
+            style={{ maxHeight: Platform.OS === 'ios' ? 450 : 500 }} 
+            contentContainerStyle={{ gap: 14, paddingBottom: 20 }}
+            showsVerticalScrollIndicator={true}
+            keyboardShouldPersistTaps="handled"
+          >
             {/* Header Row (Name & Delete & Rating Selector) */}
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
               <TextInput
@@ -741,7 +747,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                 flexDirection: 'row',
                 alignItems: 'center',
                 justifyContent: 'center',
-                backgroundColor: '#FF4B72',
+                backgroundColor: isUploading ? '#999' : '#FF4B72',
                 paddingVertical: 12,
                 borderRadius: 10,
                 gap: 8,
@@ -750,17 +756,23 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                 shadowOffset: { width: 0, height: 4 },
                 shadowOpacity: 0.25,
                 shadowRadius: 4,
-                elevation: 4
+                elevation: 4,
+                opacity: isUploading ? 0.7 : 1
               }}
               onPress={handleSaveShopDetails}
               activeOpacity={0.8}
+              disabled={isUploading}
             >
-              <Ionicons name="save" size={18} color="#FFF" />
+              {isUploading ? (
+                <ActivityIndicator size="small" color="#FFF" />
+              ) : (
+                <Ionicons name="save" size={18} color="#FFF" />
+              )}
               <Text style={{ color: '#FFF', fontWeight: 'bold', fontSize: 14 }}>
-                {locale === "th" ? "💾 บันทึกข้อมูลโพสต์ร้านค้า" : "💾 Save Shop Details"}
+                {isUploading ? (locale === "th" ? "กำลังอัปโหลดข้อมูล..." : "Uploading...") : (locale === "th" ? "💾 บันทึกข้อมูลโพสต์ร้านค้า" : "💾 Save Shop Details")}
               </Text>
             </TouchableOpacity>
-          </View>
+          </ScrollView>
         ) : (
           /* General User Read-Only Panel */
           <>
@@ -943,16 +955,29 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                       borderStyle: 'dashed',
                       borderColor: '#FF4B72',
                       justifyContent: 'center',
-                      alignItems: 'center'
+                      alignItems: 'center',
+                      opacity: isUploading ? 0.5 : 1
                     }
                   ]}
                   activeOpacity={0.7}
                   onPress={handlePickImage}
+                  disabled={isUploading}
                 >
-                  <Ionicons name="add" size={36} color="#FF4B72" />
-                  <Text style={{ fontSize: 10, fontWeight: 'bold', color: '#FF4B72', marginTop: 4 }}>
-                    {locale === "th" ? "เพิ่มรูปภาพ" : "Add Photo"}
-                  </Text>
+                  {isUploading ? (
+                    <>
+                      <ActivityIndicator size="small" color="#FF4B72" />
+                      <Text style={{ fontSize: 10, fontWeight: 'bold', color: '#FF4B72', marginTop: 8 }}>
+                        {locale === "th" ? "กำลังอัปโหลด..." : "Uploading..."}
+                      </Text>
+                    </>
+                  ) : (
+                    <>
+                      <Ionicons name="add" size={36} color="#FF4B72" />
+                      <Text style={{ fontSize: 10, fontWeight: 'bold', color: '#FF4B72', marginTop: 4 }}>
+                        {locale === "th" ? "เพิ่มรูปภาพ" : "Add Photo"}
+                      </Text>
+                    </>
+                  )}
                 </TouchableOpacity>
               )}
             </View>
@@ -1302,7 +1327,9 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                             </TouchableOpacity>
                           )
                         ) : (
-                          <Image source={{ uri: pin.image_url }} style={styles.feedImage} contentFit="cover" />
+                          <TouchableOpacity activeOpacity={0.9} onPress={() => setFullScreenFeedImage(pin.image_url!)}>
+                            <Image source={{ uri: pin.image_url }} style={styles.feedImage} contentFit="cover" />
+                          </TouchableOpacity>
                         )}
 
                         {venue.sponsor_tier === 3 && (
@@ -1418,8 +1445,9 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
         >
           <WatermarkShare
             photoUri={sharePin.image_url}
-            locationName={venue.name}
+            locationName={sharePin.username || "Pinc Memory"}
             onClose={() => setSharePin(null)}
+            isVideo={sharePin.media_type === 'video'}
           />
         </Modal>
       )}
@@ -1463,6 +1491,33 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                 </View>
               )}
             />
+          </View>
+        </Modal>
+      )}
+
+      {/* Full Screen Feed Image Modal */}
+      {fullScreenFeedImage && (
+        <Modal
+          visible={true}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setFullScreenFeedImage(null)}
+        >
+          <View style={styles.fullScreenOverlay}>
+            <TouchableOpacity
+              style={styles.fullScreenCloseBtn}
+              onPress={() => setFullScreenFeedImage(null)}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="close" size={32} color="#FFF" />
+            </TouchableOpacity>
+            <View style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT, justifyContent: "center", alignItems: "center" }}>
+              <Image
+                source={{ uri: fullScreenFeedImage }}
+                style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT }}
+                contentFit="contain"
+              />
+            </View>
           </View>
         </Modal>
       )}

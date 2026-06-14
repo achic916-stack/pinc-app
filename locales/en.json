@@ -49,6 +49,8 @@
     "deleteAccountBtn": "Delete Account & Data",
     "deleteAccountConfirmTitle": "Delete Account?",
     "deleteAccountConfirmMsg": "This action is permanent and complies with GDPR Article 17 (Right to Erasure). All your user profile data will be permanently wiped.",
+    "deleteAccountRequiresRecentLoginTitle": "Deletion Failed",
+    "deleteAccountRequiresRecentLoginMsg": "For your account's security, please log out and log in again before deleting your account.",
     "delete": "Delete",
     "signOut": "Sign Out",
     "languageLabel": "App Language",

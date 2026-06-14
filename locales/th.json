@@ -49,6 +49,8 @@
     "deleteAccountBtn": "ลบและทำลายบัญชีผู้ใช้",
     "deleteAccountConfirmTitle": "ลบบัญชีผู้ใช้?",
     "deleteAccountConfirmMsg": "การดำเนินการนี้เป็นแบบถาวรและสอดคล้องกับ GDPR มาตรา 17 (สิทธิ์ในการถูกลืม) ข้อมูลส่วนตัวของคุณทั้งหมดจะถูกลบออกจากระบบอย่างถาวร",
+    "deleteAccountRequiresRecentLoginTitle": "ไม่สามารถลบบัญชีได้",
+    "deleteAccountRequiresRecentLoginMsg": "เพื่อความปลอดภัยของบัญชี กรุณาออกจากระบบและเข้าสู่ระบบใหม่อีกครั้ง ก่อนทำการลบบัญชี",
     "delete": "ลบ",
     "signOut": "ออกจากระบบ",
     "languageLabel": "ภาษาของแอป",

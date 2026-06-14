@@ -404,11 +404,13 @@ export const MapScreen: React.FC<MapScreenProps> = ({
     });
   }, [allPins]);
 
-  // Precompute the oldest pin (pioneer pin) for each venue
+  // Precompute the oldest permanent pin (pioneer pin) for each venue
   const pioneerPinIds = useMemo(() => {
     const oldestPinsByVenue: Record<string, Pin> = {};
     allPins.forEach(pin => {
-      if (!pin.venueId) return;
+      // Exclude 24h stories from being a Pioneer
+      if (!pin.venueId || pin.post_type === "live_news") return;
+      
       const currentOldest = oldestPinsByVenue[pin.venueId];
       const pinTime = new Date(pin.timestamp).getTime();
       if (!currentOldest || pinTime < new Date(currentOldest.timestamp).getTime()) {
@@ -480,6 +482,14 @@ export const MapScreen: React.FC<MapScreenProps> = ({
     if (followersCount >= 1000) return '#9b59b6'; // Purple
     if (followersCount >= 100) return '#3498db'; // Blue
     return '#E0E0E0'; // Light Gray (Default)
+  };
+
+  // Helper for formatting follower count
+  const formatFollowers = (count: number) => {
+    if (!count) return '0';
+    if (count >= 1000000) return (count / 1000000).toFixed(1) + 'M';
+    if (count >= 1000) return (count / 1000).toFixed(1) + 'k';
+    return count.toString();
   };
 
   // Lifted helper: find latest pin + photo URL for a venue
@@ -735,9 +745,14 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                   </View>
                 </View>
                 {displayName ? (
-                  <Text style={{ marginTop: 0, fontSize: textSize, fontWeight: '800', color: PincTheme.colors.textPrimary, textShadowColor: '#FFF', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3, paddingBottom: 4, paddingHorizontal: 4, lineHeight: Math.max(14, textSize * 1.3), maxWidth: 120, textAlign: 'center' }}>
-                    {displayName}
-                  </Text>
+                  <View style={{ alignItems: 'center' }}>
+                    <Text style={{ marginTop: 0, fontSize: textSize, fontWeight: '800', color: PincTheme.colors.textPrimary, textShadowColor: '#FFF', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3, paddingHorizontal: 4, lineHeight: Math.max(14, textSize * 1.3), maxWidth: 120, textAlign: 'center' }}>
+                      {displayName}
+                    </Text>
+                    <Text style={{ fontSize: Math.max(8, textSize - 2), fontWeight: '700', color: '#666', textShadowColor: '#FFF', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2, paddingBottom: 4 }}>
+                      👥 {formatFollowers(followerStatsCache[nearestPin?.userId] || 0)}
+                    </Text>
+                  </View>
                 ) : null}
               </View>
             </CustomMapMarker>
@@ -885,9 +900,14 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                   )}
                 </View>
                 {pin.username ? (
-                  <Text style={{ marginTop: 2, fontSize: 11, fontWeight: '800', color: PincTheme.colors.textPrimary, textShadowColor: '#FFF', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3, paddingBottom: 4, paddingHorizontal: 4, lineHeight: 15, maxWidth: 120, textAlign: 'center' }}>
-                    {pin.username}
-                  </Text>
+                  <View style={{ alignItems: 'center' }}>
+                    <Text style={{ marginTop: 2, fontSize: 11, fontWeight: '800', color: PincTheme.colors.textPrimary, textShadowColor: '#FFF', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3, paddingHorizontal: 4, lineHeight: 15, maxWidth: 120, textAlign: 'center' }}>
+                      {pin.username}
+                    </Text>
+                    <Text style={{ fontSize: 9, fontWeight: '700', color: '#666', textShadowColor: '#FFF', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2, paddingBottom: 4 }}>
+                      👥 {formatFollowers(followerStatsCache[pin.userId] || 0)}
+                    </Text>
+                  </View>
                 ) : null}
               </View>
             </CustomMapMarker>
@@ -931,22 +951,10 @@ export const MapScreen: React.FC<MapScreenProps> = ({
         })().map(venue => {
           const imageUri = venue.custom_icon_url || venue.cover_image || '';
           const sponsorKey = `sponsor-${venue.venueId}-${imageUri}-${venue.aesthetic_rating}-${venue.crowd_status}`;
-          const isTier1 = venue.sponsor_tier === 1;
-          const isTier2 = venue.sponsor_tier === 2;
-          const isTier3 = venue.sponsor_tier === 3;
-          
-          let borderColor = '#A6A6A6'; // Silver default for Tier 1
-          let borderWidth = 3;
-          if (isTier2) {
-            borderColor = '#FFC107'; // Gold for Tier 2
-            borderWidth = 3;
-          } else if (isTier3) {
-            borderColor = '#FF4B72'; // Pink for Tier 3
-            borderWidth = 3;
-          }
-
-          const markerSize = getMarkerSize(zoomScale);
-          const innerSize = markerSize - 6;
+          const markerHeight = getMarkerSize(zoomScale);
+          const markerWidth = markerHeight * 1.5; // Horizontal rectangle
+          const innerWidth = markerWidth - 6;
+          const innerHeight = markerHeight - 6;
 
           return (
             <CustomMapMarker
@@ -960,11 +968,11 @@ export const MapScreen: React.FC<MapScreenProps> = ({
             >
               <View style={{ alignItems: 'center', justifyContent: 'center', paddingBottom: 10, backgroundColor: 'transparent' }}>
                 <View style={{
-                  width: markerSize,
-                  height: markerSize,
-                  borderRadius: 6, // Square with softened premium edges
-                  borderWidth: borderWidth,
-                  borderColor: borderColor,
+                  width: markerWidth,
+                  height: markerHeight,
+                  borderRadius: 6, // Rectangle with softened premium edges
+                  borderWidth: 3,
+                  borderColor: '#FF4B72', // Premium Pink for Destination package
                   backgroundColor: '#FFFFFF',
                   padding: 2,
                   justifyContent: 'center',
@@ -975,8 +983,8 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                     <Image
                       source={{ uri: venue.custom_icon_url || venue.cover_image }}
                       style={{
-                        width: innerSize,
-                        height: innerSize,
+                        width: innerWidth,
+                        height: innerHeight,
                         borderRadius: 4,
                       }}
                       contentFit="cover"

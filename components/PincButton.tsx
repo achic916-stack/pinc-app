@@ -156,9 +156,10 @@ export const PincButton: React.FC<PincButtonProps> = ({
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: mediaType,
         allowsEditing: true,
-        quality: 0.8, // compress to 80% to minimize network traffic and Firebase storage costs
+        quality: 1.0, 
         base64: true,
-        videoMaxDuration: 15
+        videoMaxDuration: 15,
+        videoQuality: ImagePicker.UIImagePickerControllerQualityType.High
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
@@ -225,7 +226,7 @@ export const PincButton: React.FC<PincButtonProps> = ({
       }
     }
 
-    let finalVenue = nearestVenue;
+    let finalVenue = (nearestVenue && distanceToVenue <= 10) ? nearestVenue : null;
     const loc = currentGPSLocation || userLocation || { latitude: 13.736717, longitude: 100.560481 };
 
     if (!finalVenue) {

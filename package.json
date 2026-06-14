@@ -7,7 +7,7 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "ts:check": "tsc",
-    "postinstall": "node scripts/patch-permissions.js"
+    "postinstall": "node scripts/patch-permissions.js && patch-package"
   },
   "dependencies": {
     "@expo/metro-runtime": "~3.1.3",
@@ -45,6 +45,7 @@
   "devDependencies": {
     "@babel/core": "^7.20.0",
     "@types/react": "~18.2.45",
+    "patch-package": "^8.0.1",
     "typescript": "^5.3.3"
   },
   "private": true

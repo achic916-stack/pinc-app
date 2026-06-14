@@ -26,6 +26,7 @@ import { LoginScreen } from "./screens/LoginScreen";
 import { PincTheme } from "./styles/theme";
 import { ReelsFeedModal } from "./components/ReelsFeedModal";
 import { CachedVideo } from "./components/CachedVideo";
+import { HomeFeedScreen } from "./screens/HomeFeedScreen";
 
 
 const getSafeVideoUrl = (url: string | null | undefined) => {
@@ -80,7 +81,7 @@ export default function App() {
   const [unreadCount, setUnreadCount] = useState(0);
 
   // Active Navigation & Shelf States
-  const [activeTab, setActiveTab] = useState<"home" | "photo" | "video" | "search" | "profile">("home");
+  const [activeTab, setActiveTab] = useState<"home" | "map" | "photo" | "video" | "search" | "profile">("home");
   const [photoShelfVisible, setPhotoShelfVisible] = useState(false);
   const [cameraTarget, setCameraTarget] = useState<{ latitude: number; longitude: number; timestamp: number } | null>(null);
   const [focusSearchTrigger, setFocusSearchTrigger] = useState(0);
@@ -147,8 +148,8 @@ export default function App() {
     );
   };
 
-  const handleHomeTabPress = () => {
-    setActiveTab("home");
+  const handleMapTabPress = () => {
+    setActiveTab("map");
     setPhotoShelfVisible(false);
     setSelectedVenue(null);
     if (userLocation) {
@@ -158,6 +159,12 @@ export default function App() {
         timestamp: Date.now()
       });
     }
+  };
+
+  const handleHomeTabPress = () => {
+    setActiveTab("home");
+    setPhotoShelfVisible(false);
+    setSelectedVenue(null);
   };
 
   const handlePhotoTabPress = () => {
@@ -206,7 +213,7 @@ export default function App() {
       try {
         Purchases.setLogLevel(Purchases.LOG_LEVEL.DEBUG);
         if (Platform.OS === 'ios') {
-          await Purchases.configure({ apiKey: "rc_mock_ios_public_key" });
+          await Purchases.configure({ apiKey: "appl_THvfOyYaLtltSGzIoFZKJDHsoGr" });
         } else if (Platform.OS === 'android') {
           await Purchases.configure({ apiKey: "goog_LTqRNrPiXfbFEAvhSxXaHAyfYyU" });
         }
@@ -564,7 +571,11 @@ export default function App() {
               Alert.alert("Success", t("accountDeleted"));
             } catch (err: any) {
               console.error(err);
-              Alert.alert("Deletion Failed", err.message || "Failed to permanently erase profile.");
+              if (err?.code === 'auth/requires-recent-login' || err?.message?.includes('requires-recent-login')) {
+                Alert.alert(t("deleteAccountRequiresRecentLoginTitle"), t("deleteAccountRequiresRecentLoginMsg"));
+              } else {
+                Alert.alert("Deletion Failed", err.message || "Failed to permanently erase profile.");
+              }
             }
           }
         }
@@ -590,25 +601,40 @@ export default function App() {
       ) : (
         /* If logged in, show Main Map Dashboard */
         <>
-          {/* Main Fullscreen Styled Map */}
-          <MapScreen
-            venues={venues}
-            allPins={allPins}
-            userLocation={userLocation}
-            isLoadingVenues={isLoadingVenues}
-            onSelectVenue={handleSelectVenue}
-            followingVenueIds={followingVenueIds}
-            locale={locale}
-            cameraTarget={cameraTarget}
-            focusSearchTrigger={focusSearchTrigger}
-            selectedMemoryPin={selectedMemoryPin}
-            onClearMemory={() => setSelectedMemoryPin(null)}
-            currentUserId={currentUser?.userId}
-            onDeletePin={handleDeletePin}
-            onOpenUserProfile={(userId) => {
-              setSelectedUserProfileId(userId);
-            }}
-          />
+          <View style={{ flex: 1, display: activeTab === 'map' ? 'flex' : 'none' }}>
+            <MapScreen
+              venues={venues}
+              allPins={allPins}
+              userLocation={userLocation}
+              isLoadingVenues={isLoadingVenues}
+              onSelectVenue={handleSelectVenue}
+              followingVenueIds={followingVenueIds}
+              locale={locale}
+              cameraTarget={cameraTarget}
+              focusSearchTrigger={focusSearchTrigger}
+              selectedMemoryPin={selectedMemoryPin}
+              onClearMemory={() => setSelectedMemoryPin(null)}
+              currentUserId={currentUser?.userId}
+              onDeletePin={handleDeletePin}
+              onOpenUserProfile={(userId) => {
+                setSelectedUserProfileId(userId);
+              }}
+            />
+          </View>
+          <View style={{ flex: 1, display: activeTab === 'home' ? 'flex' : 'none', position: 'absolute', width: '100%', height: '100%', zIndex: 5 }}>
+            <HomeFeedScreen 
+              pins={allPins} 
+              currentUser={currentUser} 
+              onOpenUserProfile={(userId) => {
+                setSelectedUserProfileId(userId);
+              }}
+              onNewPostPress={() => {
+                /* Trigger Map post or build dedicated post flow */
+                setActiveTab('map');
+                Alert.alert("New Post", "Switching to map to attach location. (Or we can implement a mapless post flow here.)");
+              }}
+            />
+          </View>
 
           {/* Floating Action Button "The Pinc Button" */}
           <PincButton
@@ -777,13 +803,22 @@ export default function App() {
 
           {/* Premium Instagram-Style User Bottom Toolbar */}
           <View style={[styles.bottomTabBar, { bottom: Platform.OS === 'ios' ? 24 : 56 }]}>
-            {/* Tab 1: Home */}
+            {/* Tab 1: Home Feed */}
             <TouchableOpacity 
               style={styles.tabBtn} 
               onPress={handleHomeTabPress}
               activeOpacity={0.7}
             >
               <Ionicons name={activeTab === "home" ? "home" : "home-outline"} size={26} color={activeTab === "home" ? "#E4007F" : "#A0A0A0"} />
+            </TouchableOpacity>
+
+            {/* Tab 1.5: Map */}
+            <TouchableOpacity 
+              style={styles.tabBtn} 
+              onPress={handleMapTabPress}
+              activeOpacity={0.7}
+            >
+              <Ionicons name={activeTab === "map" ? "map" : "map-outline"} size={26} color={activeTab === "map" ? "#E4007F" : "#A0A0A0"} />
             </TouchableOpacity>
 
             {/* Tab 2: Photo/Video Shelf */}

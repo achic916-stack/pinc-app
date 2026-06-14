@@ -15,10 +15,12 @@ export async function compressVideo(
   onProgress?: (progress: number) => void
 ): Promise<string> {
   try {
-    const result = await Video.compress(
+      const result = await Video.compress(
       uri,
       {
-        compressionMethod: 'auto',
+        compressionMethod: 'manual',
+        bitrate: 5000000, // 5 Mbps for sharp 1080p video
+        maxSize: 1080,    // 1080p resolution (matches IG)
       },
       (progress: number) => {
         if (onProgress) {
