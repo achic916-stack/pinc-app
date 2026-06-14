@@ -1,4 +1,4 @@
-{
+export default {
   "expo": {
     "name": "pinc",
     "slug": "pinc",
@@ -19,7 +19,7 @@
       "bundleIdentifier": "com.achic.pinc",
       "buildNumber": "24",
       "config": {
-        "googleMapsApiKey": "AIzaSyDfr-uRaMSSgidufIlXi741b_fBv64-DA4"
+        "googleMapsApiKey": process.env.GOOGLE_MAPS_API_KEY
       },
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "pinc uses your GPS location to verify if you are within 50 meters of the venue for the Live Reality Check.",
@@ -32,7 +32,7 @@
       "versionCode": 24,
       "config": {
         "googleMaps": {
-          "apiKey": "AIzaSyDfr-uRaMSSgidufIlXi741b_fBv64-DA4"
+          "apiKey": process.env.GOOGLE_MAPS_API_KEY
         }
       },
       "adaptiveIcon": {
@@ -107,4 +107,4 @@
       }
     }
   }
-}
+};
