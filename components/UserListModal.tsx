@@ -102,7 +102,7 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end"
   },
   modalContent: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: PincTheme.colors.card,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     height: "60%",

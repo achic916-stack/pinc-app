@@ -841,7 +841,7 @@ export const BusinessPackagesModalComponent: React.FC<BusinessPackagesModalProps
             <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
               <Ionicons name="storefront-outline" size={24} color="#FF4B72" style={{ marginRight: 12 }} />
               <View style={styles.headerLeft}>
-                <Text style={styles.headerTitle}>{locale === "th" ? "🏪 สำหรับร้านค้า" : "🏪 For Business"}</Text>
+                <Text style={styles.headerTitle}>{locale === "th" ? "สำหรับร้านค้า" : "For Business"}</Text>
                 <Text style={styles.headerSubtitle}>
                   {locale === "th" ? "เพิ่มยอดขายด้วยพิกัดที่โดดเด่น" : "Boost sales with outstanding pin locations"}
                 </Text>
@@ -1020,7 +1020,7 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     borderBottomWidth: 1,
     borderBottomColor: PincTheme.colors.border,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: PincTheme.colors.card,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
   },
@@ -1055,7 +1055,7 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   packageCard: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: PincTheme.colors.card,
     borderRadius: 16,
     borderWidth: 1.5,
     marginBottom: 24,
@@ -1084,7 +1084,7 @@ const styles = StyleSheet.create({
     height: 44,
     borderRadius: 22,
     borderWidth: 1.5,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: PincTheme.colors.card,
   },
   packageBody: {
     padding: 20,
@@ -1148,7 +1148,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontFamily: PincTheme.fonts.heading,
     fontWeight: "900",
-    color: "#000000",
+    color: PincTheme.colors.textPrimary,
   },
   bottomSpacer: {
     height: 40,
@@ -1158,7 +1158,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderTopWidth: 1,
     borderTopColor: PincTheme.colors.border,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: PincTheme.colors.card,
     ...PincTheme.shadows.md,
   },
   stickySelectBtn: {
@@ -1215,7 +1215,7 @@ const uploadStyles = StyleSheet.create({
     marginTop: 12,
   },
   textInput: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: PincTheme.colors.card,
     borderWidth: 1.5,
     borderColor: PincTheme.colors.border,
     borderRadius: 12,

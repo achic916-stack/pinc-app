@@ -361,7 +361,7 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     borderBottomWidth: 1,
     borderBottomColor: PincTheme.colors.border,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: PincTheme.colors.card,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24
   },
@@ -437,7 +437,7 @@ const styles = StyleSheet.create({
   statCard: {
     flex: 1,
     minWidth: (width - 40 - 12) / 2 - 6,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: PincTheme.colors.card,
     borderRadius: 16,
     padding: 16,
     alignItems: "center",
@@ -482,7 +482,7 @@ const styles = StyleSheet.create({
   },
   tierItem: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: PincTheme.colors.card,
     borderWidth: 1.5,
     borderColor: "#E0E0E0",
     borderRadius: 12,
@@ -510,7 +510,7 @@ const styles = StyleSheet.create({
   },
   emptyState: {
     padding: 24,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: PincTheme.colors.card,
     borderRadius: 16,
     alignItems: "center",
     borderWidth: 1,
@@ -522,7 +522,7 @@ const styles = StyleSheet.create({
     fontFamily: PincTheme.fonts.body
   },
   tableCard: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: PincTheme.colors.card,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: PincTheme.colors.border,

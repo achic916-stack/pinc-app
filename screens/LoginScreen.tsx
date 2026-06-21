@@ -13,8 +13,10 @@ import {
   Image
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Ionicons } from '@expo/vector-icons';
 import { PincTheme } from "../styles/theme";
-import { signInUser, signUpUser } from "../services/firebase";
+import { signInUser, signUpUser, signInWithGoogle, signInWithApple, fetchUserProfile, createUserProfile, UserProfile } from "../services/firebase";
+import * as AppleAuthentication from 'expo-apple-authentication';
 
 interface LoginScreenProps {
   onAuthSuccess: (userProfile: any) => void;
@@ -28,6 +30,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onAuthSuccess }) => {
   const [bio, setBio] = useState("");
   
   const [isLoading, setIsLoading] = useState(false);
+  const [isAppleAvailable, setIsAppleAvailable] = useState(false);
+
+  useEffect(() => {
+    if (Platform.OS === 'ios') {
+      AppleAuthentication.isAvailableAsync().then(setIsAppleAvailable);
+    }
+  }, []);
 
   useEffect(() => {
     const loadSavedEmail = async () => {
@@ -42,6 +51,71 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onAuthSuccess }) => {
     };
     loadSavedEmail();
   }, []);
+
+  const handleGoogleLogin = async () => {
+    setIsLoading(true);
+    try {
+      const user = await signInWithGoogle();
+      let profile = await fetchUserProfile(user.uid);
+      if (!profile) {
+        // Create new profile for Google users
+        const newProfile: UserProfile = {
+          userId: user.uid,
+          username: user.email?.split("@")[0] || `user_${user.uid.slice(0, 5)}`,
+          bio: "Hey there! I am using pinc.",
+          profile_pic: user.photoURL || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80",
+          role: "USER",
+          created_at: new Date(),
+        };
+        await createUserProfile(user.uid, newProfile);
+        profile = newProfile;
+      }
+      onAuthSuccess(profile);
+    } catch (error: any) {
+      if (error.code === 'SIGN_IN_CANCELLED') {
+        // user cancelled the login flow
+      } else if (error.code === 'IN_PROGRESS') {
+        // operation (e.g. sign in) is in progress already
+      } else {
+        Alert.alert("Google Login Failed", error.message || "An unexpected error occurred.");
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleAppleLogin = async () => {
+    setIsLoading(true);
+    try {
+      const user = await signInWithApple();
+      let profile = await fetchUserProfile(user.uid);
+      if (!profile) {
+        const usernameBase = (user as any).appleFullName 
+          ? (user as any).appleFullName.replace(/\s+/g, '_').toLowerCase() 
+          : `user_${user.uid.slice(0, 5)}`;
+          
+        const newProfile: UserProfile = {
+          userId: user.uid,
+          username: usernameBase,
+          bio: "Hey there! I am using pinc.",
+          profile_pic: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80",
+          role: "USER",
+          created_at: new Date(),
+        };
+        await createUserProfile(user.uid, newProfile);
+        profile = newProfile;
+      }
+      onAuthSuccess(profile);
+    } catch (error: any) {
+      if (error.code === 'SIGN_IN_CANCELLED') {
+        // user cancelled the login flow
+      } else {
+        Alert.alert("Apple Sign-In Failed", error.message || "An unexpected error occurred.");
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleAuth = async () => {
     if (!email || !password) {
@@ -184,6 +258,34 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onAuthSuccess }) => {
               </Text>
             )}
           </TouchableOpacity>
+
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 20 }}>
+            <View style={{ flex: 1, height: 1, backgroundColor: PincTheme.colors.border }} />
+            <Text style={{ marginHorizontal: 10, color: PincTheme.colors.textSecondary, fontSize: 12 }}>OR</Text>
+            <View style={{ flex: 1, height: 1, backgroundColor: PincTheme.colors.border }} />
+          </View>
+
+          {/* Google Sign In Button */}
+          <TouchableOpacity
+            style={styles.googleBtn}
+            onPress={handleGoogleLogin}
+            disabled={isLoading}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="logo-google" size={20} color="#DB4437" style={{ marginRight: 10 }} />
+            <Text style={styles.googleBtnText}>Continue with Google</Text>
+          </TouchableOpacity>
+
+          {/* Apple Sign In Button */}
+          {isAppleAvailable && (
+            <AppleAuthentication.AppleAuthenticationButton
+              buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
+              buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+              cornerRadius={PincTheme.borderRadius.md}
+              style={{ width: '100%', height: 52, marginTop: 12 }}
+              onPress={handleAppleLogin}
+            />
+          )}
         </View>
 
         {/* Footer Navigation Switches */}
@@ -222,7 +324,7 @@ const styles = StyleSheet.create({
   },
   logoWrapper: {
     // Premium soft narrow 3D drop shadow
-    shadowColor: "#000000",
+    shadowColor: PincTheme.colors.textPrimary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.16,
     shadowRadius: 6,
@@ -305,6 +407,24 @@ const styles = StyleSheet.create({
     fontFamily: PincTheme.fonts.heading,
     fontWeight: "bold",
     letterSpacing: 1.5,
+    fontSize: 13
+  },
+  googleBtn: {
+    flexDirection: 'row',
+    height: 52,
+    backgroundColor: '#FFF',
+    borderRadius: PincTheme.borderRadius.md,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: PincTheme.colors.border,
+    ...PincTheme.shadows.sm
+  },
+  googleBtnText: {
+    color: "#333",
+    fontFamily: PincTheme.fonts.heading,
+    fontWeight: "bold",
+    letterSpacing: 0.5,
     fontSize: 13
   },
   switchButton: {

@@ -120,18 +120,28 @@ const FeedItem = ({
     }
   };
 
-  const formattedTime = item.timestamp 
-    ? new Date(item.timestamp).toLocaleString(locale === "th" ? "th-TH" : "en-GB", { 
-        day: 'numeric', month: 'short', year: 'numeric', 
-        hour: '2-digit', minute: '2-digit' 
-      }) 
-    : "";
+  let formattedTime = "";
+  if (item.timestamp) {
+    try {
+      const dateObj = (item.timestamp as any).toDate ? (item.timestamp as any).toDate() : new Date(item.timestamp);
+      if (!isNaN(dateObj.getTime())) {
+        formattedTime = dateObj.toLocaleString(locale === "th" ? "th-TH" : "en-GB", { 
+          day: 'numeric', month: 'short', year: 'numeric', 
+          hour: '2-digit', minute: '2-digit' 
+        });
+      }
+    } catch(e) {}
+  }
 
   return (
     <View style={styles.itemContainer}>
+      <LinearGradient 
+        colors={["#0A0A0A", "#262626"]} 
+        style={StyleSheet.absoluteFillObject}
+      />
       {/* Media Background */}
       {item.media_type === "video" ? (
-        <View style={[styles.media, { backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' }]}>
+        <View style={[styles.media, { justifyContent: 'center', alignItems: 'center' }]}>
           {item.thumbnail_url && (
             <Image
               source={{ uri: item.thumbnail_url }}
@@ -388,12 +398,11 @@ export const ReelsFeedModal: React.FC<ReelsFeedModalProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#000",
+    backgroundColor: "#0A0A0A",
   },
   itemContainer: {
     width: windowWidth,
     height: windowHeight,
-    backgroundColor: "#000",
   },
   media: {
     width: "100%",
@@ -448,7 +457,7 @@ const styles = StyleSheet.create({
     height: 36,
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: "#FFF",
+    borderColor: PincTheme.colors.border,
     marginRight: 10,
   },
   username: {
@@ -464,7 +473,7 @@ const styles = StyleSheet.create({
   },
   followButton: {
     borderWidth: 1,
-    borderColor: "#FFF",
+    borderColor: PincTheme.colors.border,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 4,

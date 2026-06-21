@@ -1,6 +1,8 @@
 import React, { useRef, useEffect } from 'react';
 import { StyleSheet, View, ActivityIndicator } from 'react-native';
 import { WebView } from 'react-native-webview';
+import { PincTheme } from "../styles/theme";
+
 
 interface CachedVideoProps {
   source: { uri: string } | null;
@@ -99,12 +101,12 @@ export const CachedVideo: React.FC<CachedVideoProps> = ({ source, ...props }) =>
 const styles = StyleSheet.create({
   container: {
     overflow: 'hidden',
-    backgroundColor: 'black',
+    backgroundColor: PincTheme.colors.textPrimary,
   },
   webview: {
     width: '100%',
     height: '100%',
-    backgroundColor: 'black',
+    backgroundColor: PincTheme.colors.textPrimary,
     opacity: 0.99, // Fix for some Android rendering glitches
   },
   loadingContainer: {

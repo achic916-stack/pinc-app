@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, forwardRef, useImperativeHandle } from "react";
 import {
   View,
   Text,
@@ -84,20 +84,31 @@ export interface PincButtonProps {
     role?: "USER" | "ADMIN" | "PREMIUM_STORE";
   };
   locationTrackingEnabled?: boolean;
+  hideButton?: boolean;
   onPincSuccess?: () => void;
   currentUserId?: string;
+  activeTab?: string;
 }
 
-export const PincButton: React.FC<PincButtonProps> = ({
+export interface PincButtonRef {
+  openMediaSelector: () => void;
+  startVideoPost: () => void;
+  startPhotoPost: () => void;
+  startGalleryPost: () => void;
+}
+
+export const PincButton = forwardRef<PincButtonRef, PincButtonProps>(({
   venues,
   userLocation,
   onPinCreated,
   currentUser,
-  locationTrackingEnabled = true
-}) => {
+  locationTrackingEnabled = true,
+  hideButton = false,
+  activeTab
+}, ref) => {
   const { t, i18n } = useTranslation();
   const [modalVisible, setModalVisible] = useState(false);
-  const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
+  const [capturedPhotos, setCapturedPhotos] = useState<string[]>([]);
   const [capturedMediaType, setCapturedMediaType] = useState<"image" | "video">("image");
   const [text, setText] = useState("");
   const [postType, setPostType] = useState<"standard" | "live_news">("standard");
@@ -111,6 +122,25 @@ export const PincButton: React.FC<PincButtonProps> = ({
   const [compressionProgress, setCompressionProgress] = useState<number>(0);
   const [isSensorsLoading, setIsSensorsLoading] = useState(false);
   const [isMediaSelectorVisible, setIsMediaSelectorVisible] = useState(false);
+  const [isFromGallery, setIsFromGallery] = useState(false);
+
+  useImperativeHandle(ref, () => ({
+    openMediaSelector: () => {
+      setIsMediaSelectorVisible(true);
+    },
+    startVideoPost: () => {
+      setIsMediaSelectorVisible(false);
+      triggerCameraAndGPS(ImagePicker.MediaTypeOptions.Videos);
+    },
+    startPhotoPost: () => {
+      setIsMediaSelectorVisible(false);
+      triggerCameraAndGPS(ImagePicker.MediaTypeOptions.Images);
+    },
+    startGalleryPost: () => {
+      setIsMediaSelectorVisible(false);
+      triggerGalleryAndGPS();
+    }
+  }));
 
   const handleCloseComposer = async () => {
     setModalVisible(false);
@@ -163,14 +193,64 @@ export const PincButton: React.FC<PincButtonProps> = ({
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        setCapturedPhoto(result.assets[0].uri);
+        setCapturedPhotos(result.assets.map(a => a.uri));
         setCapturedMediaType(result.assets[0].type === "video" ? "video" : "image");
         setCapturedBase64(result.assets[0].base64 || null);
+        setIsFromGallery(false);
         setModalVisible(true);
       }
     } catch (error: any) {
       console.error(error);
       Alert.alert("Hardware Trigger Failed", error.message || "Failed to initialize GPS or Camera.");
+    } finally {
+      setIsSensorsLoading(false);
+    }
+  };
+
+  const triggerGalleryAndGPS = async () => {
+    setIsSensorsLoading(true);
+    try {
+      const { status: locationStatus } = await Location.requestForegroundPermissionsAsync();
+      if (locationStatus !== "granted") {
+        Alert.alert("Permission Denied", "GPS location permissions are required to post.");
+        setIsSensorsLoading(false);
+        return;
+      }
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced
+      });
+      const coords = {
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude
+      };
+      setCurrentGPSLocation(coords);
+
+      const { status: galleryStatus } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (galleryStatus !== "granted") {
+        Alert.alert("Permission Denied", "Gallery permissions are required to upload from album.");
+        setIsSensorsLoading(false);
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.All,
+        allowsMultipleSelection: true,
+        quality: 1.0, 
+        base64: true,
+        videoMaxDuration: 15,
+        videoQuality: ImagePicker.UIImagePickerControllerQualityType.High
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setCapturedPhotos(result.assets.map(a => a.uri));
+        setCapturedMediaType(result.assets[0].type === "video" ? "video" : "image");
+        setCapturedBase64(result.assets[0].base64 || null);
+        setIsFromGallery(true);
+        setModalVisible(true);
+      }
+    } catch (error: any) {
+      console.error(error);
+      Alert.alert("Gallery Failed", error.message || "Failed to open album.");
     } finally {
       setIsSensorsLoading(false);
     }
@@ -204,7 +284,7 @@ export const PincButton: React.FC<PincButtonProps> = ({
   const isVerifiedLive = locationTrackingEnabled && nearestVenue && distanceToVenue <= 50; // verified within 50 meters
 
   const handleSubmit = async () => {
-    if (!capturedPhoto) {
+    if (capturedPhotos.length === 0) {
       Alert.alert("Photo Required", t("photoRequired"));
       return;
     }
@@ -261,25 +341,29 @@ export const PincButton: React.FC<PincButtonProps> = ({
 
     setIsSubmitting(true);
     try {
-      let mediaToUpload = capturedPhoto;
+      let mediaUrisToUpload: string[] = [];
       let thumbnailUri = null;
 
-      if (capturedPhoto) {
+      if (capturedPhotos.length > 0) {
         if (capturedMediaType === "image") {
-          setProcessingMessage("Optimizing image...");
-          mediaToUpload = await compressImage(capturedPhoto);
+          setProcessingMessage("Optimizing images...");
+          for (const photo of capturedPhotos) {
+            const compressed = await compressImage(photo);
+            mediaUrisToUpload.push(compressed);
+          }
         } else if (capturedMediaType === "video") {
           setProcessingMessage("Compressing video... 0%");
           setCompressionProgress(0);
-          mediaToUpload = await compressVideo(capturedPhoto, (progress) => {
+          const compressed = await compressVideo(capturedPhotos[0], (progress) => {
             const pct = Math.round(progress * 100);
             setCompressionProgress(progress);
             setProcessingMessage(`Compressing video... ${pct}%`);
           });
+          mediaUrisToUpload.push(compressed);
 
           setProcessingMessage("Generating video thumbnail...");
           try {
-            thumbnailUri = await generateThumbnail(mediaToUpload);
+            thumbnailUri = await generateThumbnail(mediaUrisToUpload[0]);
           } catch (e) {
             console.warn("Could not generate video thumbnail", e);
           }
@@ -303,8 +387,8 @@ export const PincButton: React.FC<PincButtonProps> = ({
         user_profile_pic: currentUser.profile_pic,
         venueId: finalVenue!.venueId,
         venueCoords: { latitude: finalVenue!.latitude, longitude: finalVenue!.longitude },
-        imageUri: mediaToUpload,
-        textContent: text,
+        imageUris: mediaUrisToUpload,
+        textContent: text ? `${text}\n📍 ${finalVenue!.name}` : `📍 ${finalVenue!.name}`,
         userCoords: loc,
         reportType: "live_status",
         postType,
@@ -314,13 +398,15 @@ export const PincButton: React.FC<PincButtonProps> = ({
         musicTitle: "",
         musicUrl: "",
         thumbnailUri: thumbnailUri,
-        postDelayMins: postDelay
+        postDelayMins: postDelay,
+        isPinned: activeTab === 'map'
       });
 
       Alert.alert("Success", t("successPost"));
       setModalVisible(false);
-      setCapturedPhoto(null);
+      setCapturedPhotos([]);
       setCapturedBase64(null);
+      setIsFromGallery(false);
       setText("");
       setPostType("standard");
       setPostDuration("permanent");
@@ -339,9 +425,10 @@ export const PincButton: React.FC<PincButtonProps> = ({
   return (
     <>
       {/* Floating Action Button (FAB) in center-bottom */}
-      <View style={styles.fabContainer}>
-        
-        {/* Custom Media Selector Popup */}
+      {!hideButton && (
+        <View style={styles.fabContainer}>
+          
+          {/* Custom Media Selector Popup */}
         {isMediaSelectorVisible && (
           <View style={styles.mediaSelectorPopup}>
             <TouchableOpacity 
@@ -385,6 +472,7 @@ export const PincButton: React.FC<PincButtonProps> = ({
           )}
         </TouchableOpacity>
       </View>
+      )}
 
       {/* Modal Composer Overlay */}
       <Modal 
@@ -448,24 +536,28 @@ export const PincButton: React.FC<PincButtonProps> = ({
             )}
 
             {/* Post Photo/Video Frame */}
-            {capturedPhoto && (
-              <View style={styles.imageFrame}>
-                {capturedMediaType === "video" ? (
-                  <Video
-                    source={{ uri: capturedPhoto }}
-                    style={styles.previewImage}
-                    resizeMode={ResizeMode.COVER}
-                    shouldPlay
-                    isLooping
-                    isMuted
-                  />
-                ) : (
-                  <Image source={{ uri: capturedPhoto }} style={styles.previewImage} />
-                )}
-                <View style={styles.rawRealityTag}>
-                  <Text style={styles.rawText}>RAW CAMERA • UNEDITED</Text>
-                </View>
-              </View>
+            {capturedPhotos.length > 0 && (
+              <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} style={styles.imageFrame}>
+                {capturedPhotos.map((photoUri, index) => (
+                  <View key={index} style={{ width: 330 }}>
+                    {capturedMediaType === "video" ? (
+                      <Video
+                        source={{ uri: photoUri }}
+                        style={styles.previewImage}
+                        resizeMode={ResizeMode.COVER}
+                        shouldPlay
+                        isLooping
+                        isMuted
+                      />
+                    ) : (
+                      <Image source={{ uri: photoUri }} style={styles.previewImage} />
+                    )}
+                    <View style={styles.rawRealityTag}>
+                      <Text style={styles.rawText}>{isFromGallery ? "FROM ALBUM" : "RAW CAMERA • UNEDITED"}</Text>
+                    </View>
+                  </View>
+                ))}
+              </ScrollView>
             )}
 
             {/* Post Type & Duration Combined Selector */}
@@ -512,7 +604,7 @@ export const PincButton: React.FC<PincButtonProps> = ({
                   <Text style={[styles.liveNewsBlinkText, { fontSize: 10, color: postType === "live_news" ? "#FFF" : PincTheme.colors.textPrimary }]}>
                     Pinc Story
                   </Text>
-                  {postType === "live_news" && <View style={[styles.liveNewsIcon, { backgroundColor: "#FFF" }]} />}
+                  {postType === "live_news" && <View style={[styles.liveNewsIcon, { backgroundColor: PincTheme.colors.card }]} />}
                 </View>
               </TouchableOpacity>
             </View>
@@ -582,7 +674,7 @@ export const PincButton: React.FC<PincButtonProps> = ({
       </Modal>
     </>
   );
-};
+});
 
 const styles = StyleSheet.create({
   fabContainer: {
@@ -599,7 +691,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     // Premium soft narrow 3D drop shadow
-    shadowColor: "#000000",
+    shadowColor: PincTheme.colors.textPrimary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.16,
     shadowRadius: 6,
@@ -1029,7 +1121,7 @@ const styles = StyleSheet.create({
   },
   progressBarFill: {
     height: "100%",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: PincTheme.colors.card,
     borderRadius: 3,
   }
 });

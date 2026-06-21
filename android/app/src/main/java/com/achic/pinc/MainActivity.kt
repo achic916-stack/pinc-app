@@ -2,6 +2,9 @@ package com.achic.pinc
 
 import android.os.Build
 import android.os.Bundle
+import android.content.Context
+import android.content.res.Configuration
+import android.content.res.Resources
 
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
@@ -10,12 +13,34 @@ import com.facebook.react.defaults.DefaultReactActivityDelegate
 
 import expo.modules.ReactActivityDelegateWrapper
 
+import androidx.appcompat.app.AppCompatDelegate
+
 class MainActivity : ReactActivity() {
+  override fun attachBaseContext(newBase: Context) {
+    val configuration = Configuration(newBase.resources.configuration)
+    configuration.uiMode = (configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK.inv()) or Configuration.UI_MODE_NIGHT_NO
+    val context = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
+      newBase.createConfigurationContext(configuration)
+    } else {
+      newBase
+    }
+    super.attachBaseContext(context)
+  }
+
+  override fun getResources(): Resources {
+    val res = super.getResources()
+    val config = Configuration(res.configuration)
+    config.uiMode = (config.uiMode and Configuration.UI_MODE_NIGHT_MASK.inv()) or Configuration.UI_MODE_NIGHT_NO
+    res.updateConfiguration(config, res.displayMetrics)
+    return res
+  }
+
   override fun onCreate(savedInstanceState: Bundle?) {
     // Set the theme to AppTheme BEFORE onCreate to support
     // coloring the background, status bar, and navigation bar.
     // This is required for expo-splash-screen.
     setTheme(R.style.AppTheme);
+    AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO)
     super.onCreate(null)
   }
 

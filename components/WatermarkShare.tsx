@@ -11,6 +11,8 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Sharing from 'expo-sharing';
 import ViewShot from 'react-native-view-shot';
+import { PincTheme } from "../styles/theme";
+
 
 const { width } = Dimensions.get('window');
 const PREVIEW_SIZE = width - 40;
@@ -88,7 +90,7 @@ export const WatermarkShare: React.FC<WatermarkShareProps> = ({
           >
             <View style={styles.watermarkContent}>
               <Text style={styles.locationText}>{locationName}</Text>
-              <Text style={styles.brandText}>Shared via Pinc. 📍</Text>
+              <Text style={styles.brandText}>Shared via Pinc.</Text>
             </View>
           </LinearGradient>
         </ViewShot>
@@ -134,7 +136,7 @@ export const WatermarkShare: React.FC<WatermarkShareProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: PincTheme.colors.textPrimary,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -149,7 +151,7 @@ const styles = StyleSheet.create({
     flex: 1,
     width: '100%',
     height: '100%',
-    backgroundColor: '#000', // ensure background is solid when capturing
+    backgroundColor: PincTheme.colors.textPrimary, // ensure background is solid when capturing
   },
   photo: {
     ...StyleSheet.absoluteFillObject,
@@ -170,16 +172,16 @@ const styles = StyleSheet.create({
   },
   locationText: {
     color: '#fff',
-    fontSize: 24,
+    fontSize: 18,
     fontWeight: '700',
-    marginBottom: 4,
+    marginBottom: 2,
     textShadowColor: 'rgba(0, 0, 0, 0.75)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
   },
   brandText: {
     color: '#FF4B72', // Using Pinc's brand color
-    fontSize: 16,
+    fontSize: 12,
     fontWeight: '600',
     textShadowColor: 'rgba(0, 0, 0, 0.75)',
     textShadowOffset: { width: 0, height: 1 },

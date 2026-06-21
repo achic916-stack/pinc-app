@@ -1,32 +1,32 @@
 export const PincTheme = {
   colors: {
     // Brand & UI Backgrounds
-    background: "#FDFBF7",    // Editorial warm bone-white
-    card: "#FFFFFF",          // Pure white for surface containers
-    border: "#EFECE6",        // Light warm separator borders
-    divider: "#E8E4DB",       // Slightly darker warm dividers
+    background: "#10101A",    // Deep dark blue/black
+    card: "#1A1A2E",          // Dark surface
+    border: "rgba(255, 255, 255, 0.1)", // Glass border
+    divider: "rgba(255, 255, 255, 0.05)", // Soft divider
     
     // Brand Accent
-    primary: "#FF4B72",       // Electric Pinc
-    primaryLight: "#FFEBF0",  // Very soft blush pink
+    primary: "#FF2E63",       // Neon Pink
+    primaryLight: "rgba(255, 46, 99, 0.2)", // Translucent pink
     primaryDark: "#D8234D",   // Rich berry red
     
     // Typography
-    textPrimary: "#1A1A1A",   // Soft charcoal (high contrast, easy on eyes)
-    textSecondary: "#7A756B", // Muted taupe/gray for metadata
-    textTertiary: "#A39E93",  // Slate sand for captions & disabled states
+    textPrimary: "#FFFFFF",   // White
+    textSecondary: "#A0A0A0", // Light Gray
+    textTertiary: "#666666",  // Muted gray
 
     // Crowd & Live Status Colors
     crowdGreen: "#2E7D32",    // Empty/Chill (Emerald)
-    crowdGreenLight: "#E8F5E9",
+    crowdGreenLight: "rgba(46, 125, 50, 0.2)",
     crowdYellow: "#F57C00",   // Moderate (Amber)
-    crowdYellowLight: "#FFF3E0",
+    crowdYellowLight: "rgba(245, 124, 0, 0.2)",
     crowdRed: "#D32F2F",      // Crowded/Long Queue (Crimson)
-    crowdRedLight: "#FFEBEE",
+    crowdRedLight: "rgba(211, 47, 47, 0.2)",
 
     // Overlay / Backdrop
-    backdrop: "rgba(26, 26, 26, 0.4)",
-    glassCard: "rgba(255, 255, 255, 0.8)",
+    backdrop: "rgba(0, 0, 0, 0.6)",
+    glassCard: "rgba(20, 20, 30, 0.7)",
   },
   
   fonts: {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Purchases from "react-native-purchases";
 import { 
   StyleSheet, 
@@ -21,7 +21,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { MapScreen } from "./screens/MapScreen";
 import { VenueDetailsSheet } from "./components/VenueDetailsSheet";
 import { UserProfileModal } from "./components/UserProfileModal";
-import { PincButton } from "./components/PincButton";
+import { PincButton, PincButtonRef } from './components/PincButton';
+import { WatermarkShare } from './components/WatermarkShare';
 import { LoginScreen } from "./screens/LoginScreen";
 import { PincTheme } from "./styles/theme";
 import { ReelsFeedModal } from "./components/ReelsFeedModal";
@@ -90,7 +91,8 @@ export default function App() {
   const [deleteModePinId, setDeleteModePinId] = useState<string | null>(null);
   const [expandedPin, setExpandedPin] = useState<string | null>(null);
   const [activeVideoId, setActiveVideoId] = useState<string | null>(null);
-  const [selectedMemoryPin, setSelectedMemoryPin] = useState<Pin | null>(null);
+  const [selectedPin, setSelectedPin] = useState<Pin | null>(null);
+  const pincButtonRef = useRef<PincButtonRef>(null);
 
   // Settings & GDPR States
   const [locale, setLocale] = useState<"en" | "th">("en");
@@ -197,9 +199,6 @@ export default function App() {
 
   const handleProfileTabPress = () => {
     setActiveTab("profile");
-    if (currentUser) {
-      setSelectedUserProfileId(currentUser.userId);
-    }
   };
 
   // Filter current user's uploaded pins, newest first
@@ -238,21 +237,24 @@ export default function App() {
     };
     prepareApp();
 
+    let unsubscribeProfile: (() => void) | null = null;
+
     // B: Listen to Firebase Auth state changes
     const unsubscribeAuth = auth.onAuthStateChanged(async (user) => {
       setIsAuthChecking(true);
       if (user) {
         try {
           let profile: UserProfile | null = null;
+          let fetchFailed = false;
           try {
             profile = await fetchUserProfile(user.uid);
           } catch (fetchErr) {
-            console.warn("Failed to fetch Firestore user profile, proceeding to resilient fallback.", fetchErr);
-            profile = null;
+            console.warn("Failed to fetch Firestore user profile, proceeding to in-memory fallback.", fetchErr);
+            fetchFailed = true;
           }
           
           if (!profile) {
-            // RESILIENT FALLBACK: If Auth exists but Firestore user document is missing
+            // RESILIENT FALLBACK: If Auth exists but Firestore user document is missing or fetch failed
             const fallbackUsername = user.email ? user.email.split("@")[0].toLowerCase().trim() : "cafe_hopper";
             const fallbackProfile: UserProfile = {
               userId: user.uid,
@@ -262,48 +264,58 @@ export default function App() {
               created_at: new Date()
             };
             
-            try {
-              // Try to write to Firestore
-              await withTimeout(
-                setDoc(doc(db, "users", user.uid), {
-                  userId: user.uid,
-                  username: fallbackUsername,
-                  bio: fallbackProfile.bio,
-                  profile_pic: fallbackProfile.profile_pic,
-                  created_at: new Date()
-                }),
-                3000,
-                "Firestore database write timed out during fallback profile generation."
-              );
-              profile = fallbackProfile;
-            } catch (dbErr: any) {
-              console.warn("Firestore database write failed. Check if Firestore is enabled in Firebase Console.", dbErr);
-              
-              // If it fails because Firestore is not created in the Firebase console, alert the user!
-              Alert.alert(
-                "Database Setup Required",
-                "Your account is registered in Firebase Auth, but Firestore Database has not been initialized yet.\n\n" +
-                "Please go to your Firebase Console -> Firestore Database and click 'Create database' to enable it.",
-                [{ text: "OK" }]
-              );
-              
-              // We still set a temporary memory profile so they don't get stuck on a blank screen
-              profile = fallbackProfile;
+            profile = fallbackProfile;
+
+            // Only attempt to write the fallback to the database if we are SURE the document doesn't exist
+            // (i.e. the fetch succeeded but returned null). If the fetch failed (e.g. offline), DO NOT overwrite.
+            if (!fetchFailed) {
+              try {
+                // Try to write to Firestore with merge: true to avoid accidentally wiping other fields
+                await withTimeout(
+                  setDoc(doc(db, "users", user.uid), {
+                    userId: user.uid,
+                    username: fallbackUsername,
+                    bio: fallbackProfile.bio,
+                    profile_pic: fallbackProfile.profile_pic,
+                    created_at: new Date()
+                  }, { merge: true }),
+                  3000,
+                  "Firestore database write timed out during fallback profile generation."
+                );
+              } catch (dbErr: any) {
+                console.warn("Firestore database write failed.", dbErr);
+              }
             }
           }
           
           setCurrentUser(profile);
+
+          // Listen for real-time updates to the profile (e.g., if changed from web app)
+          if (unsubscribeProfile) unsubscribeProfile();
+          unsubscribeProfile = onSnapshot(doc(db, "users", user.uid), (docSnap) => {
+            if (docSnap.exists()) {
+              setCurrentUser(docSnap.data() as UserProfile);
+            }
+          });
+
         } catch (err: any) {
           console.error("Failed to load user profile.", err);
           Alert.alert("Database Error", "Failed to load database. Ensure Firestore is created in your Firebase Console.");
         }
       } else {
         setCurrentUser(null);
+        if (unsubscribeProfile) {
+          unsubscribeProfile();
+          unsubscribeProfile = null;
+        }
       }
       setIsAuthChecking(false);
     });
 
-    return () => unsubscribeAuth();
+    return () => {
+      unsubscribeAuth();
+      if (unsubscribeProfile) unsubscribeProfile();
+    };
   }, []);
 
   // 2. Fetch User GPS Location
@@ -593,7 +605,7 @@ export default function App() {
   }
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={PincTheme.colors.background} />
+      <StatusBar barStyle="light-content" backgroundColor={PincTheme.colors.background} />
 
       {!currentUser ? (
         /* If NOT logged in, show Sleek Sand Login Screen */
@@ -612,8 +624,8 @@ export default function App() {
               locale={locale}
               cameraTarget={cameraTarget}
               focusSearchTrigger={focusSearchTrigger}
-              selectedMemoryPin={selectedMemoryPin}
-              onClearMemory={() => setSelectedMemoryPin(null)}
+              selectedMemoryPin={selectedPin}
+              onClearMemory={() => setSelectedPin(null)}
               currentUserId={currentUser?.userId}
               onDeletePin={handleDeletePin}
               onOpenUserProfile={(userId) => {
@@ -623,26 +635,30 @@ export default function App() {
           </View>
           <View style={{ flex: 1, display: activeTab === 'home' ? 'flex' : 'none', position: 'absolute', width: '100%', height: '100%', zIndex: 5 }}>
             <HomeFeedScreen 
-              pins={allPins} 
-              currentUser={currentUser} 
-              onOpenUserProfile={(userId) => {
-                setSelectedUserProfileId(userId);
-              }}
-              onNewPostPress={() => {
-                /* Trigger Map post or build dedicated post flow */
-                setActiveTab('map');
-                Alert.alert("New Post", "Switching to map to attach location. (Or we can implement a mapless post flow here.)");
-              }}
-            />
+                pins={allPins}
+                currentUser={currentUser as UserProfile}
+                onOpenUserProfile={(userId) => {
+                  setSelectedUserProfileId(userId);
+                }}
+                onNewPostPress={() => {
+                  pincButtonRef.current?.openMediaSelector();
+                }}
+                onStartVideoPost={() => pincButtonRef.current?.startVideoPost()}
+                onStartPhotoPost={() => pincButtonRef.current?.startPhotoPost()}
+                onStartGalleryPost={() => pincButtonRef.current?.startGalleryPost()}
+              />
           </View>
 
           {/* Floating Action Button "The Pinc Button" */}
           <PincButton
+            ref={pincButtonRef}
             venues={venues}
             userLocation={userLocation}
             onPinCreated={handlePinCreated}
             currentUser={currentUser}
             locationTrackingEnabled={locationTrackingEnabled}
+            hideButton={activeTab === 'home' || activeTab === 'profile' || photoShelfVisible || selectedUserProfileId !== null}
+            activeTab={activeTab}
           />
 
           {/* Reality Check Sliding Sheet (For Advertiser/Business Packages) */}
@@ -697,7 +713,7 @@ export default function App() {
             currentUserId={currentUser?.userId || ""}
             onClose={() => setSelectedUserProfileId(null)}
             onSelectMemory={(pin) => {
-              setSelectedMemoryPin(pin);
+              setSelectedPin(pin);
               setSelectedUserProfileId(null);
               setActiveTab("home");
             }}
@@ -720,14 +736,11 @@ export default function App() {
 
           {/* Reality Check Sliding Shelf (User Pins Photo Drawer) */}
           {photoShelfVisible && (
-            <View style={[styles.photoShelfContainer, { bottom: Platform.OS === 'ios' ? 110 : 132 }]}>
+            <View style={styles.photoShelfContainer}>
               <View style={styles.shelfHeader}>
-                <Text style={styles.shelfTitle}>
-                  {locale === "th" ? "ภาพและวิดีโอของคุณ" : "Your Uploads"} ({currentUserPins.length})
+                <Text style={[styles.shelfTitle, { color: PincTheme.colors.primary, fontSize: 24, fontWeight: '800' }]}>
+                  Pinc Album ({currentUserPins.length})
                 </Text>
-                <TouchableOpacity onPress={() => setPhotoShelfVisible(false)} style={styles.shelfCloseBtn}>
-                  <Text style={styles.shelfCloseText}>✕</Text>
-                </TouchableOpacity>
               </View>
               {currentUserPins.length === 0 ? (
                 <View style={styles.shelfEmpty}>
@@ -737,8 +750,7 @@ export default function App() {
                 </View>
               ) : (
                 <ScrollView 
-                  horizontal 
-                  showsHorizontalScrollIndicator={false}
+                  showsVerticalScrollIndicator={false}
                   contentContainerStyle={styles.shelfScrollContent}
                 >
                   {currentUserPins.map((pin) => {
@@ -751,7 +763,8 @@ export default function App() {
                           if (deleteModePinId) {
                             setDeleteModePinId(null);
                           } else {
-                            setSelectedMemoryPin(pin);
+                            setSelectedPin(pin);
+                            setActiveTab("map");
                             setPhotoShelfVisible(false);
                           }
                         }}
@@ -798,8 +811,40 @@ export default function App() {
                   })}
                 </ScrollView>
               )}
+              </View>
+            )}
+  
+            {/* Profile Tab View (Full screen, no modal) */}
+            <View style={{ flex: 1, display: activeTab === 'profile' ? 'flex' : 'none', position: 'absolute', width: '100%', height: '100%', zIndex: 5, backgroundColor: PincTheme.colors.background }}>
+              {currentUser && activeTab === 'profile' && (
+                <UserProfileModal
+                  isModal={false}
+                  visible={true}
+                  userId={currentUser.userId}
+                  currentUserId={currentUser.userId}
+                  onClose={() => {}}
+                  locale={locale}
+                  setLocale={setLocale}
+                  currentUserProfile={currentUser as UserProfile}
+                  onSelectMemory={(pin) => {
+                    setSelectedPin(pin);
+                    setActiveTab("home");
+                  }}
+                  onDeletePin={handleDeletePin}
+                  setUserId={setSelectedUserProfileId}
+                  venues={venues}
+                  onSelectEditVenue={(shop) => {
+                    setSelectedVenue(shop);
+                    setIsEditingVenue(true);
+                  }}
+                  onUpdateProfile={handleAuthSuccess}
+                  locationTrackingEnabled={locationTrackingEnabled}
+                  setLocationTrackingEnabled={setLocationTrackingEnabled}
+                  onSignOut={handleSignOut}
+                  onDeleteAccount={handleDeleteAccount}
+                />
+              )}
             </View>
-          )}
 
           {/* Premium Instagram-Style User Bottom Toolbar */}
           <View style={[styles.bottomTabBar, { bottom: Platform.OS === 'ios' ? 24 : 56 }]}>
@@ -839,14 +884,7 @@ export default function App() {
               <Ionicons name={activeTab === "video" ? "film" : "film-outline"} size={26} color={activeTab === "video" ? "#E4007F" : "#A0A0A0"} />
             </TouchableOpacity>
 
-            {/* Tab 4: Search/Magnifier */}
-            <TouchableOpacity 
-              style={styles.tabBtn} 
-              onPress={handleSearchTabPress}
-              activeOpacity={0.7}
-            >
-              <Ionicons name={activeTab === "search" ? "search" : "search-outline"} size={26} color={activeTab === "search" ? "#E4007F" : "#A0A0A0"} />
-            </TouchableOpacity>
+
 
             {/* Tab 5: Profile (IG-Style Avatar) */}
             <TouchableOpacity 
@@ -1179,15 +1217,14 @@ const styles = StyleSheet.create({
   // Photo Shelf Styles
   photoShelfContainer: {
     position: "absolute",
-    left: 16,
-    right: 16,
-    backgroundColor: "#FDFBF7F5", // Semi-transparent warm cream bone-white to match theme
-    borderRadius: PincTheme.borderRadius.md,
-    borderWidth: 1.5,
-    borderColor: PincTheme.colors.border,
-    padding: 12,
-    zIndex: 998,
-    ...PincTheme.shadows.lg
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: PincTheme.colors.background,
+    zIndex: 4,
+    paddingTop: Platform.OS === 'android' ? 50 : 30,
+    paddingHorizontal: 16,
   },
   shelfHeader: {
     flexDirection: "row",
@@ -1222,29 +1259,31 @@ const styles = StyleSheet.create({
   },
   shelfScrollContent: {
     flexDirection: "row",
-    gap: 8,
-    paddingRight: 10
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    paddingBottom: 150
   },
   shelfItem: {
-    width: 64,
-    height: 64,
+    width: "31%",
+    aspectRatio: 1,
     borderRadius: 8,
     overflow: "hidden",
     borderWidth: 1,
     borderColor: PincTheme.colors.border,
-    position: "relative"
+    position: "relative",
+    marginBottom: 12
   },
   shelfImage: {
     width: "100%",
     height: "100%",
     resizeMode: "cover"
-  },
+  } as any,
   deleteBadgeBtn: {
     position: "absolute",
     top: "50%",
     left: "50%",
     transform: [{ translateX: -12 }, { translateY: -12 }],
-    backgroundColor: "#FFF",
+    backgroundColor: PincTheme.colors.card,
     borderRadius: 12,
     zIndex: 10
   },
@@ -1275,7 +1314,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.1)",
-    shadowColor: "#000",
+    shadowColor: PincTheme.colors.textPrimary,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.3,
     shadowRadius: 12,

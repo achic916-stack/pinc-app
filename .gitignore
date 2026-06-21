@@ -20,3 +20,9 @@ web-build/
 # Bare native directories
 ios/
 android/
+
+# Ignore sensitive files and large binaries
+.env
+*.apk
+.idea/
+scripts_tmp/

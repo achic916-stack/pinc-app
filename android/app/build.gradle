@@ -89,8 +89,8 @@ missingDimensionStrategy "store", "play"
         applicationId 'com.achic.pinc'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 17
-        versionName "1.0.2"
+        versionCode 109
+        versionName "1.0.9"
 
         buildConfigField("boolean", "REACT_NATIVE_UNSTABLE_USE_RUNTIME_SCHEDULER_ALWAYS", (findProperty("reactNative.unstable_useRuntimeSchedulerAlways") ?: true).toString())
     }
@@ -101,6 +101,12 @@ missingDimensionStrategy "store", "play"
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        release {
+            storeFile file('pinc-release.jks')
+            storePassword '63d845d200905ae21e0f7f79d069a57b'
+            keyAlias '8868f87a95651653d374c9a2f6a9e9d1'
+            keyPassword '61237d807934f76c25a09ca67e4c8f2b'
+        }
     }
     buildTypes {
         debug {
@@ -109,7 +115,7 @@ missingDimensionStrategy "store", "play"
         release {
             // Caution! In production, you need to generate your own keystore file.
             // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            signingConfig signingConfigs.release
             shrinkResources (findProperty('android.enableShrinkResourcesInReleaseBuilds')?.toBoolean() ?: false)
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"

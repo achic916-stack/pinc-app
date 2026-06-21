@@ -728,7 +728,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                   padding: 10,
                   fontSize: 13,
                   color: PincTheme.colors.textPrimary,
-                  backgroundColor: '#FFF',
+                  backgroundColor: PincTheme.colors.card,
                   minHeight: 64,
                   textAlignVertical: 'top'
                 }}
@@ -1344,7 +1344,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                               borderRadius: 20,
                               flexDirection: 'row',
                               alignItems: 'center',
-                              shadowColor: '#000',
+                              shadowColor: PincTheme.colors.textPrimary,
                               shadowOffset: { width: 0, height: 2 },
                               shadowOpacity: 0.25,
                               shadowRadius: 3.84,
@@ -1781,7 +1781,7 @@ const styles = StyleSheet.create({
     lineHeight: 18
   },
   summaryWidget: {
-    backgroundColor: "#FDFBF7",
+    backgroundColor: PincTheme.colors.background,
     borderWidth: 1,
     borderColor: PincTheme.colors.border,
     borderRadius: PincTheme.borderRadius.md,

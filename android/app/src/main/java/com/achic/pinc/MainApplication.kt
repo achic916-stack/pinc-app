@@ -2,6 +2,9 @@ package com.achic.pinc
 
 import android.app.Application
 import android.content.res.Configuration
+import android.content.Context
+import android.content.res.Resources
+import android.os.Build
 import androidx.annotation.NonNull
 
 import com.facebook.react.PackageList
@@ -19,7 +22,28 @@ import com.facebook.soloader.SoLoader
 import expo.modules.ApplicationLifecycleDispatcher
 import expo.modules.ReactNativeHostWrapper
 
+import androidx.appcompat.app.AppCompatDelegate
+
 class MainApplication : Application(), ReactApplication {
+
+  override fun attachBaseContext(base: Context) {
+    val configuration = Configuration(base.resources.configuration)
+    configuration.uiMode = (configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK.inv()) or Configuration.UI_MODE_NIGHT_NO
+    val context = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
+      base.createConfigurationContext(configuration)
+    } else {
+      base
+    }
+    super.attachBaseContext(context)
+  }
+
+  override fun getResources(): Resources {
+    val res = super.getResources()
+    val config = Configuration(res.configuration)
+    config.uiMode = (config.uiMode and Configuration.UI_MODE_NIGHT_MASK.inv()) or Configuration.UI_MODE_NIGHT_NO
+    res.updateConfiguration(config, res.displayMetrics)
+    return res
+  }
 
   override val reactNativeHost: ReactNativeHost = ReactNativeHostWrapper(
         this,
@@ -44,6 +68,7 @@ class MainApplication : Application(), ReactApplication {
 
   override fun onCreate() {
     super.onCreate()
+    AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO)
     SoLoader.init(this, false)
     if (!BuildConfig.REACT_NATIVE_UNSTABLE_USE_RUNTIME_SCHEDULER_ALWAYS) {
       ReactFeatureFlags.unstable_useRuntimeSchedulerAlways = false

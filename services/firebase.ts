@@ -24,6 +24,9 @@ import {
 } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL, uploadString } from "firebase/storage";
 import * as FileSystem from 'expo-file-system';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import * as AppleAuthentication from 'expo-apple-authentication';
+import * as Crypto from 'expo-crypto';
 import { 
   // @ts-ignore
   initializeAuth,
@@ -32,6 +35,9 @@ import {
   getAuth,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  GoogleAuthProvider,
+  OAuthProvider,
+  signInWithCredential,
   signOut,
   User,
   deleteUser
@@ -54,6 +60,12 @@ const firebaseConfig = {
 
 // Initialize Firebase
 export const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+
+// Configure Google Sign-In
+GoogleSignin.configure({
+  webClientId: '929703082491-9p6bktev8sa78csv6s2n5ugf1568egls.apps.googleusercontent.com',
+  iosClientId: '929703082491-4d1jqjf73mif9i46c4t8166t1girkmvn.apps.googleusercontent.com',
+});
 export const db = getFirestore(app);
 export const auth = initializeAuth(app, {
   persistence: Platform.OS === 'web' ? undefined : getReactNativePersistence(AsyncStorage)
@@ -78,6 +90,8 @@ export interface UserProfile {
   subscriptionStatus?: "ACTIVE" | "EARLY_BIRD_PENDING" | "EARLY_BIRD_ACTIVE" | "EXPIRED" | "CANCELLED";
   subscriptionExpiry?: Date;
   subscriptionTier?: number;
+  pinColor?: string;
+  savedPins?: string[];
 }
 
 export interface Venue {
@@ -132,10 +146,12 @@ export interface Pin {
   is_live: boolean;
   is_live_verified: boolean;
   report_type: "aesthetic" | "live_status";
+  is_pinned?: boolean;
   live_crowd_vote?: "chill" | "moderate" | "packed";
   user_aesthetic_rating?: number; // Optional user aesthetic rating review
   likes?: string[]; // Array of userIds who liked this pin
   media_type?: "image" | "video";
+  media_urls?: string[];
   likesCount?: number;
   commentsCount?: number;
   music_title?: string;
@@ -147,6 +163,7 @@ export interface Pin {
     facebookUrl?: string;
     tiktokUrl?: string;
   };
+  pinColor?: string;
 }
 
 export interface Comment {
@@ -250,6 +267,84 @@ export async function signInUser(email: string, password: string): Promise<User>
 }
 
 /**
+ * Signs in a user with Google.
+ */
+export async function signInWithGoogle(): Promise<User> {
+  try {
+    if (Platform.OS === 'android') {
+      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+    }
+    const userInfo = await GoogleSignin.signIn();
+    let idToken = userInfo.idToken;
+    
+    // For older versions of the library it might be in userInfo.data.idToken
+    if (!idToken && (userInfo as any).data?.idToken) {
+      idToken = (userInfo as any).data.idToken;
+    }
+
+    if (!idToken) {
+      throw new Error("No ID token found from Google Sign-In");
+    }
+
+    const googleCredential = GoogleAuthProvider.credential(idToken);
+    const userCredential = await signInWithCredential(auth, googleCredential);
+    return userCredential.user;
+  } catch (error: any) {
+    console.error("Google Sign-In Error:", error);
+    throw error;
+  }
+}
+
+/**
+ * Signs in a user with Apple.
+ */
+export async function signInWithApple(): Promise<User> {
+  try {
+    const csrf = Math.random().toString(36).substring(2, 15);
+    const nonce = Math.random().toString(36).substring(2, 10);
+    const hashedNonce = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, nonce);
+
+    const appleAuthRequestResponse = await AppleAuthentication.signInAsync({
+      requestedScopes: [
+        AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+        AppleAuthentication.AppleAuthenticationScope.EMAIL,
+      ],
+      state: csrf,
+      nonce: hashedNonce,
+    });
+
+    const { identityToken, fullName } = appleAuthRequestResponse;
+    if (!identityToken) {
+      throw new Error("No identity token provided by Apple Sign In");
+    }
+
+    const provider = new OAuthProvider("apple.com");
+    const credential = provider.credential({
+      idToken: identityToken,
+      rawNonce: nonce,
+    });
+
+    const userCredential = await signInWithCredential(auth, credential);
+    
+    // Pass along full name if available (Apple only sends this on first login)
+    if (fullName && fullName.givenName) {
+      (userCredential.user as any).appleFullName = `${fullName.givenName} ${fullName.familyName || ''}`.trim();
+    }
+    
+    return userCredential.user;
+  } catch (error: any) {
+    if (error.code === 'ERR_REQUEST_CANCELED') {
+      // User cancelled
+      const cancelError: any = new Error("SIGN_IN_CANCELLED");
+      cancelError.code = "SIGN_IN_CANCELLED";
+      throw cancelError;
+    }
+    console.error("Apple Sign-In Error:", error);
+    throw error;
+  }
+}
+
+/**
  * Signs out the current user.
  */
 export async function signOutUser(): Promise<void> {
@@ -275,6 +370,14 @@ export async function fetchUserProfile(userId: string): Promise<UserProfile | nu
     } as UserProfile;
   }
   return null;
+}
+
+/**
+ * Creates a new user profile in Firestore.
+ */
+export async function createUserProfile(userId: string, data: UserProfile): Promise<void> {
+  const docRef = doc(db, "users", userId);
+  await setDoc(docRef, data);
 }
 
 /**
@@ -340,6 +443,23 @@ export async function updateUserProfile(userId: string, data: Partial<UserProfil
       }
     } catch (err) {
       console.warn("Failed to synchronize profile picture in pins/comments:", err);
+    }
+  }
+
+  // 3. If pinColor is changed, synchronize it across all user's pins
+  if (data.pinColor !== undefined) {
+    try {
+      const pinsQuery = query(collection(db, "pins"), where("userId", "==", userId));
+      const pinsSnapshot = await getDocs(pinsQuery);
+      if (!pinsSnapshot.empty) {
+        const batch = writeBatch(db);
+        pinsSnapshot.docs.forEach((pinDoc) => {
+          batch.update(pinDoc.ref, { pinColor: data.pinColor });
+        });
+        await batch.commit();
+      }
+    } catch (err) {
+      console.warn("Failed to synchronize pinColor in pins:", err);
     }
   }
 }
@@ -679,6 +799,7 @@ export async function createPin(params: {
   venueId: string;
   venueCoords: { latitude: number; longitude: number };
   imageUri?: string | null;
+  imageUris?: string[];
   textContent: string;
   userCoords: { latitude: number; longitude: number };
   aestheticRating?: number; // Optional user aesthetic rating
@@ -692,16 +813,17 @@ export async function createPin(params: {
   postDuration?: "permanent" | "24h";
   thumbnailUri?: string | null;
   postDelayMins?: number;
+  isPinned?: boolean;
 }): Promise<string> {
   const { 
     userId, 
-    username, 
-    user_profile_pic, 
-    venueId, 
-    venueCoords, 
-    imageUri, 
-    textContent, 
-    userCoords,
+    username,      user_profile_pic, 
+      venueId, 
+      venueCoords, 
+      imageUri, 
+      imageUris,
+      textContent, 
+      userCoords,
     aestheticRating,
     reportType,
     liveCrowdVote,
@@ -714,18 +836,22 @@ export async function createPin(params: {
     thumbnailUri
   } = params;
 
-  // 1. Upload media to Firebase Storage
-  let imageUrl = "";
-  if (imageUri) {
-    try {
-      imageUrl = await uploadPinImage(imageUri, userId);
-    } catch (uploadErr: any) {
-      console.error("Firebase Storage upload failed:", uploadErr);
-      throw new Error(
-        `Failed to upload media to Firebase Storage. Please verify that your Storage bucket is initialized in your Firebase Console.\n\nDetail: ${uploadErr.message || uploadErr}`
-      );
+    // 1. Upload media to Firebase Storage
+    const urisToUpload = imageUris || (imageUri ? [imageUri] : []);
+    const downloadUrls: string[] = [];
+    
+    for (const uri of urisToUpload) {
+      try {
+        const uploadedUrl = await uploadPinImage(uri, userId);
+        downloadUrls.push(uploadedUrl);
+      } catch (uploadErr: any) {
+        console.error("Firebase Storage upload failed:", uploadErr);
+        throw new Error(
+          `Failed to upload media to Firebase Storage.\n\nDetail: ${uploadErr.message || uploadErr}`
+        );
+      }
     }
-  }
+    const imageUrl = downloadUrls.length > 0 ? downloadUrls[0] : "";
 
   // 1.5 Upload thumbnail if provided
   let thumbnailUrl = "";
@@ -764,12 +890,24 @@ export async function createPin(params: {
   // 3. Create document properties
   const geohash = encodeGeohash(userCoords.latitude, userCoords.longitude, 9);
   
+  // Fetch user profile to get their preferred pinColor
+  let userPinColor = "#FF69B4";
+  try {
+    const userDoc = await getDoc(doc(db, "users", userId));
+    if (userDoc.exists()) {
+      userPinColor = userDoc.data().pinColor || "#FF69B4";
+    }
+  } catch (err) {
+    console.warn("Failed to fetch user pin color", err);
+  }
+  
   const pinData: any = {
     userId,
     username,
     user_profile_pic,
     venueId,
     image_url: imageUrl,
+    media_urls: downloadUrls,
     text_content: textContent,
     timestamp: finalTimestamp,
     latitude: userCoords.latitude,
@@ -782,13 +920,15 @@ export async function createPin(params: {
     is_live_verified: isLive,
     report_type: reportType,
     live_crowd_vote: liveCrowdVote || null,
+    is_pinned: params.isPinned || false,
     media_type: mediaType,
     likesCount: 0,
     commentsCount: 0,
     music_title: musicTitle,
     music_url: musicUrl,
     thumbnail_url: thumbnailUrl || null,
-    expiresAt: computedExpiresAt
+    expiresAt: computedExpiresAt,
+    pinColor: userPinColor
   };
 
   if (typeof aestheticRating === "number") {
@@ -1026,6 +1166,41 @@ export async function toggleLikePin(pinId: string, userId: string): Promise<bool
   );
 
   return isLikedNow;
+}
+
+/**
+ * Toggles save/bookmark status for a pin on the user's profile.
+ * Returns true if the pin is now saved by the user, false if unsaved.
+ */
+export async function toggleSavePin(pinId: string, userId: string): Promise<boolean> {
+  const userRef = doc(db, "users", userId);
+  let isSavedNow = false;
+
+  await withTimeout(
+    runTransaction(db, async (transaction) => {
+      const userDoc = await transaction.get(userRef);
+      if (!userDoc.exists()) {
+        throw new Error("User does not exist");
+      }
+
+      const savedPinsArray = userDoc.data().savedPins || [];
+      if (savedPinsArray.includes(pinId)) {
+        transaction.update(userRef, {
+          savedPins: arrayRemove(pinId)
+        });
+        isSavedNow = false;
+      } else {
+        transaction.update(userRef, {
+          savedPins: arrayUnion(pinId)
+        });
+        isSavedNow = true;
+      }
+    }),
+    5000,
+    "Toggling save operation timed out."
+  );
+
+  return isSavedNow;
 }
 
 /**

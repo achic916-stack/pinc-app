@@ -6,6 +6,7 @@ export default {
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "backgroundColor": "#14141e",
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
@@ -16,10 +17,11 @@ export default {
     ],
     "ios": {
       "supportsTablet": false,
+      "usesAppleSignIn": true,
       "bundleIdentifier": "com.achic.pinc",
-      "buildNumber": "24",
+      "buildNumber": "121",
       "config": {
-        "googleMapsApiKey": process.env.GOOGLE_MAPS_API_KEY
+        "googleMapsApiKey": "AIzaSyBbJUZkNbkXqIe8BodSWz7xxGkHaM2ywJw"
       },
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "pinc uses your GPS location to verify if you are within 50 meters of the venue for the Live Reality Check.",
@@ -29,10 +31,10 @@ export default {
     },
     "android": {
       "package": "com.achic.pinc",
-      "versionCode": 24,
+      "versionCode": 108,
       "config": {
         "googleMaps": {
-          "apiKey": process.env.GOOGLE_MAPS_API_KEY
+          "apiKey": "AIzaSyBbJUZkNbkXqIe8BodSWz7xxGkHaM2ywJw"
         }
       },
       "adaptiveIcon": {
@@ -96,7 +98,14 @@ export default {
           }
         }
       ],
-      "expo-localization"
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.929703082491-4d1jqjf73mif9i46c4t8166t1girkmvn"
+        }
+      ],
+      "expo-localization",
+      "expo-apple-authentication"
     ],
     "web": {
       "favicon": "./assets/favicon.png"

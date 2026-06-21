@@ -151,7 +151,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: PincTheme.colors.card,
     borderBottomWidth: 1,
     borderColor: "#E0E0E0"
   },
@@ -214,7 +214,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     padding: 12,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: PincTheme.colors.card,
     borderTopWidth: 1,
     borderColor: "#E0E0E0"
   },
