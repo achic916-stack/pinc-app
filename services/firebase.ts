@@ -49,7 +49,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // FIREBASE CLIENT CONFIGURATION
 // ==========================================
 const firebaseConfig = {
-  apiKey: "AIzaSyCVlaNuAkdkojlTH0-ubpuJaWXPylpd6IA",
+  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY || "",
   authDomain: "pinc-app-d2501.firebaseapp.com",
   projectId: "pinc-app-d2501",
   storageBucket: "pinc-app-d2501.firebasestorage.app",
@@ -732,7 +732,7 @@ export async function uploadPinImage(uri: string, userId: string): Promise<strin
  * Throws an error if the image is flagged.
  */
 export async function checkImageSafety(base64Image: string): Promise<void> {
-  const API_KEY = "AIzaSyAWu8nAniIvvtBTkpmcilS0l5hl6lEXkmY";
+  const API_KEY = process.env.EXPO_PUBLIC_VISION_API_KEY || "";
   const url = `https://vision.googleapis.com/v1/images:annotate?key=${API_KEY}`;
   
   const body = {

@@ -2,7 +2,7 @@ const { initializeApp } = require("firebase/app");
 const { getFirestore, collection, getDocs, deleteDoc, doc } = require("firebase/firestore");
 
 const firebaseConfig = {
-  apiKey: "AIzaSyCVlaNuAkdkojlTH0-ubpuJaWXPylpd6IA",
+  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY || "",
   authDomain: "pinc-app-d2501.firebaseapp.com",
   projectId: "pinc-app-d2501",
   storageBucket: "pinc-app-d2501.firebasestorage.app",
