@@ -4,7 +4,7 @@ workflows:
     max_build_duration: 60
     instance_type: mac_mini_m2
     integrations:
-      app_store_connect: codemagic_api_key
+      app_store_connect: Apple Key
     environment:
       ios_signing:
         distribution_type: app_store
@@ -32,6 +32,18 @@ workflows:
       - name: Install CocoaPods
         script: |
           cd ios && pod install
+      - name: Set up keychain
+        script: keychain initialize
+      - name: Fetch Apple code signing files
+        script: |
+          app-store-connect fetch-signing-files \
+            "$BUNDLE_ID" \
+            --type IOS_APP_STORE \
+            --create
+      - name: Add certificates to keychain
+        script: keychain add-certificates
+      - name: Set up code signing
+        script: xcode-project use-profiles
       - name: Build iOS for distribution
         script: |
           xcodebuild \
@@ -40,18 +52,17 @@ workflows:
             -configuration Release \
             -archivePath "$CM_BUILD_DIR/pinc.xcarchive" \
             archive \
-            CODE_SIGN_STYLE=Automatic \
             | xcpretty
       - name: Export IPA
         script: |
-          xcode-project use-profiles
           xcodebuild \
             -exportArchive \
             -archivePath "$CM_BUILD_DIR/pinc.xcarchive" \
             -exportOptionsPlist /Users/builder/export_options.plist \
-            -exportPath "$CM_BUILD_DIR/ipa"
+            -exportPath "$CM_BUILD_DIR/ipa" \
+            | xcpretty
     artifacts:
-      - build/ios/ipa/*.ipa
+      - $CM_BUILD_DIR/ipa/*.ipa
       - /tmp/xcodebuild_logs/*.log
     publishing:
       app_store_connect:
