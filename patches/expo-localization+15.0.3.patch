@@ -1,0 +1,12 @@
+diff --git a/node_modules/expo-localization/ios/LocalizationModule.swift b/node_modules/expo-localization/ios/LocalizationModule.swift
+index 1234567..89abcdef 100644
+--- a/node_modules/expo-localization/ios/LocalizationModule.swift
++++ b/node_modules/expo-localization/ios/LocalizationModule.swift
+@@ -123,6 +123,8 @@
+       return "roc"
+     case .iso8601:
+       return "iso8601"
++    @unknown default:
++      return "gregory"
+     }
+   }
