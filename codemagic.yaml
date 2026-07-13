@@ -37,6 +37,12 @@ workflows:
 
       - name: Add certificates to keychain
         script: keychain add-certificates
+      - name: Fetch Apple code signing files (create if not exist)
+        script: |
+          app-store-connect fetch-signing-files \
+            "$BUNDLE_ID" \
+            --type IOS_APP_STORE \
+            --create
       - name: Set up code signing settings on Xcode project
         script: xcode-project use-profiles
       - name: Build iOS for distribution
