@@ -13,6 +13,9 @@ workflows:
         APP_STORE_APP_ID: "6777288825"
       groups:
         - pinc_env_vars
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.achic.pinc
       node: latest
     triggering:
       events:
