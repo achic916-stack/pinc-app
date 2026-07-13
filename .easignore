@@ -14,3 +14,6 @@ web-build/
 .expo-shared/
 ios/
 android/
+*.apk
+*.aab
+*.zip

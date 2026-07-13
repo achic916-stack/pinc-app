@@ -13,7 +13,8 @@ import {
   TextInput,
   Dimensions,
   Switch,
-  ScrollView
+  ScrollView,
+  Linking
 } from "react-native";
 import { Ionicons, MaterialIcons, Feather, FontAwesome5 } from "@expo/vector-icons";
 import { LinearGradient } from 'expo-linear-gradient';
@@ -29,7 +30,9 @@ import {
   getUserStats,
   updateUserProfile,
   uploadProfileImage,
-  subscribeToActiveChats
+  subscribeToActiveChats,
+  fetchSavedPins,
+  blockUser
 } from "../services/firebase";
 import { t } from "../services/localization";
 import * as ImagePicker from "expo-image-picker";
@@ -56,6 +59,7 @@ interface UserProfileModalProps {
   venues?: Venue[];
   onSelectEditVenue?: (venue: Venue) => void;
   onUpdateProfile?: (updatedProfile: UserProfile) => void;
+  onSetCrewBase?: (venue: Venue) => void;
   locationTrackingEnabled?: boolean;
   setLocationTrackingEnabled?: (enabled: boolean) => void;
   onSignOut?: () => void;
@@ -77,6 +81,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   venues = [],
   onSelectEditVenue,
   onUpdateProfile,
+  onSetCrewBase,
   locationTrackingEnabled = true,
   setLocationTrackingEnabled,
   onSignOut,
@@ -111,6 +116,28 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     v.ownerId === currentUserId && 
     (v.is_sponsored || (v.sponsor_tier && v.sponsor_tier >= 1))
   );
+
+  const [activeTab, setActiveTab] = useState<"posts" | "saved">("posts");
+  const [savedPinsData, setSavedPinsData] = useState<Pin[]>([]);
+  const [isLoadingSaved, setIsLoadingSaved] = useState(false);
+
+  useEffect(() => {
+    if (!profile?.savedPins || activeTab !== "saved") return;
+    let isActive = true;
+    const loadSavedPins = async () => {
+      setIsLoadingSaved(true);
+      try {
+        const data = await fetchSavedPins(profile.savedPins!);
+        if (isActive) setSavedPinsData(data);
+      } catch (e) {
+        console.warn("Failed to load saved pins", e);
+      } finally {
+        if (isActive) setIsLoadingSaved(false);
+      }
+    };
+    loadSavedPins();
+    return () => { isActive = false; };
+  }, [profile?.savedPins, activeTab]);
 
   useEffect(() => {
     if (!visible || !userId) {
@@ -222,6 +249,36 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     }
   };
 
+  const handleBlockUser = () => {
+    if (!userId || userId === currentUserId) return;
+    Alert.alert(
+      locale === "th" ? "บล็อกผู้ใช้" : "Block User",
+      locale === "th" 
+        ? "คุณแน่ใจหรือไม่ว่าต้องการบล็อกผู้ใช้นี้? โพสต์ของพวกเขาจะถูกซ่อนจากคุณ" 
+        : "Are you sure you want to block this user? Their posts will be hidden from you.",
+      [
+        { text: locale === "th" ? "ยกเลิก" : "Cancel", style: "cancel" },
+        { 
+          text: locale === "th" ? "บล็อก" : "Block", 
+          style: "destructive", 
+          onPress: async () => {
+            try {
+              await blockUser(currentUserId, userId);
+              Alert.alert(
+                locale === "th" ? "บล็อกสำเร็จ" : "Blocked", 
+                locale === "th" ? "ผู้ใช้ถูกบล็อกแล้ว" : "User has been blocked."
+              );
+              onClose(); // Close profile modal immediately after blocking
+            } catch (error) {
+              console.error("Error blocking user:", error);
+              Alert.alert("Error", "Could not block user.");
+            }
+          } 
+        }
+      ]
+    );
+  };
+
   const handleOpenEditModal = () => {
     if (!profile) return;
     setEditDisplayName(profile.username);
@@ -327,9 +384,16 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             <View /> 
           )}
           {isModal && (
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <Ionicons name="close" size={28} color={PincTheme.colors.textSecondary} />
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              {userId !== currentUserId && userId && (
+                <TouchableOpacity onPress={handleBlockUser} style={styles.closeButton}>
+                  <Ionicons name="ban" size={24} color="#FF4B72" />
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+                <Ionicons name="close" size={28} color={PincTheme.colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
           )}
         </View>
 
@@ -465,6 +529,14 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                         <Text style={[styles.editProfileBtnText, { color: "#FFF" }]}>{locale === "th" ? "สำหรับร้านค้า" : "For Business"}</Text>
                       </TouchableOpacity>
 
+                      <TouchableOpacity
+                        style={[styles.editProfileBtn, { backgroundColor: "#F5F5F5", borderColor: PincTheme.colors.border, marginTop: 10, width: "100%", minWidth: 0 }]}
+                        onPress={() => Linking.openURL('mailto:ashitastudio.pinc@gmail.com')}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={[styles.editProfileBtnText, { color: PincTheme.colors.textSecondary }]}>{locale === "th" ? "🎧 ติดต่อช่วยเหลือ (Email Support)" : "🎧 Email Support"}</Text>
+                      </TouchableOpacity>
+
                       {profile.role === "ADMIN" && (
                         <TouchableOpacity
                           style={[styles.editProfileBtn, { backgroundColor: "#E6F0FA", borderColor: "#007AFF", marginTop: 10, width: "100%", minWidth: 0 }]}
@@ -491,46 +563,74 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                             {locale === "th" ? "ร้านของฉัน" : "My Shops"}
                           </Text>
                           {myShops.map((shop) => (
-                            <TouchableOpacity
-                              key={shop.venueId}
-                              style={{
-                                flexDirection: "row",
-                                alignItems: "center",
-                                justifyContent: "space-between",
-                                backgroundColor: "#FFF8F9",
-                                borderWidth: 1,
-                                borderColor: "#FFE0E6",
-                                borderRadius: PincTheme.borderRadius.md,
-                                paddingVertical: 10,
-                                paddingHorizontal: 12,
-                                marginBottom: 8,
-                                width: "100%",
-                                ...PincTheme.shadows.sm
-                              }}
-                              onPress={() => {
-                                onClose(); // Close profile modal
-                                if (onSelectEditVenue) {
-                                  onSelectEditVenue(shop);
-                                }
-                              }}
-                              activeOpacity={0.8}
-                            >
-                              <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                                <Image
-                                  source={{ uri: shop.cover_image }}
-                                  style={{ width: 36, height: 36, borderRadius: 6, backgroundColor: PincTheme.colors.border }}
-                                />
-                                <View style={{ alignItems: "flex-start" }}>
-                                  <Text style={{ fontSize: 13, fontWeight: "bold", color: PincTheme.colors.textPrimary, fontFamily: PincTheme.fonts.heading }} numberOfLines={1}>
-                                    {shop.name}
-                                  </Text>
-                                  <Text style={{ fontSize: 10, color: PincTheme.colors.textTertiary, fontFamily: PincTheme.fonts.body }}>
-                                    ★ {shop.aesthetic_rating.toFixed(1)} • {shop.category.toUpperCase()}
-                                  </Text>
+                            <View key={shop.venueId} style={{ marginBottom: 8 }}>
+                              <TouchableOpacity
+                                style={{
+                                  flexDirection: "row",
+                                  alignItems: "center",
+                                  justifyContent: "space-between",
+                                  backgroundColor: "#FFF8F9",
+                                  borderWidth: 1,
+                                  borderColor: "#FFE0E6",
+                                  borderTopLeftRadius: PincTheme.borderRadius.md,
+                                  borderTopRightRadius: PincTheme.borderRadius.md,
+                                  borderBottomLeftRadius: (shop.category === 'community' || shop.sponsor_tier === 4) ? 0 : PincTheme.borderRadius.md,
+                                  borderBottomRightRadius: (shop.category === 'community' || shop.sponsor_tier === 4) ? 0 : PincTheme.borderRadius.md,
+                                  paddingVertical: 10,
+                                  paddingHorizontal: 12,
+                                  width: "100%",
+                                  ...PincTheme.shadows.sm
+                                }}
+                                onPress={() => {
+                                  onClose(); // Close profile modal
+                                  if (onSelectEditVenue) {
+                                    onSelectEditVenue(shop);
+                                  }
+                                }}
+                                activeOpacity={0.8}
+                              >
+                                <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                                  <Image
+                                    source={{ uri: shop.cover_image }}
+                                    style={{ width: 36, height: 36, borderRadius: 6, backgroundColor: PincTheme.colors.border }}
+                                  />
+                                  <View style={{ alignItems: "flex-start" }}>
+                                    <Text style={{ fontSize: 13, fontWeight: "bold", color: "#1A1A1A", fontFamily: PincTheme.fonts.heading }} numberOfLines={1}>
+                                      {shop.name}
+                                    </Text>
+                                    <Text style={{ fontSize: 10, color: "#666666", fontFamily: PincTheme.fonts.body }}>
+                                      {shop.category.toUpperCase()}
+                                    </Text>
+                                  </View>
                                 </View>
-                              </View>
-                              <Ionicons name="create-outline" size={18} color="#FF4B72" />
-                            </TouchableOpacity>
+                                <Ionicons name="create-outline" size={18} color="#FF4B72" />
+                              </TouchableOpacity>
+                              
+                              {(shop.category === 'community' || shop.sponsor_tier === 4) && (
+                                <TouchableOpacity
+                                  style={{
+                                    flexDirection: 'row',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    backgroundColor: '#B366FF',
+                                    paddingVertical: 10,
+                                    borderBottomLeftRadius: PincTheme.borderRadius.md,
+                                    borderBottomRightRadius: PincTheme.borderRadius.md,
+                                    marginTop: -1,
+                                    ...PincTheme.shadows.sm,
+                                    borderWidth: 1,
+                                    borderColor: '#B366FF'
+                                  }}
+                                  onPress={() => {
+                                    onClose();
+                                    if (onSetCrewBase) onSetCrewBase(shop);
+                                  }}
+                                  activeOpacity={0.9}
+                                >
+                                  <Text style={{ color: '#FFF', fontWeight: 'bold', fontSize: 12, fontFamily: PincTheme.fonts.heading }}>📍 {locale === 'th' ? 'ตั้งพิกัดฐานทัพ / จุดรวมพล' : 'Set Club Base Location'}</Text>
+                                </TouchableOpacity>
+                              )}
+                            </View>
                           ))}
                         </View>
                       )}
@@ -568,13 +668,87 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                       </TouchableOpacity>
 
                       <TouchableOpacity 
-                        style={[styles.followBtn, { marginTop: 0, minWidth: 100, backgroundColor: '#F0F0F0', borderWidth: 1, borderColor: '#E0E0E0' }]} 
+                        style={[styles.followBtn, { marginTop: 0, minWidth: 100, backgroundColor: PincTheme.colors.primary, borderWidth: 1, borderColor: PincTheme.colors.primary }]} 
                         onPress={() => setIsChatVisible(true)}
                       >
-                        <Text style={[styles.followBtnText, { color: PincTheme.colors.textPrimary }]}>Message</Text>
+                        <Text style={[styles.followBtnText, { color: '#FFFFFF' }]}>Message</Text>
                       </TouchableOpacity>
                     </View>
                   )}
+
+                  {/* Tabs: Posts | Saved */}
+                  <View style={{ flexDirection: "row", marginTop: 24, borderBottomWidth: 1, borderColor: PincTheme.colors.border, width: "100%" }}>
+                    <TouchableOpacity
+                      style={{ flex: 1, paddingVertical: 12, alignItems: "center", borderBottomWidth: activeTab === "posts" ? 2 : 0, borderColor: PincTheme.colors.primary }}
+                      onPress={() => setActiveTab("posts")}
+                    >
+                      <Text style={{ fontFamily: PincTheme.fonts.heading, fontWeight: "700", color: activeTab === "posts" ? PincTheme.colors.primary : PincTheme.colors.textSecondary }}>
+                        {locale === "th" ? "โพสต์" : "Posts"}
+                      </Text>
+                    </TouchableOpacity>
+                    {userId === currentUserId && (
+                      <TouchableOpacity
+                        style={{ flex: 1, paddingVertical: 12, alignItems: "center", borderBottomWidth: activeTab === "saved" ? 2 : 0, borderColor: PincTheme.colors.primary }}
+                        onPress={() => setActiveTab("saved")}
+                      >
+                        <Text style={{ fontFamily: PincTheme.fonts.heading, fontWeight: "700", color: activeTab === "saved" ? PincTheme.colors.primary : PincTheme.colors.textSecondary }}>
+                          {locale === "th" ? "ที่บันทึกไว้" : "Saved"}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+
+                  {/* Grid Content */}
+                  <View style={{ width: "100%", flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 8, paddingBottom: 16, marginTop: 12 }}>
+                    {activeTab === "posts" && pins.map((pin) => (
+                      <TouchableOpacity
+                        key={`post-${pin.pinId}`}
+                        style={{ width: "50%", padding: 8 }}
+                        onPress={() => {
+                          onClose();
+                          if (onSelectMemory) onSelectMemory(pin);
+                        }}
+                      >
+                        <View style={styles.memoryCard}>
+                          <Image source={{ uri: pin.image_url }} style={styles.memoryThumbnail} />
+                        </View>
+                      </TouchableOpacity>
+                    ))}
+                    
+                    {activeTab === "saved" && isLoadingSaved && (
+                      <View style={{ width: "100%", padding: 40, alignItems: "center" }}>
+                        <ActivityIndicator color={PincTheme.colors.primary} />
+                      </View>
+                    )}
+
+                    {activeTab === "saved" && !isLoadingSaved && savedPinsData.map((pin) => (
+                      <TouchableOpacity
+                        key={`saved-${pin.pinId}`}
+                        style={{ width: "50%", padding: 8 }}
+                        onPress={() => {
+                          onClose();
+                          if (onSelectMemory) onSelectMemory(pin);
+                        }}
+                      >
+                        <View style={styles.memoryCard}>
+                          <Image source={{ uri: pin.image_url }} style={styles.memoryThumbnail} />
+                        </View>
+                      </TouchableOpacity>
+                    ))}
+                    
+                    {activeTab === "posts" && pins.length === 0 && (
+                      <View style={{ width: "100%", padding: 40, alignItems: "center" }}>
+                        <Text style={{ color: PincTheme.colors.textSecondary }}>{locale === "th" ? "ยังไม่มีโพสต์" : "No posts yet"}</Text>
+                      </View>
+                    )}
+
+                    {activeTab === "saved" && !isLoadingSaved && savedPinsData.length === 0 && (
+                      <View style={{ width: "100%", padding: 40, alignItems: "center" }}>
+                        <Text style={{ color: PincTheme.colors.textSecondary }}>{locale === "th" ? "ยังไม่มีโพสต์ที่บันทึกไว้" : "No saved posts"}</Text>
+                      </View>
+                    )}
+                  </View>
+
                 </View>
             </View>
           )}
@@ -693,32 +867,32 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 flexDirection: "row",
                 alignItems: "center",
                 justifyContent: "space-between",
-                backgroundColor: PincTheme.colors.primary,
-                borderWidth: 1,
-                borderColor: 'rgba(0,0,0,0.1)',
+                backgroundColor: "#FFFFFF",
+                borderWidth: 1.5,
+                borderColor: PincTheme.colors.primary,
                 borderRadius: PincTheme.borderRadius.md,
                 paddingVertical: 12,
                 paddingHorizontal: 14,
                 marginBottom: 12
               }}>
                 <View style={{ flex: 1, marginRight: 16 }}>
-                  <Text style={{ fontSize: 13, fontWeight: "bold", color: "#FFFFFF", fontFamily: PincTheme.fonts.heading, marginBottom: 2 }}>
+                  <Text style={{ fontSize: 13, fontWeight: "bold", color: PincTheme.colors.primary, fontFamily: PincTheme.fonts.heading, marginBottom: 2 }}>
                     🌐 {locale === 'th' ? 'ภาษา / Language' : 'Language / ภาษา'}
                   </Text>
-                  <Text style={{ fontSize: 10, color: "rgba(255,255,255,0.8)", fontFamily: PincTheme.fonts.body }}>
+                  <Text style={{ fontSize: 10, color: PincTheme.colors.primary, opacity: 0.8, fontFamily: PincTheme.fonts.body }}>
                     {locale === 'th' ? 'สลับภาษาแอป' : 'Switch app language'}
                   </Text>
                 </View>
                 <TouchableOpacity
                   onPress={() => setLocale && setLocale(locale === 'en' ? 'th' : 'en')}
                   style={{
-                    backgroundColor: "#FFFFFF",
+                    backgroundColor: PincTheme.colors.primary,
                     borderRadius: 16,
                     paddingHorizontal: 16,
                     paddingVertical: 6
                   }}
                 >
-                  <Text style={{ color: PincTheme.colors.primary, fontWeight: '800', fontSize: 13 }}>
+                  <Text style={{ color: "#FFFFFF", fontWeight: '800', fontSize: 13 }}>
                     {locale === 'en' ? 'TH' : 'EN'}
                   </Text>
                 </TouchableOpacity>
@@ -729,26 +903,26 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 flexDirection: "row",
                 alignItems: "center",
                 justifyContent: "space-between",
-                backgroundColor: PincTheme.colors.primary,
-                borderWidth: 1,
-                borderColor: 'rgba(0,0,0,0.1)',
+                backgroundColor: "#FFFFFF",
+                borderWidth: 1.5,
+                borderColor: PincTheme.colors.primary,
                 borderRadius: PincTheme.borderRadius.md,
                 paddingVertical: 12,
                 paddingHorizontal: 14,
                 marginBottom: 12
               }}>
                 <View style={{ flex: 1, marginRight: 16, alignItems: 'flex-start' }}>
-                  <Text style={{ fontSize: 13, fontWeight: "bold", color: "#FFFFFF", fontFamily: PincTheme.fonts.heading, marginBottom: 2 }}>
+                  <Text style={{ fontSize: 13, fontWeight: "bold", color: PincTheme.colors.primary, fontFamily: PincTheme.fonts.heading, marginBottom: 2 }}>
                     {t(locale, "locationTrackingLabel")}
                   </Text>
-                  <Text style={{ fontSize: 10, color: "rgba(255,255,255,0.8)", fontFamily: PincTheme.fonts.body, textAlign: 'left' }}>
+                  <Text style={{ fontSize: 10, color: PincTheme.colors.primary, opacity: 0.8, fontFamily: PincTheme.fonts.body, textAlign: 'left' }}>
                     {t(locale, "locationTrackingDesc")}
                   </Text>
                 </View>
                 <Switch
                   value={locationTrackingEnabled}
                   onValueChange={setLocationTrackingEnabled}
-                  trackColor={{ false: "rgba(255,255,255,0.3)", true: "#34C759" }}
+                  trackColor={{ false: "rgba(0,0,0,0.2)", true: "#34C759" }}
                   thumbColor="#FFFFFF"
                 />
               </View>
@@ -757,7 +931,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               <TouchableOpacity
                 style={[
                   styles.editProfileBtn,
-                  { backgroundColor: PincTheme.colors.primary, borderColor: 'rgba(0,0,0,0.1)', marginTop: 0, marginBottom: 10, width: "100%", minWidth: 0, flexDirection: 'row', justifyContent: 'center', alignItems: 'center' }
+                  { backgroundColor: "#FFFFFF", borderColor: PincTheme.colors.primary, borderWidth: 1.5, marginTop: 0, marginBottom: 10, width: "100%", minWidth: 0, flexDirection: 'row', justifyContent: 'center', alignItems: 'center' }
                 ]}
                 onPress={() => {
                   setShowEditModal(false);
@@ -765,8 +939,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 }}
                 activeOpacity={0.8}
               >
-                <Ionicons name="log-out-outline" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
-                <Text style={[styles.editProfileBtnText, { color: "#FFFFFF" }]}>
+                <Ionicons name="log-out-outline" size={16} color={PincTheme.colors.primary} style={{ marginRight: 6 }} />
+                <Text style={[styles.editProfileBtnText, { color: PincTheme.colors.primary }]}>
                   {t(locale, "signOut")}
                 </Text>
               </TouchableOpacity>
@@ -775,7 +949,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               <TouchableOpacity
                 style={[
                   styles.editProfileBtn,
-                  { backgroundColor: "#FF3B30", borderColor: 'rgba(0,0,0,0.1)', marginTop: 0, marginBottom: 24, width: "100%", minWidth: 0, flexDirection: 'row', justifyContent: 'center', alignItems: 'center' }
+                  { backgroundColor: PincTheme.colors.primary, borderColor: 'rgba(0,0,0,0.1)', marginTop: 0, marginBottom: 24, width: "100%", minWidth: 0, flexDirection: 'row', justifyContent: 'center', alignItems: 'center' }
                 ]}
                 onPress={() => {
                   setShowEditModal(false);
@@ -800,13 +974,13 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 <Text style={styles.editCancelBtnText}>{locale === 'th' ? 'ยกเลิก' : 'Cancel'}</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.editSaveBtn, isSaving && { opacity: 0.6 }]}
+                style={[styles.editSaveBtn, { backgroundColor: "#FFFFFF", borderWidth: 1.5, borderColor: PincTheme.colors.primary }, isSaving && { opacity: 0.6 }]}
                 onPress={handleSaveProfile}
                 disabled={isSaving}
               >
                 {isSaving
-                  ? <ActivityIndicator size="small" color="#FFF" />
-                  : <Text style={styles.editSaveBtnText}>{locale === 'th' ? 'บันทึก' : 'Save Changes'}</Text>
+                  ? <ActivityIndicator size="small" color={PincTheme.colors.primary} />
+                  : <Text style={[styles.editSaveBtnText, { color: PincTheme.colors.primary }]}>{locale === 'th' ? 'บันทึก' : 'Save Changes'}</Text>
                 }
               </TouchableOpacity>
             </View>
@@ -1150,6 +1324,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
+    paddingBottom: 350,
   },
   statsRow: {
     flexDirection: "row",

@@ -1,4 +1,4 @@
-import React, { useState, forwardRef, useImperativeHandle } from "react";
+import React, { useState, forwardRef, useImperativeHandle, useEffect } from "react";
 import {
   View,
   Text,
@@ -82,6 +82,7 @@ export interface PincButtonProps {
     profile_pic: string;
     bio: string;
     role?: "USER" | "ADMIN" | "PREMIUM_STORE";
+    isVip?: boolean;
   };
   locationTrackingEnabled?: boolean;
   hideButton?: boolean;
@@ -91,10 +92,10 @@ export interface PincButtonProps {
 }
 
 export interface PincButtonRef {
-  openMediaSelector: () => void;
-  startVideoPost: () => void;
-  startPhotoPost: () => void;
-  startGalleryPost: () => void;
+  openMediaSelector: (venueId?: string) => void;
+  startVideoPost: (venueId?: string) => void;
+  startPhotoPost: (venueId?: string) => void;
+  startGalleryPost: (venueId?: string) => void;
 }
 
 export const PincButton = forwardRef<PincButtonRef, PincButtonProps>(({
@@ -123,20 +124,25 @@ export const PincButton = forwardRef<PincButtonRef, PincButtonProps>(({
   const [isSensorsLoading, setIsSensorsLoading] = useState(false);
   const [isMediaSelectorVisible, setIsMediaSelectorVisible] = useState(false);
   const [isFromGallery, setIsFromGallery] = useState(false);
+  const [forcedVenueId, setForcedVenueId] = useState<string | null>(null);
 
   useImperativeHandle(ref, () => ({
-    openMediaSelector: () => {
-      setIsMediaSelectorVisible(true);
+    openMediaSelector: (venueId?: string) => {
+      setForcedVenueId(venueId || null);
+      setIsMediaSelectorVisible(prev => !prev);
     },
-    startVideoPost: () => {
+    startVideoPost: (venueId?: string) => {
+      setForcedVenueId(venueId || null);
       setIsMediaSelectorVisible(false);
       triggerCameraAndGPS(ImagePicker.MediaTypeOptions.Videos);
     },
-    startPhotoPost: () => {
+    startPhotoPost: (venueId?: string) => {
+      setForcedVenueId(venueId || null);
       setIsMediaSelectorVisible(false);
       triggerCameraAndGPS(ImagePicker.MediaTypeOptions.Images);
     },
-    startGalleryPost: () => {
+    startGalleryPost: (venueId?: string) => {
+      setForcedVenueId(venueId || null);
       setIsMediaSelectorVisible(false);
       triggerGalleryAndGPS();
     }
@@ -145,6 +151,10 @@ export const PincButton = forwardRef<PincButtonRef, PincButtonProps>(({
   const handleCloseComposer = async () => {
     setModalVisible(false);
   };
+
+  useEffect(() => {
+    setIsMediaSelectorVisible(false);
+  }, [activeTab]);
 
   // 1. Prompt User to select Photo or Video
   const promptCameraAction = () => {
@@ -290,7 +300,7 @@ export const PincButton = forwardRef<PincButtonRef, PincButtonProps>(({
     }
 
     // Validate commercial keywords for regular users
-    const isPremium = currentUser.role === "PREMIUM_STORE" || currentUser.role === "ADMIN";
+    const isPremium = currentUser.role === "PREMIUM_STORE" || currentUser.role === "ADMIN" || currentUser.isVip === true;
     if (!isPremium && text) {
       const blacklistedWord = checkCommercialText(text);
       if (blacklistedWord) {
@@ -308,8 +318,15 @@ export const PincButton = forwardRef<PincButtonRef, PincButtonProps>(({
 
     let finalVenue = (nearestVenue && distanceToVenue <= 10) ? nearestVenue : null;
     const loc = currentGPSLocation || userLocation || { latitude: 13.736717, longitude: 100.560481 };
+    
+    let isUnmapped = isFromGallery || activeTab === 'home';
 
-    if (!finalVenue) {
+    if (forcedVenueId) {
+      finalVenue = venues.find(v => v.venueId === forcedVenueId) || finalVenue;
+      isUnmapped = false;
+    }
+
+    if (!finalVenue && !isUnmapped) {
       // Auto-create a temporary venue for the user's current location so they can post anywhere!
       try {
         const newVenueRef = collection(db, "venues");
@@ -385,11 +402,11 @@ export const PincButton = forwardRef<PincButtonRef, PincButtonProps>(({
         userId: currentUser.userId,
         username: currentUser.username,
         user_profile_pic: currentUser.profile_pic,
-        venueId: finalVenue!.venueId,
-        venueCoords: { latitude: finalVenue!.latitude, longitude: finalVenue!.longitude },
+        venueId: isUnmapped ? "gallery_post" : finalVenue!.venueId,
+        venueCoords: isUnmapped ? { latitude: 0, longitude: 0 } : { latitude: finalVenue!.latitude, longitude: finalVenue!.longitude },
         imageUris: mediaUrisToUpload,
-        textContent: text ? `${text}\n📍 ${finalVenue!.name}` : `📍 ${finalVenue!.name}`,
-        userCoords: loc,
+        textContent: text ? (isUnmapped ? text : `${text}\n📍 ${finalVenue!.name}`) : (isUnmapped ? "" : `📍 ${finalVenue!.name}`),
+        userCoords: isUnmapped ? { latitude: 0, longitude: 0 } : loc,
         reportType: "live_status",
         postType,
         postDuration: postDuration,
@@ -399,7 +416,8 @@ export const PincButton = forwardRef<PincButtonRef, PincButtonProps>(({
         musicUrl: "",
         thumbnailUri: thumbnailUri,
         postDelayMins: postDelay,
-        isPinned: activeTab === 'map'
+        isPinned: activeTab === 'map' && !isUnmapped,
+        is_gallery: isUnmapped
       });
 
       Alert.alert("Success", t("successPost"));
@@ -424,12 +442,9 @@ export const PincButton = forwardRef<PincButtonRef, PincButtonProps>(({
 
   return (
     <>
-      {/* Floating Action Button (FAB) in center-bottom */}
-      {!hideButton && (
-        <View style={styles.fabContainer}>
-          
-          {/* Custom Media Selector Popup */}
-        {isMediaSelectorVisible && (
+      {/* Custom Media Selector Popup (rendered outside so it works when button is hidden) */}
+      {isMediaSelectorVisible && (
+        <View style={[styles.fabContainer, { pointerEvents: 'box-none' }]}>
           <View style={styles.mediaSelectorPopup}>
             <TouchableOpacity 
               style={styles.mediaSelectorOption}
@@ -452,26 +467,46 @@ export const PincButton = forwardRef<PincButtonRef, PincButtonProps>(({
             >
               <Text style={styles.mediaSelectorText}>PHOTO</Text>
             </TouchableOpacity>
-          </View>
-        )}
 
-        <TouchableOpacity 
-          style={styles.fab} 
-          onPress={isMediaSelectorVisible ? () => setIsMediaSelectorVisible(false) : promptCameraAction} 
-          activeOpacity={0.85}
-          disabled={isSensorsLoading}
-        >
-          {isSensorsLoading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="small" color="#FFF" />
-            </View>
-          ) : (
-            <View style={[styles.fabImage, { alignItems: "center", justifyContent: "center" }]}>
-               <Image source={require("../assets/pinc_story_btn.png")} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
-            </View>
-          )}
-        </TouchableOpacity>
-      </View>
+            {activeTab !== 'map' && (
+              <>
+                <View style={styles.mediaSelectorDivider} />
+
+                <TouchableOpacity 
+                  style={styles.mediaSelectorOption}
+                  onPress={() => {
+                    setIsMediaSelectorVisible(false);
+                    triggerGalleryAndGPS();
+                  }}
+                >
+                  <Text style={styles.mediaSelectorText}>ALBUM</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </View>
+      )}
+
+      {/* Floating Action Button (FAB) in center-bottom */}
+      {!hideButton && (
+        <View style={styles.fabContainer}>
+          <TouchableOpacity 
+            style={styles.fab} 
+            onPress={isMediaSelectorVisible ? () => setIsMediaSelectorVisible(false) : promptCameraAction} 
+            activeOpacity={0.85}
+            disabled={isSensorsLoading}
+          >
+            {isSensorsLoading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="small" color="#FFF" />
+              </View>
+            ) : (
+              <View style={[styles.fabImage, { alignItems: "center", justifyContent: "center" }]}>
+                 <Image source={require("../assets/pinc_story_btn.png")} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
       )}
 
       {/* Modal Composer Overlay */}
@@ -495,9 +530,9 @@ export const PincButton = forwardRef<PincButtonRef, PincButtonProps>(({
             <Text style={styles.modalTitle}>{t("realityCheck")}</Text>
             
             <TouchableOpacity 
-              style={[styles.postBtn, (!text || isSubmitting) && styles.postBtnDisabled]} 
+              style={[styles.postBtn, isSubmitting && styles.postBtnDisabled]} 
               onPress={handleSubmit}
-              disabled={!text || isSubmitting}
+              disabled={isSubmitting}
             >
               {isSubmitting ? (
                 <ActivityIndicator size="small" color="#FFF" />
@@ -724,7 +759,7 @@ const styles = StyleSheet.create({
   mediaSelectorText: {
     color: "#E4007F",
     fontSize: 15,
-    fontWeight: "bold",
+    fontWeight: "500",
     fontFamily: PincTheme.fonts.heading
   },
   mediaSelectorDivider: {

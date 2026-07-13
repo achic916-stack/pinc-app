@@ -110,6 +110,7 @@ export default function App() {
   const [isEditingVenue, setIsEditingVenue] = useState(false);
   const [activePins, setActivePins] = useState<Pin[]>([]);
   const [allPins, setAllPins] = useState<Pin[]>([]);
+  const [settingCrewBaseVenue, setSettingCrewBaseVenue] = useState<Venue | null>(null);
   
   const [isLoadingVenues, setIsLoadingVenues] = useState(true);
   const [isLoadingPins, setIsLoadingPins] = useState(false);
@@ -621,12 +622,15 @@ export default function App() {
               isLoadingVenues={isLoadingVenues}
               onSelectVenue={handleSelectVenue}
               followingVenueIds={followingVenueIds}
+              followingIds={followingIds}
               locale={locale}
               cameraTarget={cameraTarget}
               focusSearchTrigger={focusSearchTrigger}
-              selectedMemoryPin={selectedPin}
+              selectedMemoryPin={activeTab === 'map' ? selectedPin : null}
               onClearMemory={() => setSelectedPin(null)}
               currentUserId={currentUser?.userId}
+              settingCrewBaseVenue={settingCrewBaseVenue}
+              onClearCrewBaseMode={() => setSettingCrewBaseVenue(null)}
               onDeletePin={handleDeletePin}
               onOpenUserProfile={(userId) => {
                 setSelectedUserProfileId(userId);
@@ -640,16 +644,23 @@ export default function App() {
                 onOpenUserProfile={(userId) => {
                   setSelectedUserProfileId(userId);
                 }}
+                selectedPin={selectedPin}
                 onNewPostPress={() => {
                   pincButtonRef.current?.openMediaSelector();
                 }}
                 onStartVideoPost={() => pincButtonRef.current?.startVideoPost()}
                 onStartPhotoPost={() => pincButtonRef.current?.startPhotoPost()}
                 onStartGalleryPost={() => pincButtonRef.current?.startGalleryPost()}
+                onGoToMap={(lat, lng) => {
+                  setCameraTarget({ latitude: lat, longitude: lng });
+                  setSelectedVenue(null);
+                  setActiveTab('map');
+                }}
+                isVisible={activeTab === 'home'}
               />
           </View>
 
-          {/* Floating Action Button "The Pinc Button" */}
+          {/* Floating Action Button "The Pinc Button" (Now hidden, triggered from tab bar) */}
           <PincButton
             ref={pincButtonRef}
             venues={venues}
@@ -657,7 +668,7 @@ export default function App() {
             onPinCreated={handlePinCreated}
             currentUser={currentUser}
             locationTrackingEnabled={locationTrackingEnabled}
-            hideButton={activeTab === 'home' || activeTab === 'profile' || photoShelfVisible || selectedUserProfileId !== null}
+            hideButton={true}
             activeTab={activeTab}
           />
 
@@ -680,6 +691,9 @@ export default function App() {
                     onOpenUserProfile={(userId) => {
                       setSelectedUserProfileId(userId);
                     }}
+                    onNewPostPress={(venueId) => {
+                      pincButtonRef.current?.openMediaSelector(venueId);
+                    }}
                     currentUser={currentUser}
                     isFullScreen={true}
                     isEditing={isEditingVenue}
@@ -697,6 +711,9 @@ export default function App() {
                   followingIds={followingIds}
                   onOpenUserProfile={(userId) => {
                     setSelectedUserProfileId(userId);
+                  }}
+                  onNewPostPress={(venueId) => {
+                    pincButtonRef.current?.openMediaSelector(venueId);
                   }}
                   currentUser={currentUser}
                   isFullScreen={false}
@@ -726,6 +743,10 @@ export default function App() {
             onSelectEditVenue={(shop) => {
               setSelectedVenue(shop);
               setIsEditingVenue(true);
+            }}
+            onSetCrewBase={(shop) => {
+              setSettingCrewBaseVenue(shop);
+              setActiveTab("map");
             }}
             onUpdateProfile={handleAuthSuccess}
             locationTrackingEnabled={locationTrackingEnabled}
@@ -764,7 +785,11 @@ export default function App() {
                             setDeleteModePinId(null);
                           } else {
                             setSelectedPin(pin);
-                            setActiveTab("map");
+                            if (pin.is_gallery) {
+                              setActiveTab("home");
+                            } else {
+                              setActiveTab("map");
+                            }
                             setPhotoShelfVisible(false);
                           }
                         }}
@@ -837,6 +862,10 @@ export default function App() {
                     setSelectedVenue(shop);
                     setIsEditingVenue(true);
                   }}
+                  onSetCrewBase={(shop) => {
+                    setSettingCrewBaseVenue(shop);
+                    setActiveTab("map");
+                  }}
                   onUpdateProfile={handleAuthSuccess}
                   locationTrackingEnabled={locationTrackingEnabled}
                   setLocationTrackingEnabled={setLocationTrackingEnabled}
@@ -847,7 +876,7 @@ export default function App() {
             </View>
 
           {/* Premium Instagram-Style User Bottom Toolbar */}
-          <View style={[styles.bottomTabBar, { bottom: Platform.OS === 'ios' ? 24 : 56 }]}>
+          <View style={[styles.bottomTabBar, { bottom: Platform.OS === 'ios' ? 24 : 56 }, !!settingCrewBaseVenue && { display: 'none' }]}>
             {/* Tab 1: Home Feed */}
             <TouchableOpacity 
               style={styles.tabBtn} 
@@ -866,22 +895,28 @@ export default function App() {
               <Ionicons name={activeTab === "map" ? "map" : "map-outline"} size={26} color={activeTab === "map" ? "#E4007F" : "#A0A0A0"} />
             </TouchableOpacity>
 
-            {/* Tab 2: Photo/Video Shelf */}
+            {/* Tab 3: P Logo (New Post) */}
+            <TouchableOpacity 
+              style={styles.tabBtn} 
+              onPress={() => {
+                if (activeTab !== 'photo') {
+                  pincButtonRef.current?.openMediaSelector();
+                }
+              }}
+              activeOpacity={0.7}
+            >
+              <View style={{ width: 36, height: 36, borderRadius: 18, overflow: 'hidden', backgroundColor: '#E4007F', alignItems: 'center', justifyContent: 'center' }}>
+                <Image source={require("./assets/p_logo.png")} style={{ width: '100%', height: '100%' }} contentFit="cover" />
+              </View>
+            </TouchableOpacity>
+
+            {/* Tab 4: Album (Photo/Video Shelf) */}
             <TouchableOpacity 
               style={styles.tabBtn} 
               onPress={handlePhotoTabPress}
               activeOpacity={0.7}
             >
               <Ionicons name={activeTab === "photo" ? "images" : "images-outline"} size={26} color={activeTab === "photo" ? "#E4007F" : "#A0A0A0"} />
-            </TouchableOpacity>
-
-            {/* Tab 3: Video (Reels) */}
-            <TouchableOpacity 
-              style={styles.tabBtn} 
-              onPress={handleVideoTabPress}
-              activeOpacity={0.7}
-            >
-              <Ionicons name={activeTab === "video" ? "film" : "film-outline"} size={26} color={activeTab === "video" ? "#E4007F" : "#A0A0A0"} />
             </TouchableOpacity>
 
 

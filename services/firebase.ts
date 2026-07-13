@@ -20,9 +20,10 @@ import {
   getCountFromServer,
   updateDoc,
   writeBatch,
-  increment
+  increment,
+  limit
 } from "firebase/firestore";
-import { getStorage, ref, uploadBytes, getDownloadURL, uploadString } from "firebase/storage";
+import { getStorage, ref, uploadBytes, getDownloadURL, uploadString, deleteObject } from "firebase/storage";
 import * as FileSystem from 'expo-file-system';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import * as AppleAuthentication from 'expo-apple-authentication';
@@ -66,7 +67,12 @@ GoogleSignin.configure({
   webClientId: '929703082491-9p6bktev8sa78csv6s2n5ugf1568egls.apps.googleusercontent.com',
   iosClientId: '929703082491-4d1jqjf73mif9i46c4t8166t1girkmvn.apps.googleusercontent.com',
 });
-export const db = getFirestore(app);
+import { initializeFirestore } from "firebase/firestore";
+
+// Initialize Firestore with settings to fix Android React Native connection hangs
+export const db = initializeFirestore(app, {
+  experimentalAutoDetectLongPolling: true
+});
 export const auth = initializeAuth(app, {
   persistence: Platform.OS === 'web' ? undefined : getReactNativePersistence(AsyncStorage)
 });
@@ -81,6 +87,7 @@ export interface UserProfile {
   profile_pic: string;
   bio: string;
   role?: "USER" | "ADMIN" | "PREMIUM_STORE";
+  isVip?: boolean;
   created_at: Date;
   socialLinks?: {
     instagramUrl?: string;
@@ -92,6 +99,8 @@ export interface UserProfile {
   subscriptionTier?: number;
   pinColor?: string;
   savedPins?: string[];
+  blockedUsers?: string[];
+  reportedPins?: string[];
 }
 
 export interface Venue {
@@ -147,6 +156,7 @@ export interface Pin {
   is_live_verified: boolean;
   report_type: "aesthetic" | "live_status";
   is_pinned?: boolean;
+  is_gallery?: boolean;
   live_crowd_vote?: "chill" | "moderate" | "packed";
   user_aesthetic_rating?: number; // Optional user aesthetic rating review
   likes?: string[]; // Array of userIds who liked this pin
@@ -566,7 +576,7 @@ export function calculateDistance(lat1: number, lon1: number, lat2: number, lon2
 }
 
 export function subscribeToVenues(onUpdate: (venues: Venue[]) => void, onError?: (error: any) => void) {
-  const q = query(collection(db, "venues"));
+  const q = query(collection(db, "venues"), limit(200));
   return onSnapshot(q, (snapshot) => {
     const venues: Venue[] = [];
     snapshot.forEach((doc) => {
@@ -814,6 +824,7 @@ export async function createPin(params: {
   thumbnailUri?: string | null;
   postDelayMins?: number;
   isPinned?: boolean;
+  is_gallery?: boolean;
 }): Promise<string> {
   const { 
     userId, 
@@ -928,7 +939,8 @@ export async function createPin(params: {
     music_url: musicUrl,
     thumbnail_url: thumbnailUrl || null,
     expiresAt: computedExpiresAt,
-    pinColor: userPinColor
+    pinColor: userPinColor,
+    is_gallery: params.is_gallery || false
   };
 
   if (typeof aestheticRating === "number") {
@@ -1091,12 +1103,40 @@ export function subscribeToUserPins(userId: string, onUpdate: (pins: Pin[]) => v
 }
 
 /**
+ * Fetches an array of saved pins by their IDs.
+ */
+export async function fetchSavedPins(pinIds: string[]): Promise<Pin[]> {
+  if (!pinIds || pinIds.length === 0) return [];
+  try {
+    const promises = pinIds.map(async (pinId) => {
+      const docRef = doc(db, "pins", pinId);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        return {
+          ...data,
+          pinId: docSnap.id,
+          timestamp: (data.timestamp as Timestamp)?.toDate() || new Date()
+        } as Pin;
+      }
+      return null;
+    });
+    const results = await Promise.all(promises);
+    return results.filter((p): p is Pin => p !== null).sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+  } catch (err) {
+    console.error("Error fetching saved pins:", err);
+    return [];
+  }
+}
+
+/**
  * Subscribes to all pins in the database in real-time, ordered by timestamp desc.
  */
 export function subscribeToAllPins(onUpdate: (pins: Pin[]) => void, onError?: (error: any) => void) {
   const q = query(
     collection(db, "pins"),
-    orderBy("timestamp", "desc")
+    orderBy("timestamp", "desc"),
+    limit(200)
   );
   return onSnapshot(q, (snapshot) => {
     const pins: Pin[] = [];
@@ -1440,6 +1480,79 @@ export async function markChatAsRead(chatId: string, userId: string) {
 }
 
 // ==========================================
+// VENUE CHAT & BULLETIN BOARD LOGIC
+// ==========================================
+
+export interface VenueMessage {
+  id?: string;
+  venueId: string;
+  senderId: string;
+  senderName: string;
+  senderProfilePic?: string;
+  text: string;
+  timestamp: any;
+  type: 'chat' | 'board';
+  isPinned?: boolean;
+}
+
+export function subscribeToVenueMessages(
+  venueId: string, 
+  type: 'chat' | 'board',
+  onUpdate: (messages: VenueMessage[]) => void,
+  onError?: (error: any) => void
+) {
+  if (!venueId) {
+    onUpdate([]);
+    return () => {};
+  }
+  // Remove 'type' and 'orderBy' from Firestore query to avoid needing a composite index.
+  // We will filter and sort on the client instead.
+  const q = query(
+    collection(db, "venue_messages"),
+    where("venueId", "==", venueId)
+  );
+  return onSnapshot(q, (snapshot) => {
+    let messages: VenueMessage[] = [];
+    snapshot.forEach(doc => {
+      messages.push({ id: doc.id, ...doc.data() } as VenueMessage);
+    });
+    // Filter by type
+    messages = messages.filter(m => m.type === type);
+    // Sort by timestamp asc
+    messages.sort((a, b) => {
+      const tA = a.timestamp?.toMillis ? a.timestamp.toMillis() : 0;
+      const tB = b.timestamp?.toMillis ? b.timestamp.toMillis() : 0;
+      return tA - tB;
+    });
+    onUpdate(messages);
+  }, (error) => {
+    console.warn("Firestore subscribeToVenueMessages failed:", error);
+    if (onError) onError(error);
+  });
+}
+
+export async function sendVenueMessage(msg: Omit<VenueMessage, 'id' | 'timestamp'>) {
+  if (!msg.venueId || !msg.senderId) return;
+  const msgData = {
+    ...msg,
+    timestamp: serverTimestamp()
+  };
+  await addDoc(collection(db, "venue_messages"), msgData);
+}
+
+export async function pinVenueMessage(messageId: string, isPinned: boolean) {
+  if (!messageId) return;
+  const msgRef = doc(db, "venue_messages", messageId);
+  await setDoc(msgRef, { isPinned }, { merge: true });
+}
+
+export async function deleteVenueMessage(messageId: string) {
+  if (!messageId) return;
+  const msgRef = doc(db, "venue_messages", messageId);
+  await deleteDoc(msgRef);
+}
+
+// ==========================================
 // CAMPAIGNS & PROMOTIONS
 // ==========================================
 
@@ -1489,3 +1602,86 @@ export async function claimEarlyBirdPackage(userId: string): Promise<boolean> {
     throw err;
   }
 }
+
+/**
+ * Automatically checks and deletes 24h stories that have expired for the given user.
+ * Deletes both the document from Firestore and the media from Firebase Storage.
+ */
+export async function cleanupMyExpiredStories(userId: string) {
+  if (!userId) return;
+  try {
+    const pinsRef = collection(db, "pins");
+    const q = query(pinsRef, where("user_id", "==", userId), where("post_duration", "==", "24h"));
+    const snapshot = await getDocs(q);
+    
+    if (snapshot.empty) return;
+    
+    const now = Date.now();
+    for (const docSnap of snapshot.docs) {
+      const data = docSnap.data();
+      const createdAt = data.created_at?.toMillis ? data.created_at.toMillis() : 0;
+      if (createdAt === 0) continue;
+      
+      const diffHours = (now - createdAt) / (1000 * 60 * 60);
+      
+      if (diffHours > 24) {
+        const pinId = docSnap.id;
+        console.log(`Auto-cleaning expired 24h pin: ${pinId}`);
+        
+        const mediaUrl = data.image_url || data.video_url || data.media_url;
+        if (mediaUrl) {
+          try {
+            const decodedUrl = decodeURIComponent(mediaUrl);
+            const match = decodedUrl.match(/\/o\/(.+?)\?alt=/);
+            if (match && match[1]) {
+              const filePath = match[1];
+              const fileRef = ref(storage, filePath);
+              await deleteObject(fileRef);
+              console.log(`Deleted media from storage: ${filePath}`);
+            }
+          } catch (storageErr) {
+            console.warn(`Failed to delete media from storage for pin ${pinId}:`, storageErr);
+          }
+        }
+        
+        await deleteDoc(doc(db, "pins", pinId));
+        console.log(`Deleted pin document: ${pinId}`);
+      }
+    }
+  } catch (error) {
+    console.error("Error in cleanupMyExpiredStories:", error);
+  }
+}
+
+// ==========================================
+// SAFETY & MODERATION (UGC GUIDELINES)
+// ==========================================
+
+export async function blockUser(currentUserId: string, blockedUserId: string): Promise<void> {
+  if (!currentUserId || !blockedUserId) return;
+  const userRef = doc(db, "users", currentUserId);
+  await updateDoc(userRef, {
+    blockedUsers: arrayUnion(blockedUserId)
+  });
+}
+
+export async function reportPin(currentUserId: string, pinId: string, reason: string = "Inappropriate content"): Promise<void> {
+  if (!currentUserId || !pinId) return;
+  
+  // 1. Add to user's local blocked pins list (so it disappears from feed)
+  const userRef = doc(db, "users", currentUserId);
+  await updateDoc(userRef, {
+    reportedPins: arrayUnion(pinId)
+  });
+
+  // 2. Create a report record for admins
+  await addDoc(collection(db, "reports"), {
+    type: "PIN",
+    pinId: pinId,
+    reportedBy: currentUserId,
+    reason: reason,
+    status: "PENDING",
+    timestamp: serverTimestamp()
+  });
+}
+

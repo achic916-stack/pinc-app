@@ -32,7 +32,8 @@ const Audio = { Sound: { createAsync: async () => ({ sound: { playAsync: async (
 
 import { CachedVideo } from "../components/CachedVideo";
 import { PincTheme } from "../styles/theme";
-import { Venue, Pin, auth, getUserStats, calculateDistance } from "../services/firebase";
+import { Venue, Pin, auth, getUserStats, calculateDistance, db } from "../services/firebase";
+import { doc, updateDoc } from "firebase/firestore";
 import { useTranslation } from 'react-i18next';
 import { ReelsFeedModal } from "../components/ReelsFeedModal";
 
@@ -51,8 +52,8 @@ const isVideoUrl = (url: string | null | undefined): boolean => {
 };
 
 const getMarkerSize = (scale: number) => {
-  if (scale <= 0.6) return 14;
-  return Math.floor(Math.max(34, Math.min(54, 44 * scale)));
+  if (scale <= 0.6) return 3; // Shrink to tiny dots when zoomed out
+  return Math.floor(Math.max(40, Math.min(64, 54 * scale)));
 };
 
 interface MapScreenProps {
@@ -62,6 +63,7 @@ interface MapScreenProps {
   onSelectVenue: (venue: Venue) => void;
   isLoadingVenues: boolean;
   followingVenueIds?: Set<string>;
+  followingIds?: string[];
   locale?: "en" | "th";
   cameraTarget?: { latitude: number; longitude: number; timestamp: number } | null;
   focusSearchTrigger?: number;
@@ -70,6 +72,8 @@ interface MapScreenProps {
   currentUserId?: string;
   onDeletePin?: (pin: Pin) => void;
   onOpenUserProfile?: (userId: string) => void;
+  settingCrewBaseVenue?: Venue | null;
+  onClearCrewBaseMode?: () => void;
 }
 
 // Detailed Light Lifestyle Map Styling for Google Maps
@@ -143,7 +147,7 @@ const CustomMapMarker: React.FC<CustomMapMarkerProps> = ({
     setTracksView(true);
     const timer = setTimeout(() => {
       setTracksView(false);
-    }, 850);
+    }, zoomScale <= 0.6 ? 200 : 5000);
     return () => clearTimeout(timer);
   }, [zoomScale]);
 
@@ -183,6 +187,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
   onSelectVenue,
   isLoadingVenues,
   followingVenueIds = new Set<string>(),
+  followingIds = [],
   locale = "en",
   cameraTarget = null,
   focusSearchTrigger = 0,
@@ -190,7 +195,9 @@ export const MapScreen: React.FC<MapScreenProps> = ({
   onClearMemory,
   currentUserId,
   onDeletePin,
-  onOpenUserProfile
+  onOpenUserProfile,
+  settingCrewBaseVenue,
+  onClearCrewBaseMode
 }) => {
   const { t } = useTranslation();
   const mapRef = useRef<any | null>(null);
@@ -201,7 +208,40 @@ export const MapScreen: React.FC<MapScreenProps> = ({
   const [isFilterFriends, setIsFilterFriends] = useState(false);
   const [reelsFeedPins, setReelsFeedPins] = useState<Pin[]>([]);
   const [deleteModePinId, setDeleteModePinId] = useState<string | null>(null);
+  const [currentCenterRegion, setCurrentCenterRegion] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [isUpdatingBase, setIsUpdatingBase] = useState(false);
   const [followerStatsCache, setFollowerStatsCache] = useState<Record<string, number>>({});
+  const hasAnimatedToUserLocation = useRef(false);
+
+  useEffect(() => {
+    if (userLocation && mapRef.current && !hasAnimatedToUserLocation.current) {
+      hasAnimatedToUserLocation.current = true;
+      const mapObj = mapRef.current as any;
+      const targetCamera = {
+        center: {
+          latitude: userLocation.latitude,
+          longitude: userLocation.longitude,
+        },
+        zoom: 17,
+      };
+      try {
+        if (typeof mapObj.animateCamera === 'function') {
+          mapObj.animateCamera(targetCamera, { duration: 1000 });
+        } else if (typeof mapObj.getMapRef === 'function') {
+          mapObj.getMapRef().animateCamera(targetCamera, { duration: 1000 });
+        } else if (typeof mapObj.animateToRegion === 'function') {
+          mapObj.animateToRegion({
+            latitude: userLocation.latitude,
+            longitude: userLocation.longitude,
+            latitudeDelta: 0.005,
+            longitudeDelta: 0.005,
+          }, 1000);
+        }
+      } catch (e) {
+        console.log("Failed to animate to region", e);
+      }
+    }
+  }, [userLocation]);
 
   // Filter venues based on isFilterFriends state
   const displayedVenues = useMemo(() => {
@@ -225,12 +265,14 @@ export const MapScreen: React.FC<MapScreenProps> = ({
     
     let currentLat = userLocation?.latitude;
     let currentLng = userLocation?.longitude;
+    let currentZoom = 14;
 
     try {
       const currentCamera = await (mapRef.current as any).getCamera();
       if (currentCamera && currentCamera.center) {
         currentLat = currentCamera.center.latitude;
         currentLng = currentCamera.center.longitude;
+        if (currentCamera.zoom !== undefined) currentZoom = currentCamera.zoom;
       }
     } catch (e) {
       console.log("Error getting camera, using userLocation instead", e);
@@ -278,28 +320,71 @@ export const MapScreen: React.FC<MapScreenProps> = ({
         phase2Duration = 4500;
       }
 
-      // Calculate trigger times with OVERLAPS (-400ms) to blend animations into a smooth parabolic curve
-      const overlap = 400;
-      const t2 = phase1Duration - overlap;
+      if (Platform.OS === 'ios') {
+        let liftDuration = 2000;
+        let diveDuration = 2500;
+        let slideDuration = 3000;
 
-      // Phase 1: Lift off and travel to Midpoint
-      (mapRef.current as any).animateCamera({ 
-        center: { latitude: midLat, longitude: midLng }, 
-        zoom: peakZoom,
-        pitch: 45 // Tilt camera up to see horizon
-      }, { duration: phase1Duration });
-      
-      // Phase 2: Diagonal Dive (Move horizontally to target WHILE zooming in to street level)
-      setTimeout(() => {
-        if (!mapRef.current) return;
+        if (distMeters > 5000000) {
+           liftDuration = 2500; slideDuration = 5000; diveDuration = 3000;
+        } else if (distMeters > 1000000) {
+           liftDuration = 2000; slideDuration = 4000; diveDuration = 2500;
+        } else if (distMeters > 500000) {
+           liftDuration = 1500; slideDuration = 3000; diveDuration = 2000;
+        }
+
+        // Step 1: Lift off (zoom out) at current location
+        (mapRef.current as any).animateCamera({
+          center: { latitude: currentLat, longitude: currentLng },
+          zoom: peakZoom,
+          pitch: 0
+        }, { duration: liftDuration });
+
+        // Step 2: Slide horizontally to target location
+        setTimeout(() => {
+          if (!mapRef.current) return;
+          (mapRef.current as any).animateCamera({
+            center: coordinate,
+            zoom: peakZoom,
+            pitch: 0
+          }, { duration: slideDuration });
+
+          // Step 3: Dive (zoom in) at target
+          setTimeout(() => {
+            if (!mapRef.current) return;
+            (mapRef.current as any).animateCamera({
+              center: coordinate,
+              zoom: 18.5,
+              pitch: 60
+            }, { duration: diveDuration });
+
+            setTimeout(() => onComplete(), diveDuration + 100);
+          }, slideDuration);
+        }, liftDuration);
+      } else {
+        // Calculate trigger times with OVERLAPS (-400ms) to blend animations into a smooth parabolic curve
+        const overlap = 400;
+        const t2 = phase1Duration - overlap;
+
+        // Phase 1: Lift off and travel to Midpoint
         (mapRef.current as any).animateCamera({ 
-          center: coordinate, 
-          zoom: 18.5,
-          pitch: 60 // Tilt further to see 3D buildings from a low angle during landing approach
-        }, { duration: phase2Duration });
+          center: { latitude: midLat, longitude: midLng }, 
+          zoom: peakZoom,
+          pitch: 45 // Tilt camera up to see horizon
+        }, { duration: phase1Duration });
         
-        setTimeout(() => onComplete(), phase2Duration + 100);
-      }, t2);
+        // Phase 2: Diagonal Dive (Move horizontally to target WHILE zooming in to street level)
+        setTimeout(() => {
+          if (!mapRef.current) return;
+          (mapRef.current as any).animateCamera({ 
+            center: coordinate, 
+            zoom: 18.5,
+            pitch: 60 // Tilt further to see 3D buildings from a low angle during landing approach
+          }, { duration: phase2Duration });
+          
+          setTimeout(() => onComplete(), phase2Duration + 100);
+        }, t2);
+      }
     } else {
       // Near (<= 50km): 1-step direct ground-skimming flight
       // We use manual JS interpolation (setInterval with setCamera) because the Android Google Maps SDK 
@@ -311,14 +396,18 @@ export const MapScreen: React.FC<MapScreenProps> = ({
 
       if (Platform.OS === 'ios') {
         (mapRef.current as any).animateCamera({ 
-          center: coordinate
+          center: coordinate,
+          zoom: 18.5
         }, { duration: nearDuration });
         setTimeout(() => onComplete(), nearDuration + 100);
       } else {
         const startLat = currentLat;
         const startLng = currentLng;
+        const startZ = currentZoom;
+        const targetZoom = 18.5;
         const dLat = coordinate.latitude - startLat;
         const dLng = coordinate.longitude - startLng;
+        const dZoom = targetZoom - startZ;
         
         let startTime: number | null = null;
         
@@ -333,10 +422,12 @@ export const MapScreen: React.FC<MapScreenProps> = ({
           
           const curLat = startLat + dLat * ease;
           const curLng = startLng + dLng * ease;
+          const curZoom = startZ + dZoom * ease;
 
           if (mapRef.current) {
             (mapRef.current as any).setCamera({ 
-              center: { latitude: curLat, longitude: curLng }
+              center: { latitude: curLat, longitude: curLng },
+              zoom: curZoom
             });
           }
 
@@ -373,8 +464,9 @@ export const MapScreen: React.FC<MapScreenProps> = ({
   // Time-Decay Logic: filter out expired pins
   const validPins = useMemo(() => {
     const now = Date.now();
-    return allPins.filter(pin => {
+    const filtered = allPins.filter(pin => {
       if (pin.is_pinned === false) return false;
+      if (!pin.latitude || !pin.longitude) return false; // MUST have valid coordinates
       const pinTime = new Date(pin.timestamp).getTime();
       const ageHours = (now - pinTime) / (1000 * 60 * 60);
       if (pin.post_type === "live_news") {
@@ -383,6 +475,16 @@ export const MapScreen: React.FC<MapScreenProps> = ({
         return true; // Standard pins are now Permanent
       }
     });
+
+    // Deduplicate by pinId to guarantee stable unique keys for Map rendering
+    const uniqueMap = new Map();
+    filtered.forEach(p => {
+      const key = p.pinId || `${p.latitude}-${p.longitude}-${p.timestamp}`;
+      if (!uniqueMap.has(key)) {
+        uniqueMap.set(key, p);
+      }
+    });
+    return Array.from(uniqueMap.values());
   }, [allPins]);
 
   // Precompute the oldest permanent pin (pioneer pin) for each 500m location area globally
@@ -417,7 +519,13 @@ export const MapScreen: React.FC<MapScreenProps> = ({
     const sponsoredVenueIds = new Set(displayedVenues.filter(v => v.is_sponsored || (v.sponsor_tier && v.sponsor_tier >= 1)).map(v => v.venueId));
 
     // 2. Filter out pins that belong to a sponsored venue so they don't render on the map directly
-    const mapRenderablePins = validPins.filter(pin => !pin.venueId || !sponsoredVenueIds.has(pin.venueId));
+    let mapRenderablePins = validPins.filter(pin => !pin.venueId || !sponsoredVenueIds.has(pin.venueId));
+
+    if (isFilterFriends) {
+      mapRenderablePins = mapRenderablePins.filter(pin => 
+        pin.userId === currentUserId || followingIds.includes(pin.userId)
+      );
+    }
 
     // Sort pins oldest first so that the seed pin for each cluster is the earliest posted pin
     const sortedPins = [...mapRenderablePins].sort((a, b) => {
@@ -435,8 +543,11 @@ export const MapScreen: React.FC<MapScreenProps> = ({
 
       for (const otherPin of sortedPins) {
         if (processed.has(otherPin.pinId!)) continue;
+        if (pin.userId !== otherPin.userId) continue;
+
         const distance = calculateDistance(pin.latitude, pin.longitude, otherPin.latitude, otherPin.longitude);
-        if (distance <= 500 && pin.userId === otherPin.userId) {
+        
+        if (distance <= 500) {
           currentGroup.push(otherPin);
           processed.add(otherPin.pinId!);
         }
@@ -499,24 +610,22 @@ export const MapScreen: React.FC<MapScreenProps> = ({
   // Dynamic zoom scale tracking
   const [zoomScale, setZoomScale] = useState(1.0);
 
-  const handleRegionChangeComplete = (region: { latitude: number; longitude: number; latitudeDelta: number; longitudeDelta: number }) => {
-    // Calculate custom zoom scale based on current latitudeDelta relative to base delta (0.015)
-    const baseDelta = 0.015;
-    const calculatedScale = baseDelta / (region.latitudeDelta || baseDelta);
-    // Clamp scale to keep icons legible (between 0.4 and 1.8)
-    const clampedScale = Math.max(0.4, Math.min(1.8, calculatedScale));
-
-    // Only update zoom scale if it has changed significantly (more than 8%)
-    // This avoids minor float fluctuations during panning from triggering useless re-renders
+  const handleRegionChange = (region: { latitude: number; longitude: number; latitudeDelta: number; longitudeDelta: number }) => {
+    const newScale = (region.latitudeDelta && region.latitudeDelta > 0.05) ? 0.4 : 1.0;
     setZoomScale(prevScale => {
-      if (Math.abs(clampedScale - prevScale) > 0.08) {
-        return clampedScale;
+      if (prevScale !== newScale) {
+        return newScale;
       }
       return prevScale;
     });
   };
 
-  // Default Center coordinates if GPS is loading (New York for testing)
+  const handleRegionChangeComplete = (region: { latitude: number; longitude: number; latitudeDelta: number; longitudeDelta: number }) => {
+    handleRegionChange(region);
+    setCurrentCenterRegion({ latitude: region.latitude, longitude: region.longitude });
+  };
+
+  // Default Center coordinates if GPS is loading
   const defaultRegion = {
     latitude: 40.7128,
     longitude: -74.0060,
@@ -524,8 +633,13 @@ export const MapScreen: React.FC<MapScreenProps> = ({
     longitudeDelta: 0.015
   };
 
-  // Force initial region to defaultRegion (New York) for testing cross-continent
-  const initialRegion = defaultRegion;
+  // Start at user location at street level height if available, else default
+  const initialRegion = userLocation ? {
+    latitude: userLocation.latitude,
+    longitude: userLocation.longitude,
+    latitudeDelta: 0.005,
+    longitudeDelta: 0.005
+  } : defaultRegion;
 
 
 
@@ -686,13 +800,17 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                       style={styles.resultItem}
                       onPress={() => handleSelectSearchResult(result)}
                     >
-                      <View style={styles.resultCategoryPlaceholder}>
+                      <View style={[styles.resultCategoryPlaceholder, result.type === 'venue' && { backgroundColor: 'transparent', borderRadius: 4 }]}>
                         {result.type === 'venue' ? (
-                          <Text style={{ fontSize: 14 }}>☕</Text>
+                          item.custom_icon_url || item.cover_image ? (
+                            <Image source={{ uri: item.custom_icon_url || item.cover_image }} style={{ width: 32, height: 32, borderRadius: 4 }} contentFit="contain" />
+                          ) : (
+                            <Text style={{ fontSize: 14 }}>☕</Text>
+                          )
                         ) : result.type === 'user' ? (
-                          <Image source={{ uri: item.userProfilePic || 'https://via.placeholder.com/40' }} style={{ width: 24, height: 24, borderRadius: 12 }} />
+                          <Image source={{ uri: item.userProfilePic || 'https://via.placeholder.com/40' }} style={{ width: 32, height: 32, borderRadius: 16 }} contentFit="cover" />
                         ) : (
-                          <Image source={{ uri: item.image_url || 'https://via.placeholder.com/40' }} style={{ width: 24, height: 24, borderRadius: 4 }} />
+                          <Image source={{ uri: item.image_url || 'https://via.placeholder.com/40' }} style={{ width: 32, height: 32, borderRadius: 4 }} contentFit="cover" />
                         )}
                       </View>
 
@@ -737,15 +855,19 @@ export const MapScreen: React.FC<MapScreenProps> = ({
         customMapStyle={Platform.OS === 'ios' ? pincIOSDarkStyle : pincDarkStyle}
         style={styles.map}
         initialRegion={initialRegion}
-        googleMapId={Platform.OS === 'ios' ? undefined : "ffb88fa752b68c8b5ad8c208"} // Disable Cloud Map ID on iOS to use local style
-        showsPointsOfInterest={false}
+        googleMapId={Platform.OS === 'ios' ? undefined : "ffb88fa752b68c8b5ad8c208"}
+        mapType="standard"
         showsBuildings={true}
+        showsTraffic={false}
+        showsIndoors={true}
         showsUserLocation
         showsMyLocationButton={false}
         spiralEnabled={false}
+        preserveClusterPressBehavior={true}
         loadingEnabled={true}
         loadingBackgroundColor="#14141e"
         loadingIndicatorColor={PincTheme.colors.primary}
+        onRegionChange={handleRegionChange}
         onRegionChangeComplete={handleRegionChangeComplete}
         clusterColor={PincTheme.colors.primary}
         clusterTextColor="#FFFFFF"
@@ -766,56 +888,101 @@ export const MapScreen: React.FC<MapScreenProps> = ({
             }
           });
 
-          // ใช้รูปโปรไฟล์ (user_profile_pic) แทนรูปภาพในโพสต์
-          const profilePicUrl = (nearestPin as any)?.user_profile_pic || null;
-          const clusterKey = `cluster-${id}-${profilePicUrl || ''}`;
-          const tierColor = nearestPin ? getTierColor(followerStatsCache[nearestPin.userId] || 0) : '#E0E0E0';
-          const displayName = nearestPin?.username || "";
+          // Find the actual pins in this cluster by sorting validPins by distance
+          const sortedByDistance = [...validPins].map(p => {
+            const d = Math.pow(p.latitude - centerLat, 2) + Math.pow(p.longitude - centerLng, 2);
+            return { p, d };
+          }).sort((a, b) => a.d - b.d);
+          
+          // Get the pins belonging to this cluster
+          const clusterPinsRaw = sortedByDistance.slice(0, points).map(item => item.p);
+          
+          // Calculate max physical distance from center
+          let maxPhysicalDistance = 0;
+          sortedByDistance.slice(0, points).forEach(item => {
+            const dist = calculateDistance(item.p.latitude, item.p.longitude, centerLat, centerLng);
+            if (dist > maxPhysicalDistance) maxPhysicalDistance = dist;
+          });
 
-          const scaledSize = getMarkerSize(zoomScale);
-          const scaledRadius = scaledSize / 2;
-          const innerSize = scaledSize - 6;
-          const innerRadius = innerSize / 2;
-          const textSize = Math.max(9, Math.floor(11 * zoomScale));
+          // Sort by timestamp: oldest first (back), newest last (front)
+          const clusterPins = clusterPinsRaw.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+          
+          // If the cluster spans a large physical distance (> 150m), it's just a zoomed-out grouping.
+          // Don't show them as "stacked" (overlapping) because they aren't actually at the same spot.
+          // Just show the representative (newest) pin. If they are truly close (<= 150m), show the overlap.
+          const displayPins = maxPhysicalDistance > 150 ? clusterPins.slice(-1) : clusterPins.slice(-3);
+
+          const clusterKey = `cluster-${id}-${points}`;
+          const baseTierColor = nearestPin ? getTierColor(followerStatsCache[nearestPin.userId] || 0) : '#E0E0E0';
 
           return (
             <CustomMapMarker key={clusterKey} coordinate={{ latitude: centerLat, longitude: centerLng }} onPress={onPress} zoomScale={zoomScale}>
               <View style={{ alignItems: 'center', paddingBottom: 10, paddingHorizontal: 10, backgroundColor: 'transparent' }}>
-                <View style={{ borderRadius: scaledRadius }}>
-                  <View style={{ width: scaledSize, height: scaledSize, borderRadius: scaledRadius, padding: 3, backgroundColor: tierColor, overflow: 'hidden' }}>
-                    {zoomScale > 0.6 ? (
-                      profilePicUrl ? (
-                        <RNImage source={{ uri: profilePicUrl }} style={{ width: innerSize, height: innerSize, borderRadius: innerRadius }} resizeMode="cover" />
-                      ) : (
-                        <View style={{ width: innerSize, height: innerSize, borderRadius: innerRadius, backgroundColor: PincTheme.colors.card }} />
-                      )
-                    ) : null}
+                {zoomScale > 0.6 ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    {displayPins.map((pin, index) => {
+                      const picUrl = pin.user_profile_pic;
+                      const pTierColor = getTierColor(followerStatsCache[pin.userId] || 0);
+                      
+                      return (
+                        <View key={pin.pinId} style={{ 
+                          marginLeft: index === 0 ? 0 : -20, // Overlap by roughly half a circle
+                          position: 'relative',
+                          zIndex: index 
+                        }}>
+                          {picUrl ? (
+                            <RNImage
+                              source={{ uri: picUrl }}
+                              style={{
+                                width: 44,
+                                height: 44,
+                                borderRadius: 22,
+                                borderWidth: 2,
+                                borderColor: pTierColor,
+                                backgroundColor: PincTheme.colors.card
+                              }}
+                              resizeMode="cover"
+                            />
+                          ) : (
+                            <View style={{
+                              width: 44, height: 44, borderRadius: 22,
+                              backgroundColor: pTierColor,
+                              borderWidth: 2, borderColor: PincTheme.colors.card
+                            }} />
+                          )}
+                          
+                          {/* Show badge only on the very last (front-most) pin if points > 3 */}
+                          {index === displayPins.length - 1 && points > 3 && (
+                            <View style={{
+                              position: 'absolute',
+                              bottom: -4, right: -4,
+                              backgroundColor: '#FF3B30',
+                              borderRadius: 10,
+                              paddingHorizontal: 5, paddingVertical: 2,
+                              borderWidth: 1.5, borderColor: '#FFFFFF'
+                            }}>
+                              <Text style={{ color: '#FFFFFF', fontSize: 10, fontWeight: 'bold' }}>{points > 99 ? '99+' : points}</Text>
+                            </View>
+                          )}
+                        </View>
+                      );
+                    })}
                   </View>
-                </View>
-                {zoomScale > 0.6 && displayName ? (
-                  <View style={{ alignItems: 'center' }}>
-                    <Text style={{ marginTop: 0, fontSize: textSize, fontWeight: '800', color: PincTheme.colors.textPrimary, textShadowColor: '#000', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 0, paddingHorizontal: 4, lineHeight: Math.max(14, textSize * 1.3), maxWidth: 120, textAlign: 'center' }} allowFontScaling={false}>
-                      {displayName}
-                    </Text>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', paddingBottom: 4 }}>
-                      <Ionicons name="people" size={Math.max(8, textSize - 2)} color={PincTheme.colors.primary} style={{ marginRight: 2, textShadowColor: '#000', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 0 }} />
-                      <Text style={{ fontSize: Math.max(8, textSize - 2), fontWeight: '700', color: PincTheme.colors.primary, textShadowColor: '#000', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 0 }} allowFontScaling={false}>
-                        {formatFollowers(followerStatsCache[nearestPin?.userId] || 0)}
-                      </Text>
-                    </View>
-                  </View>
-                ) : null}
+                ) : (
+                  <View style={{
+                    width: 3, height: 3, borderRadius: 1.5,
+                    backgroundColor: baseTierColor
+                  }} />
+                )}
               </View>
             </CustomMapMarker>
           );
         }}
         onPress={() => {
-          // แตะพื้นที่ว่างบนแผนที่เคลียร์ delete mode
           setDeleteModePinId(null);
         }}
         onClusterPress={(cluster: any, markers?: any[]) => {
           if (!markers) return;
-          // ดึง pinIds ออกจาก markers โดยป้องกันการซ้ำ
           const availablePins = [...validPins];
           const clusterPins: Pin[] = [];
           markers.forEach((m: any) => {
@@ -832,7 +999,6 @@ export const MapScreen: React.FC<MapScreenProps> = ({
             }
           });
 
-          // เมื่อกดที่หมุดรวม ให้เปิด Modal เรียงรูปทันที
           if (clusterPins.length > 0) {
             setReelsFeedPins(clusterPins);
           }
@@ -840,14 +1006,11 @@ export const MapScreen: React.FC<MapScreenProps> = ({
       >
         {groupedValidPins.map((group) => {
           const firstPin = group[0];
-          const latestPin = group[group.length - 1]; // Use latest pin for UI data like profile pic
-          
-          const photoUrl = latestPin.media_type === "video" && latestPin.thumbnail_url ? latestPin.thumbnail_url : latestPin.image_url;
+          const latestPin = group[group.length - 1];
           const isLiveNews = latestPin.post_type === "live_news";
           const isDeleteMode = deleteModePinId === firstPin.pinId;
           const pinKey = `pin-${firstPin.pinId || `${firstPin.latitude}-${firstPin.longitude}-${firstPin.timestamp}`}-${latestPin.user_profile_pic || ''}`;
 
-          // Check if close to a sponsored venue (within 10 meters)
           const closeSponsor = displayedVenues.find(
             v => v.is_sponsored && calculateDistance(firstPin.latitude, firstPin.longitude, v.latitude, v.longitude) < 10
           );
@@ -855,7 +1018,6 @@ export const MapScreen: React.FC<MapScreenProps> = ({
           let displayLat = firstPin.latitude;
           let displayLng = firstPin.longitude;
           if (closeSponsor) {
-            // Shift the user pin slightly south-east (~10 meters offset) so it tucks behind the shop's pin
             displayLat = firstPin.latitude - 0.00010;
             displayLng = firstPin.longitude + 0.00010;
           }
@@ -866,9 +1028,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
               coordinate={{ latitude: displayLat, longitude: displayLng }}
               onPress={() => {
                 if (isDeleteMode) return;
-
                 if (group.length > 1) {
-                  // If it's a grouped pin, show all pins in the ReelsFeedModal (newest first for browsing)
                   const sortedNewestFirst = [...group].sort((a, b) => {
                     const timeA = (a.timestamp as any)?.toDate ? (a.timestamp as any).toDate().getTime() : new Date(a.timestamp || 0).getTime();
                     const timeB = (b.timestamp as any)?.toDate ? (b.timestamp as any).toDate().getTime() : new Date(b.timestamp || 0).getTime();
@@ -880,13 +1040,10 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                     onSelectVenue(null as any);
                   }
                   if (firstPin.pinId) {
-                    // Navigate camera to selected individual pin
-                    // (Assuming cameraTarget logic is handled externally)
                     setReelsFeedPins([firstPin]);
                   }
                 }
               }}
-              // @ts-ignore
               onLongPress={() => {
                 if (currentUserId && latestPin.userId === currentUserId) {
                   setDeleteModePinId(firstPin.pinId || null);
@@ -896,7 +1053,6 @@ export const MapScreen: React.FC<MapScreenProps> = ({
               anchor={{ x: 0.5, y: 0.5 }}
               zoomScale={zoomScale}
             >
-              {/* Red Minus Delete Badge Overlay */}
               {isDeleteMode && (
                 <View style={{ position: 'absolute', top: '50%', left: '50%', marginTop: -20, marginLeft: -18, zIndex: 100, elevation: 20 }}>
                   <TouchableOpacity
@@ -912,7 +1068,6 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                 </View>
               )}
 
-              {/* Unified Profile Marker */}
               <View style={{ alignItems: 'center', paddingBottom: 28, paddingTop: isLiveNews ? 28 : 20, paddingHorizontal: 22, backgroundColor: 'transparent' }}>
                 {isLiveNews && zoomScale > 0.6 && (
                   <View style={{
@@ -922,12 +1077,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                     paddingHorizontal: 6,
                     paddingVertical: 2,
                     borderRadius: 8,
-                    zIndex: 20,
-                    shadowColor: PincTheme.colors.crowdRed,
-                    shadowOffset: { width: 0, height: 0 },
-                    shadowOpacity: 0.8,
-                    shadowRadius: 4,
-                    elevation: 4
+                    zIndex: 20
                   }}>
                     <Text style={{ color: '#FFF', fontSize: 9, fontWeight: '900', letterSpacing: 0.5 }} allowFontScaling={false}>STORY</Text>
                   </View>
@@ -937,34 +1087,25 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                   borderRadius: getMarkerSize(zoomScale) / 2,
                   zIndex: 10
                 }}>
-                  {/* Rainbow glow: multi-color rings / Normal glow: diffuse bloom */}
-                  {(firstPin.pinColor === 'rainbow' && !isLiveNews) ? (
-                    <>
-                      {/* Purple Glow for Rainbow */}
-                      {Array.from({ length: 20 }).map((_, i) => {
-                        const spread = i + 1;
-                        const progress = spread / 20;
-                        const opacity = 0.08 * Math.pow(1 - progress, 2);
-                        return (
-                          <View key={`glow-rainbow-base-${i}`} style={{
-                            position: 'absolute',
-                            top: -(9 + spread), left: -(9 + spread),
-                            width: getMarkerSize(zoomScale) + (9 + spread) * 2,
-                            height: getMarkerSize(zoomScale) + (9 + spread) * 2,
-                            borderRadius: (getMarkerSize(zoomScale) + (9 + spread) * 2) / 2,
-                            backgroundColor: '#9400D3',
-                            opacity: opacity,
-                          }} />
-                        );
-                      })}
-                      {/* Rainbow Rings */}
+                  {zoomScale > 0.6 && (firstPin.pinColor === 'rainbow' ? (
+                    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' }}>
                       {[
-                        { spread: 9, color: '#9400D3', opacity: 1.00 }, // Purple
-                        { spread: 7.5, color: '#0044FF', opacity: 1.00 }, // Blue
-                        { spread: 6, color: '#00CC44', opacity: 1.00 }, // Green
-                        { spread: 4.5, color: '#FFEE00', opacity: 1.00 }, // Yellow
-                        { spread: 3, color: '#FF8C00', opacity: 1.00 }, // Orange
-                        { spread: 1.5, color: '#FF0000', opacity: 1.00 }, // Red
+                        ...Array.from({ length: 9 }).map((_, i) => {
+                          const layerIndex = 9 - i;
+                          const spread = 9 + layerIndex;
+                          const progress = layerIndex / 9;
+                          return {
+                            spread: spread,
+                            color: '#9400D3',
+                            opacity: 0.25 * Math.pow(1 - progress, 2)
+                          };
+                        }),
+                        { spread: 9, color: '#9400D3', opacity: 1.00 },
+                        { spread: 7.5, color: '#0044FF', opacity: 1.00 },
+                        { spread: 6, color: '#00CC44', opacity: 1.00 },
+                        { spread: 4.5, color: '#FFEE00', opacity: 1.00 },
+                        { spread: 3, color: '#FF8C00', opacity: 1.00 },
+                        { spread: 1.5, color: '#FF0000', opacity: 1.00 },
                       ].map((layer, i) => (
                         <View key={`glow-${i}`} style={{
                           position: 'absolute',
@@ -977,14 +1118,12 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                           opacity: layer.opacity,
                         }} />
                       ))}
-                    </>
+                    </View>
                   ) : (
-                    Array.from({ length: 20 }).map((_, i) => {
-                      const spread = i + 1;
-                      const progress = spread / 20;
-                      // Stronger and wider red glow for Story pins
-                      const opacity = (isLiveNews ? 0.15 : 0.08) * Math.pow(1 - progress, 2);
-                      const glowSpread = isLiveNews ? spread * 1.5 : spread;
+                    Array.from({ length: 9 }).map((_, i) => {
+                      const glowSpread = i + 1; // 1px to 9px spread
+                      const progress = glowSpread / 9;
+                      const opacity = (isLiveNews ? 0.20 : 0.15) * Math.pow(1 - progress, 2);
                       return (
                         <View key={`glow-${i}`} style={{
                           position: 'absolute',
@@ -997,8 +1136,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                         }} />
                       );
                     })
-                  )}
-                  {/* Pink Crown for 100M+ */}
+                  ))}
                   {(followerStatsCache[firstPin.userId] || 0) >= 100000000 && (
                     <View style={{ 
                       position: 'absolute', top: -16, left: 0, right: 0, alignItems: 'center', zIndex: 100, elevation: 20
@@ -1010,8 +1148,8 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                     width: getMarkerSize(zoomScale),
                     height: getMarkerSize(zoomScale),
                     borderRadius: getMarkerSize(zoomScale) / 2,
-                    padding: firstPin.pinColor === 'rainbow' ? 0 : 5, // Thicker solid ring like Zenly
-                    backgroundColor: isLiveNews ? PincTheme.colors.crowdRed : (firstPin.pinColor === 'rainbow' ? 'transparent' : (firstPin.pinColor || '#FF69B4')),
+                    padding: zoomScale > 0.6 ? (firstPin.pinColor === 'rainbow' ? 0 : 4) : 0,
+                    backgroundColor: isLiveNews ? PincTheme.colors.crowdRed : (firstPin.pinColor === 'rainbow' ? (zoomScale > 0.6 ? 'transparent' : '#9400D3') : (firstPin.pinColor || '#FF69B4')),
                     overflow: 'hidden'
                   }}>
                     {zoomScale > 0.6 ? (
@@ -1022,13 +1160,13 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                             width: '100%', 
                             height: '100%', 
                             borderRadius: getMarkerSize(zoomScale) / 2,
-                            borderWidth: firstPin.pinColor === 'rainbow' ? 2 : 1.5,
+                            borderWidth: firstPin.pinColor === 'rainbow' ? 1 : 0.5,
                             borderColor: '#000000'
                           }}
                           resizeMode="cover"
                         />
                       ) : (
-                        <View style={{ width: '100%', height: '100%', borderRadius: getMarkerSize(zoomScale) / 2, backgroundColor: PincTheme.colors.card, borderWidth: firstPin.pinColor === 'rainbow' ? 2 : 1.5, borderColor: '#000000' }} />
+                        <View style={{ width: '100%', height: '100%', borderRadius: getMarkerSize(zoomScale) / 2, backgroundColor: PincTheme.colors.card, borderWidth: firstPin.pinColor === 'rainbow' ? 1 : 0.5, borderColor: '#000000' }} />
                       )
                     ) : null}
                   </View>
@@ -1050,30 +1188,8 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                     </View>
                   )}
                 </View>
-                {/* Downward triangle pointer with ultra-smooth glow */}
                 {zoomScale > 0.6 && (
                   <View style={{ marginTop: firstPin.pinColor === 'rainbow' ? 7 : -2, alignItems: 'center', zIndex: 1 }}>
-                    {/* Triangle Glow Layers */}
-                    {Array.from({ length: 15 }).map((_, i) => {
-                      const spread = i + 1;
-                      const progress = spread / 15;
-                      const opacity = (isLiveNews ? 0.15 : 0.08) * Math.pow(1 - progress, 2);
-                      return (
-                        <View key={`tri-glow-${i}`} style={{
-                          position: 'absolute',
-                          top: -spread * 0.5,
-                          width: 0, height: 0,
-                          borderLeftWidth: 8 + spread * 0.8,
-                          borderRightWidth: 8 + spread * 0.8,
-                          borderTopWidth: 10 + spread,
-                          borderLeftColor: 'transparent',
-                          borderRightColor: 'transparent',
-                          borderTopColor: isLiveNews ? PincTheme.colors.crowdRed : (firstPin.pinColor === 'rainbow' ? '#9400D3' : (firstPin.pinColor || '#FF69B4')),
-                          opacity: opacity,
-                        }} />
-                      );
-                    })}
-                    {/* Main Solid Triangle */}
                     <View style={{
                       width: 0,
                       height: 0,
@@ -1086,7 +1202,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                     }} />
                   </View>
                 )}
-                {latestPin.username ? (
+                {latestPin.username && zoomScale > 0.6 ? (
                   <View style={{ alignItems: 'center' }}>
                     <Text style={{ marginTop: 2, fontSize: 11, fontWeight: '800', color: PincTheme.colors.textPrimary, textShadowColor: '#000', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3, paddingHorizontal: 4, lineHeight: 15, maxWidth: 120, textAlign: 'center' }} allowFontScaling={false}>
                       {latestPin.username}
@@ -1116,7 +1232,6 @@ export const MapScreen: React.FC<MapScreenProps> = ({
           </Marker>
         )}
 
-        {/* Advertiser Pins */}
         {(() => {
           const sponsored = displayedVenues.filter(venue => venue.is_sponsored);
           const coordsCount: Record<string, number> = {};
@@ -1141,10 +1256,13 @@ export const MapScreen: React.FC<MapScreenProps> = ({
         })().map(venue => {
           const sponsorKey = `sponsor-${venue.venueId}-${venue.custom_icon_url || venue.cover_image}-${venue.aesthetic_rating}-${venue.crowd_status}`;
           const isZoomedOut = zoomScale <= 0.6;
-          const markerHeight = isZoomedOut ? 14 : Math.max(50, getMarkerSize(zoomScale) * 1.2);
+          const markerHeight = isZoomedOut ? 3 : Math.max(50, getMarkerSize(zoomScale) * 1.2);
           const markerWidth = markerHeight;
           const innerWidth = markerWidth - 4;
           const innerHeight = markerHeight - 4;
+          const isCommunity = venue.category?.toLowerCase() === 'community' || venue.category?.toLowerCase() === 'gang';
+          const isPincClub = venue.sponsor_tier === 4;
+          const useCustomIcon = venue.custom_icon_url && (isCommunity || isPincClub);
 
           return (
             <CustomMapMarker
@@ -1157,46 +1275,62 @@ export const MapScreen: React.FC<MapScreenProps> = ({
               cluster={false}
             >
               <View style={{ 
-                width: markerWidth + 40, 
-                height: markerHeight + 40, 
+                width: 140, 
+                height: 140, 
                 alignItems: 'center', 
                 justifyContent: 'center', 
                 backgroundColor: 'transparent' 
               }}>
-                {/* Outer border View — no overflow:hidden to avoid Android border-clipping bug */}
-                <View style={{
-                  width: markerWidth,
-                  height: markerHeight,
-                  borderRadius: isZoomedOut ? markerHeight / 2 : 10,
-                  borderWidth: isZoomedOut ? 0 : 2,
-                  borderColor: 'rgba(255, 182, 193, 0.9)',
-                  backgroundColor: isZoomedOut ? PincTheme.colors.primary : PincTheme.colors.card,
-                  padding: 0,
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                }}>
-                  {/* Inner clip View — overflow:hidden here is safe without border */}
+                {/* 
+                  CRITICAL ANDROID BUG FIX: 
+                  Android's map engine often fails to render an Image-only marker 
+                  unless there is a Text component to force a layout pass. 
+                */}
+                <Text style={{ width: 0, height: 0, opacity: 0, fontSize: 0 }}>{venue.venueId}</Text>
+
+                {useCustomIcon && !isZoomedOut ? (
+                  <View style={{ height: 100, justifyContent: 'center', alignItems: 'center' }}>
+                    <RNImage
+                      source={{ uri: venue.custom_icon_url }}
+                      style={{ width: 100, height: 100 }}
+                      resizeMode="contain"
+                    />
+                  </View>
+                ) : (
                   <View style={{
-                    width: innerWidth,
-                    height: innerHeight,
-                    borderRadius: 8,
-                    overflow: 'hidden',
+                    width: markerWidth,
+                    height: markerHeight,
+                    borderRadius: isZoomedOut ? markerHeight / 2 : 10,
+                    borderWidth: isZoomedOut ? 0 : 2,
+                    borderColor: 'rgba(255, 182, 193, 0.9)',
+                    backgroundColor: isZoomedOut ? PincTheme.colors.primary : PincTheme.colors.card,
+                    padding: 0,
                     justifyContent: 'center',
                     alignItems: 'center',
                   }}>
-                  {!isZoomedOut && (
-                    venue.custom_icon_url || venue.cover_image ? (
+                    <View style={{
+                      width: innerWidth,
+                      height: innerHeight,
+                      borderRadius: 8,
+                      overflow: 'hidden',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                    }}>
+                    {!isZoomedOut && (
                       <View style={{ width: innerWidth, height: innerHeight, justifyContent: 'center', alignItems: 'center' }}>
-                        <RNImage
-                          source={{ uri: venue.custom_icon_url || venue.cover_image }}
-                          style={{
-                            width: innerWidth,
-                            height: innerHeight,
-                            borderRadius: 8
-                          }}
-                          resizeMode="cover"
-                        />
-                        {/* Name inside the frame overlay */}
+                        {venue.cover_image ? (
+                          <RNImage
+                            source={{ uri: venue.cover_image }}
+                            style={{
+                              width: innerWidth,
+                              height: innerHeight,
+                              borderRadius: 8
+                            }}
+                            resizeMode="cover"
+                          />
+                        ) : (
+                          <View style={{ width: innerWidth, height: innerHeight, borderRadius: 8, backgroundColor: PincTheme.colors.card, justifyContent: 'center', alignItems: 'center' }} />
+                        )}
                         <LinearGradient
                           colors={['transparent', 'rgba(0,0,0,0.8)']}
                           style={{ 
@@ -1224,58 +1358,52 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                           </Text>
                         </LinearGradient>
                       </View>
-                    ) : (
-                      <View style={{ width: innerWidth, height: innerHeight, borderRadius: 8, backgroundColor: PincTheme.colors.card, justifyContent: 'center', alignItems: 'center' }}>
-                        <Text style={{ fontSize: 10, fontWeight: 'bold', color: PincTheme.colors.textPrimary, textAlign: 'center', padding: 4 }} numberOfLines={2}>
-                          {venue.name}
-                        </Text>
-                      </View>
-                    )
-                  )}
-                  </View>
-                </View>
-                
-                {/* Review Badge */}
-                {(() => {
-                  const rCount = venue.rating_count || allPins.filter(p => p.venueId === venue.venueId).length;
-                  if (isZoomedOut) return null;
-                  // Force display 10+ for demo if count is 0, otherwise show real count
-                  const displayCount = rCount === 0 ? '10+' : (rCount >= 10 ? '10+' : rCount.toString());
-                  return (
-                    <View style={{
-                      position: 'absolute',
-                      top: 12, // 20 - 8
-                      right: 12, // 20 - 8
-                      width: 20,
-                      height: 20,
-                      borderRadius: 10,
-                      backgroundColor: '#2C2C2E',
-                      borderWidth: 2,
-                      borderColor: 'rgba(255, 182, 193, 0.9)',
-                      justifyContent: 'center',
-                      alignItems: 'center',
-                      zIndex: 999,
-                      shadowColor: '#000',
-                      shadowOffset: { width: 0, height: 2 },
-                      shadowOpacity: 0.3,
-                      shadowRadius: 2,
-                      elevation: 5,
-                    }}>
-                      <Text style={{ 
-                        color: '#FFFFFF', 
-                        fontSize: 7.5, 
-                        fontWeight: '600', 
-                        textAlign: 'center',
-                        letterSpacing: -0.3,
-                        transform: [{ scaleY: 1.1 }]
-                      }} allowFontScaling={false}>
-                        {displayCount}
-                      </Text>
+                    )}
                     </View>
-                  );
-                })()}
+
+                    {/* Review Badge */}
+                    {!isZoomedOut && (() => {
+                      const rCount = venue.rating_count || allPins.filter(p => p.venueId === venue.venueId).length;
+                      // Force display 10+ for demo if count is 0, otherwise show real count
+                      const displayCount = rCount === 0 ? '10+' : (rCount >= 10 ? '10+' : rCount.toString());
+                      return (
+                        <View style={{
+                          position: 'absolute',
+                          top: -6, 
+                          right: -6, 
+                          width: 20,
+                          height: 20,
+                          borderRadius: 10,
+                          backgroundColor: '#2C2C2E',
+                          borderWidth: 2,
+                          borderColor: 'rgba(255, 182, 193, 0.9)',
+                          justifyContent: 'center',
+                          alignItems: 'center',
+                          zIndex: 999,
+                          shadowColor: '#000',
+                          shadowOffset: { width: 0, height: 2 },
+                          shadowOpacity: 0.3,
+                          shadowRadius: 2,
+                          elevation: 5,
+                        }}>
+                          <Text style={{ 
+                            color: '#FFFFFF', 
+                            fontSize: 7.5, 
+                            fontWeight: '600', 
+                            textAlign: 'center',
+                            letterSpacing: -0.3,
+                            transform: [{ scaleY: 1.1 }]
+                          }} allowFontScaling={false}>
+                            {displayCount}
+                          </Text>
+                        </View>
+                      );
+                    })()}
+                  </View>
+                )}
+                
                 {/* Downward triangle pointer for venue pin - matches pink border */}
-                {!isZoomedOut && (
+                {!isZoomedOut && !useCustomIcon && (
                   <View style={{
                     width: 0,
                     height: 0,
@@ -1288,12 +1416,105 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                     marginTop: -2,
                   }} />
                 )}
+
+                {/* Subtitle box */}
+                {!isZoomedOut && venue.subtitle ? (
+                  <View style={{
+                    marginTop: useCustomIcon ? -4 : 3,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    maxWidth: 120,
+                  }}>
+                    <Text style={{
+                      color: '#FFF',
+                      fontSize: 9,
+                      fontWeight: '900',
+                      textAlign: 'center',
+                      fontFamily: PincTheme.fonts.body,
+                      textShadowColor: 'rgba(0, 0, 0, 1)',
+                      textShadowOffset: { width: 0, height: 1 },
+                      textShadowRadius: 3,
+                    }} numberOfLines={2}>
+                      {venue.subtitle}
+                    </Text>
+                  </View>
+                ) : null}
               </View>
             </CustomMapMarker>
           );
         })}
 
       </MapView>
+
+      {settingCrewBaseVenue && (
+        <View style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          marginLeft: -45,
+          marginTop: -45,
+          zIndex: 10,
+          alignItems: 'center',
+          justifyContent: 'center',
+          pointerEvents: 'none' // Ensure clicks pass through to map
+        }}>
+          <Image 
+            source={{ uri: settingCrewBaseVenue.custom_icon_url || settingCrewBaseVenue.cover_image || 'https://via.placeholder.com/90' }} 
+            style={{ width: 90, height: 90 }} 
+            contentFit="contain"
+          />
+        </View>
+      )}
+
+      {settingCrewBaseVenue && (
+        <View style={{ position: 'absolute', bottom: 40, left: 20, right: 20, zIndex: 100, flexDirection: 'row', gap: 12 }}>
+          <TouchableOpacity 
+            style={{ flex: 1, backgroundColor: '#FFF', paddingVertical: 14, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: '#FFE0E6' }}
+            onPress={() => onClearCrewBaseMode && onClearCrewBaseMode()}
+            disabled={isUpdatingBase}
+          >
+            <Text style={{ color: PincTheme.colors.textSecondary, fontWeight: 'bold', fontSize: 14, fontFamily: PincTheme.fonts.heading }}>
+              ❌ {locale === 'th' ? 'ยกเลิก' : 'Cancel'}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={{ flex: 2, backgroundColor: '#B366FF', paddingVertical: 14, borderRadius: 12, alignItems: 'center', ...PincTheme.shadows.md }}
+            onPress={async () => {
+              if (!settingCrewBaseVenue) return;
+              const targetRegion = currentCenterRegion || 
+                (userLocation ? { latitude: userLocation.latitude, longitude: userLocation.longitude } : { latitude: settingCrewBaseVenue.latitude, longitude: settingCrewBaseVenue.longitude });
+                
+              try {
+                setIsUpdatingBase(true);
+                const venueRef = doc(db, 'venues', settingCrewBaseVenue.venueId);
+                await updateDoc(venueRef, {
+                  latitude: targetRegion.latitude,
+                  longitude: targetRegion.longitude
+                });
+                if (onClearCrewBaseMode) onClearCrewBaseMode();
+                Alert.alert(
+                  locale === 'th' ? 'สำเร็จ' : 'Success',
+                  locale === 'th' ? 'อัปเดตพิกัดฐานทัพเรียบร้อยแล้ว' : 'Successfully updated Club Base location.'
+                );
+              } catch (error) {
+                console.error("Error updating venue location: ", error);
+                Alert.alert(locale === 'th' ? 'ข้อผิดพลาด' : 'Error', 'Failed to update location.');
+              } finally {
+                setIsUpdatingBase(false);
+              }
+            }}
+            disabled={isUpdatingBase}
+          >
+            {isUpdatingBase ? (
+              <ActivityIndicator color="#FFF" />
+            ) : (
+              <Text style={{ color: '#FFF', fontWeight: 'bold', fontSize: 14, fontFamily: PincTheme.fonts.heading }}>
+                ✅ {locale === 'th' ? 'ยืนยันพิกัดฐานทัพ' : 'Confirm Location'}
+              </Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Memory Timeline Modal */}
       <ReelsFeedModal

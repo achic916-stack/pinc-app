@@ -143,7 +143,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({
 const styles = StyleSheet.create({
   modalContent: {
     flex: 1,
-    backgroundColor: "#F8F8F8"
+    backgroundColor: "#3D3D3D"
   },
   header: {
     flexDirection: "row",

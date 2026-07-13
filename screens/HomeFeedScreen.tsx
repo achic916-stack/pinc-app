@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,12 +12,14 @@ import {
   Alert,
   Share,
   Dimensions,
+  Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { Pin, UserProfile, toggleLikePin, calculateDistance, deletePin, toggleSavePin } from '../services/firebase';
+import { Pin, UserProfile, toggleLikePin, calculateDistance, deletePin, toggleSavePin, cleanupMyExpiredStories, reportPin } from '../services/firebase';
 import { PincTheme } from '../styles/theme';
 import { CachedVideo } from '../components/CachedVideo';
+import { WatermarkShare } from '../components/WatermarkShare';
 import { CommentsDrawer } from '../components/CommentsDrawer';
 import { FollowButton } from '../components/FollowButton';
 
@@ -29,256 +31,171 @@ interface HomeFeedScreenProps {
   onStartVideoPost?: () => void;
   onStartPhotoPost?: () => void;
   onStartGalleryPost?: () => void;
+  onGoToMap?: (latitude: number, longitude: number) => void;
+  selectedPin?: Pin | null;
+  isVisible: boolean;
 }
 
-export const HomeFeedScreen: React.FC<HomeFeedScreenProps> = ({
-  pins,
-  currentUser,
-  onOpenUserProfile,
-  onNewPostPress,
-  onStartVideoPost,
-  onStartPhotoPost,
-  onStartGalleryPost,
+
+interface FeedPinItemProps {
+  item: Pin;
+  isActiveVideo: boolean;
+  currentUser: UserProfile;
+  localSavedPins: Record<string, boolean>;
+  onOpenUserProfile: (userId: string) => void;
+  handleOptionsPress: (item: Pin) => void;
+  handleLike: (pinId: string) => void;
+  setCommentPinId: (pinId: string) => void;
+  handleShare: (item: Pin) => void;
+  handleToggleSave: (pinId: string) => void;
+  onGoToMap?: (latitude: number, longitude: number) => void;
+}
+
+const FeedPinItem: React.FC<FeedPinItemProps> = React.memo(({ 
+  item, isActiveVideo, currentUser, localSavedPins, 
+  onOpenUserProfile, handleOptionsPress, handleLike, 
+  setCommentPinId, handleShare, handleToggleSave, onGoToMap
 }) => {
-  const [refreshing, setRefreshing] = useState(false);
-  const [isPostMenuOpen, setIsPostMenuOpen] = useState(false);
-  const [commentPinId, setCommentPinId] = useState<string | null>(null);
-  const [aspectRatios, setAspectRatios] = useState<Record<string, number>>({});
-  const [activeVideoId, setActiveVideoId] = useState<string | null>(null);
-  
-  // Local state to instantly toggle bookmark UI
-  const [localSavedPins, setLocalSavedPins] = useState<Record<string, boolean>>(() => {
-    const initial: Record<string, boolean> = {};
-    if (currentUser.savedPins) {
-      currentUser.savedPins.forEach(id => {
-        initial[id] = true;
-      });
-    }
-    return initial;
-  });
+  const [localAspectRatios, setLocalAspectRatios] = useState<Record<string, number>>({});
+  const [activeMediaIndex, setActiveMediaIndex] = useState(0);
 
-  const onViewableItemsChanged = useRef(({ viewableItems }: any) => {
-    const visibleVideo = viewableItems.find((itemInfo: any) => {
-      const pin = itemInfo.item as Pin;
-      return pin.media_type === "video" || (pin.image_url && pin.image_url.includes(".mp4")) || (pin.media_urls && pin.media_urls.some(url => url.includes(".mp4")));
-    });
+  const [liked, setLiked] = useState(item.likes?.includes(currentUser.userId) || false);
+  const [likesCount, setLikesCount] = useState(item.likesCount || item.likes?.length || 0);
 
-    if (visibleVideo) {
-      setActiveVideoId(visibleVideo.item.pinId || visibleVideo.item.timestamp.toString());
-    } else {
-      setActiveVideoId(null);
-    }
-  }).current;
+  useEffect(() => {
+    setLiked(item.likes?.includes(currentUser.userId) || false);
+    setLikesCount(item.likesCount || item.likes?.length || 0);
+  }, [item.likes, item.likesCount, currentUser.userId]);
 
-  const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 60 }).current;
-
-  // Grouping pins by user and 500m distance
-  const clusteredPins = useMemo(() => {
-    // Sort oldest first to use the first uploaded pin as the anchor
-    const sortedOldestFirst = [...pins].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-    const groups: Pin[][] = [];
-    const processed = new Set<string>();
-
-    for (const pin of sortedOldestFirst) {
-      if (processed.has(pin.pinId!)) continue;
-      const currentGroup = [pin];
-      processed.add(pin.pinId!);
-
-      for (const otherPin of sortedOldestFirst) {
-        if (processed.has(otherPin.pinId!)) continue;
-        const distance = calculateDistance(pin.latitude, pin.longitude, otherPin.latitude, otherPin.longitude);
-        // If within 500m AND same user, group them
-        if (distance <= 500 && pin.userId === otherPin.userId) {
-          currentGroup.push(otherPin);
-          processed.add(otherPin.pinId!);
-        }
-      }
-      groups.push(currentGroup);
-    }
-
-    // Map groups back to a single representative 'Pin' object that has media_urls
-    return groups.map(group => {
-      if (group.length === 1) return group[0];
-      
-      const anchorPin = { ...group[0] };
-      // Combine all media URLs
-      const allMedia = group.map(p => p.image_url).filter(Boolean) as string[];
-      if (allMedia.length > 1) {
-        anchorPin.media_urls = allMedia;
-      }
-      
-      // Update timestamp to the latest pin in the group so it bubbles up the feed
-      const latestTime = Math.max(...group.map(p => new Date(p.timestamp).getTime()));
-      anchorPin.timestamp = new Date(latestTime) as any;
-      
-      return anchorPin;
-    });
-  }, [pins]);
-
-  // Sorting pins (newest first)
-  const sortedPins = [...clusteredPins].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-
-  const onRefresh = () => {
-    setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 1000);
+  const onLikePress = () => {
+    if (!item.pinId) return;
+    const nextLiked = !liked;
+    setLiked(nextLiked);
+    setLikesCount(prev => prev + (nextLiked ? 1 : -1));
+    handleLike(item.pinId);
   };
 
-  const handleLike = async (pinId: string) => {
-    try {
-      await toggleLikePin(pinId, currentUser.userId);
-    } catch (e) {
-      console.error(e);
-    }
+  const handleScroll = (event: any) => {
+    const slideSize = event.nativeEvent.layoutMeasurement.width;
+    const index = event.nativeEvent.contentOffset.x / slideSize;
+    setActiveMediaIndex(Math.round(index));
   };
 
-  const handleOptionsPress = (item: Pin) => {
-    if (item.userId === currentUser.userId) {
-      Alert.alert("Post Options", "What would you like to do?", [
-        { text: "Delete Post", style: "destructive", onPress: () => {
-          Alert.alert("Confirm Delete", "Are you sure you want to delete this post?", [
-            { text: "Cancel", style: "cancel" },
-            { text: "Delete", style: "destructive", onPress: async () => {
-              try {
-                if (item.pinId) {
-                  await deletePin(item.pinId);
-                  Alert.alert("Success", "Post deleted successfully.");
-                }
-              } catch (e) {
-                Alert.alert("Error", "Failed to delete post.");
-              }
-            }}
-          ]);
-        }},
-        { text: "Cancel", style: "cancel" }
-      ]);
-    } else {
-      Alert.alert("Post Options", "What would you like to do?", [
-        { text: "Report Post", style: "destructive", onPress: () => {
-          Alert.alert("Report", "This post has been reported for review.");
-        }},
-        { text: "Cancel", style: "cancel" }
-      ]);
-    }
-  };
+  const isVideo = item.media_type === "video" || (item.image_url && item.image_url.includes(".mp4"));
+  const safeUsername = item.username || "Unknown";
+  const safeHandle = safeUsername.toLowerCase().replace(/\s+/g, '_');
+  const timeFormatted = new Intl.DateTimeFormat('en-GB', { 
+    day: 'numeric', month: 'short', 
+    hour: '2-digit', minute: '2-digit' 
+  }).format(new Date(item.timestamp));
 
-  const handleShare = async (pin: Pin) => {
-    try {
-      await Share.share({
-        message: `Check out this post by @${pin.username} on Pinc!`,
-        url: pin.image_url || undefined,
-      });
-    } catch (error) {
-      console.error('Share failed', error);
-    }
-  };
-
-  const handleToggleSave = async (pinId: string) => {
-    const isCurrentlySaved = localSavedPins[pinId];
-    
-    // Optimistic UI update
-    setLocalSavedPins(prev => ({
-      ...prev,
-      [pinId]: !isCurrentlySaved
-    }));
-
-    try {
-      const isSavedNow = await toggleSavePin(pinId, currentUser.userId);
-      // Sync with actual server result
-      setLocalSavedPins(prev => ({
-        ...prev,
-        [pinId]: isSavedNow
-      }));
-    } catch (err) {
-      console.error('Save pin failed', err);
-      // Revert if failed
-      setLocalSavedPins(prev => ({
-        ...prev,
-        [pinId]: isCurrentlySaved
-      }));
-      Alert.alert("Error", "Failed to save post.");
-    }
-  };
-
-  const renderPin = ({ item }: { item: Pin }) => {
-    const isVideo = item.media_type === "video" || (item.image_url && item.image_url.includes(".mp4"));
-    const safeUsername = item.username || "Unknown";
-    const safeHandle = safeUsername.toLowerCase().replace(/\s+/g, '_');
-    const timeFormatted = new Intl.DateTimeFormat('en-GB', { 
-      day: 'numeric', month: 'short', 
-      hour: '2-digit', minute: '2-digit' 
-    }).format(new Date(item.timestamp));
-
-    return (
+  return (
       <View style={styles.card}>
         {/* Header */}
         <View style={styles.cardHeader}>
           <TouchableOpacity 
-            style={styles.userInfo}
+            style={[styles.userInfo, { flex: 1, paddingRight: 10 }]}
             onPress={() => onOpenUserProfile(item.userId)}
           >
             <Image 
               source={{ uri: item.user_profile_pic || 'https://via.placeholder.com/40' }} 
               style={styles.avatar} 
             />
-            <View>
+            <View style={{ flex: 1 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Text style={styles.username}>{safeUsername}</Text>
-                <FollowButton currentUserId={currentUser.userId} targetUserId={item.userId} />
+                <Text style={[styles.username, { flexShrink: 1 }]} numberOfLines={1}>{safeUsername}</Text>
+                {item.post_type === "live_news" ? (
+                  <View style={{
+                    backgroundColor: PincTheme.colors.crowdRed,
+                    paddingHorizontal: 6,
+                    paddingVertical: 2,
+                    borderRadius: 6,
+                    marginLeft: 8,
+                    marginTop: 2,
+                    flexShrink: 0
+                  }}>
+                    <Text style={{ color: '#FFF', fontSize: 9, fontWeight: '900', letterSpacing: 0.5 }}>STORY</Text>
+                  </View>
+                ) : null}
               </View>
-              <Text style={styles.handle}>@{safeHandle} • {timeFormatted}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
+                <Text style={[styles.handle, { marginTop: 0 }]}>{timeFormatted}</Text>
+                <FollowButton currentUserId={currentUser.userId} targetUserId={item.userId} size="small" />
+              </View>
             </View>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => handleOptionsPress(item)}>
-            <Ionicons name="ellipsis-horizontal" size={20} color={PincTheme.colors.textSecondary} />
+          <TouchableOpacity onPress={() => handleOptionsPress(item)} style={{ padding: 4 }}>
+            <Ionicons name="ellipsis-vertical" size={20} color={PincTheme.colors.textSecondary} />
           </TouchableOpacity>
         </View>
 
         {/* Content */}
-        {item.text_content ? (
-          <Text style={styles.content}>{item.text_content}</Text>
-        ) : null}
+        {(() => {
+          let displayText = item.text_content || "";
+          if (displayText.includes("Current Location")) {
+            displayText = displayText.replace(/\n?📍\s*Current Location.*/g, '');
+          } else if (item.is_gallery) {
+            displayText = displayText.replace(/\n?📍.*/g, '');
+          }
+          displayText = displayText.trim();
+          return displayText ? <Text style={styles.content}>{displayText}</Text> : null;
+        })()}
 
         {/* Media */}
         {(item.media_urls && item.media_urls.length > 1) ? (
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false} 
-            style={[styles.mediaContainer, { aspectRatio: aspectRatios[item.media_urls[0]] || 4/5 }]}
-            snapToInterval={Dimensions.get('window').width}
-            decelerationRate="fast"
-            snapToAlignment="center"
-          >
-            {item.media_urls.map((url, index) => {
-              const isVid = item.media_type === "video" || url.includes(".mp4");
-              return (
-                <View key={index} style={{ width: Dimensions.get('window').width }}>
-                  {isVid ? (
-                    <CachedVideo
-                      source={{ uri: url }}
-                      style={styles.media}
-                      resizeMode="contain"
-                      useNativeControls
-                      isLooping
-                      shouldPlay={activeVideoId === (item.pinId || item.timestamp.toString())}
-                    />
-                  ) : (
-                    <Image 
-                      source={{ uri: url }} 
-                      style={styles.media} 
-                      contentFit="contain" 
-                      onLoad={(e) => {
-                        if (index === 0 && e.source.width && e.source.height) {
-                          setAspectRatios(prev => ({ ...prev, [url]: e.source.width / e.source.height }));
-                        }
-                      }}
-                    />
-                  )}
-                </View>
-              );
-            })}
-          </ScrollView>
+          <View style={{ position: 'relative' }}>
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false} 
+              style={[styles.mediaContainer, { aspectRatio: localAspectRatios[item.media_urls[0]] || 4/5, marginBottom: 0 }]}
+              snapToInterval={Dimensions.get('window').width}
+              decelerationRate="fast"
+              snapToAlignment="center"
+              onMomentumScrollEnd={handleScroll}
+              onScrollEndDrag={handleScroll}
+            >
+              {item.media_urls.map((url, index) => {
+                const isVid = item.media_type === "video" || url.includes(".mp4");
+                return (
+                  <View key={index} style={{ width: Dimensions.get('window').width }}>
+                    {isVid ? (
+                      <CachedVideo
+                        source={{ uri: url }}
+                        style={styles.media}
+                        resizeMode="contain"
+                        useNativeControls
+                        isLooping
+                        shouldPlay={isActiveVideo && activeMediaIndex === index}
+                      />
+                    ) : (
+                      <Image 
+                        source={{ uri: url }} 
+                        style={styles.media} 
+                        contentFit="contain" 
+                        onLoad={(e) => {
+                          if (index === 0 && e.source.width && e.source.height) {
+                            setLocalAspectRatios(prev => ({ ...prev, [url]: e.source.width / e.source.height }));
+                          }
+                        }}
+                      />
+                    )}
+                  </View>
+                );
+              })}
+            </ScrollView>
+            
+            {/* Pagination Dots */}
+            <View style={styles.paginationContainer}>
+              {item.media_urls.map((_, idx) => (
+                <View 
+                  key={idx} 
+                  style={[styles.paginationDot, activeMediaIndex === idx && styles.paginationDotActive]} 
+                />
+              ))}
+            </View>
+          </View>
         ) : item.image_url ? (
-          <View style={[styles.mediaContainer, { aspectRatio: aspectRatios[item.image_url] || 4/5 }]}>
+          <View style={[styles.mediaContainer, { aspectRatio: localAspectRatios[item.image_url] || 4/5 }]}>
             {isVideo ? (
               <CachedVideo
                 source={{ uri: item.image_url }}
@@ -286,7 +203,7 @@ export const HomeFeedScreen: React.FC<HomeFeedScreenProps> = ({
                 resizeMode="contain"
                 useNativeControls
                 isLooping
-                shouldPlay={activeVideoId === (item.pinId || item.timestamp.toString())}
+                shouldPlay={isActiveVideo}
               />
             ) : (
               <Image 
@@ -295,7 +212,7 @@ export const HomeFeedScreen: React.FC<HomeFeedScreenProps> = ({
                 contentFit="contain"
                 onLoad={(e) => {
                   if (e.source.width && e.source.height) {
-                    setAspectRatios(prev => ({ ...prev, [item.image_url]: e.source.width / e.source.height }));
+                    setLocalAspectRatios(prev => ({ ...prev, [item.image_url]: e.source.width / e.source.height }));
                   }
                 }}
               />
@@ -308,14 +225,14 @@ export const HomeFeedScreen: React.FC<HomeFeedScreenProps> = ({
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <TouchableOpacity 
               style={styles.actionButton}
-              onPress={() => item.pinId && handleLike(item.pinId)}
+              onPress={onLikePress}
             >
               <Ionicons 
-                name={item.likes?.includes(currentUser.userId) ? "heart" : "heart-outline"} 
+                name={liked ? "heart" : "heart-outline"} 
                 size={24} 
-                color={item.likes?.includes(currentUser.userId) ? PincTheme.colors.primary : PincTheme.colors.textPrimary} 
+                color={liked ? PincTheme.colors.primary : PincTheme.colors.textPrimary} 
               />
-              <Text style={styles.actionText}>{item.likesCount || item.likes?.length || 0}</Text>
+              <Text style={styles.actionText}>{likesCount}</Text>
             </TouchableOpacity>
             <TouchableOpacity 
               style={styles.actionButton}
@@ -343,9 +260,277 @@ export const HomeFeedScreen: React.FC<HomeFeedScreenProps> = ({
             />
           </TouchableOpacity>
         </View>
-      </View>
-    );
+
+        {/* Go To Map Button (Only for Venue Pins) */}
+        {item.venueId && item.venueId !== "gallery_post" && (
+          <TouchableOpacity 
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              paddingVertical: 8,
+              paddingHorizontal: 16,
+              marginHorizontal: 16,
+              marginBottom: 12,
+              borderRadius: 8,
+              backgroundColor: PincTheme.colors.primaryLight,
+              borderWidth: 1,
+              borderColor: PincTheme.colors.primary,
+            }}
+            onPress={() => onGoToMap?.(item.latitude, item.longitude)}
+          >
+            <Ionicons name="map-outline" size={16} color={PincTheme.colors.primary} style={{ marginRight: 6 }} />
+            <Text style={{ fontSize: 13, fontWeight: '700', color: PincTheme.colors.primary }}>Go To Map</Text>
+          </TouchableOpacity>
+        )}
+    </View>
+  );
+});
+
+export const HomeFeedScreen: React.FC<HomeFeedScreenProps> = ({
+  pins,
+  currentUser,
+  onOpenUserProfile,
+  onNewPostPress,
+  onStartVideoPost,
+  onStartPhotoPost,
+  onStartGalleryPost,
+  selectedPin,
+  isVisible,
+}) => {
+  const flatListRef = useRef<FlatList>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [isPostMenuOpen, setIsPostMenuOpen] = useState(false);
+  const [commentPinId, setCommentPinId] = useState<string | null>(null);
+  const [aspectRatios, setAspectRatios] = useState<Record<string, number>>({});
+  const [activeVideoId, setActiveVideoId] = useState<string | null>(null);
+  
+  // Local state to instantly toggle bookmark UI
+  const [localSavedPins, setLocalSavedPins] = useState<Record<string, boolean>>({});
+  const [localHiddenPins, setLocalHiddenPins] = useState<Record<string, boolean>>({});
+  const [sharePin, setSharePin] = useState<Pin | null>(null);
+
+  useEffect(() => {
+    if (currentUser?.userId) {
+      cleanupMyExpiredStories(currentUser.userId).catch(err => console.log("Cleanup err:", err));
+    }
+  }, [currentUser?.userId]);
+
+  useEffect(() => {
+    const initial: Record<string, boolean> = {};
+    if (currentUser.savedPins) {
+      currentUser.savedPins.forEach(id => {
+        initial[id] = true;
+      });
+    }
+    setLocalSavedPins(initial);
+  }, [currentUser.savedPins]);
+
+  const onViewableItemsChanged = useRef(({ viewableItems }: any) => {
+    const visibleVideo = viewableItems.find((itemInfo: any) => {
+      const pin = itemInfo.item as Pin;
+      return pin.media_type === "video" || (pin.image_url && pin.image_url.includes(".mp4")) || (pin.media_urls && pin.media_urls.some(url => url.includes(".mp4")));
+    });
+
+    if (visibleVideo) {
+      setActiveVideoId(visibleVideo.item.pinId || visibleVideo.item.timestamp.toString());
+    } else {
+      setActiveVideoId(null);
+    }
+  }).current;
+
+  const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 60 }).current;
+
+  // Grouping pins for Feed (Map posts within 500m & 4 hours get clustered)
+  const sortedPins = useMemo(() => {
+    let validPins = [...pins].filter(p => {
+      if (p.pinId && localHiddenPins[p.pinId]) return false;
+      if (currentUser.blockedUsers?.includes(p.userId)) return false;
+      if (p.pinId && currentUser.reportedPins?.includes(p.pinId)) return false;
+      return true;
+    });
+
+    // Sort oldest first to form groups properly
+    validPins.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
+    const processed = new Set<string>();
+    const clustered: Pin[] = [];
+
+    for (const pin of validPins) {
+      if (processed.has(pin.pinId!)) continue;
+      processed.add(pin.pinId!);
+
+      // Only group if it has location (map pin)
+      if (pin.latitude === undefined || pin.longitude === undefined || (pin.latitude === 0 && pin.longitude === 0)) {
+        clustered.push(pin);
+        continue;
+      }
+
+      const cluster = [pin];
+      for (const otherPin of validPins) {
+        if (processed.has(otherPin.pinId!)) continue;
+        if (pin.userId !== otherPin.userId) continue;
+        if (otherPin.latitude === undefined || otherPin.longitude === undefined || (otherPin.latitude === 0 && otherPin.longitude === 0)) continue;
+
+        const distance = calculateDistance(pin.latitude, pin.longitude, otherPin.latitude, otherPin.longitude);
+        const timeDiffHours = Math.abs(new Date(pin.timestamp).getTime() - new Date(otherPin.timestamp).getTime()) / (1000 * 60 * 60);
+
+        if (distance <= 500 && timeDiffHours <= 4) {
+          cluster.push(otherPin);
+          processed.add(otherPin.pinId!);
+        }
+      }
+
+      if (cluster.length > 1) {
+        // Group into a gallery post
+        const anchor = { ...cluster[cluster.length - 1] }; // Use newest pin for text/details
+        const allMedia = cluster.flatMap(c => {
+          if (c.media_urls && c.media_urls.length > 0) return c.media_urls;
+          if (c.image_url) return [c.image_url];
+          return [];
+        });
+        anchor.media_urls = allMedia.reverse(); // Newest first
+        anchor.media_type = 'gallery';
+        anchor.image_url = anchor.media_urls[0] || '';
+        clustered.push(anchor);
+      } else {
+        clustered.push(pin);
+      }
+    }
+
+    // Sort newest first for the feed
+    let finalSorted = clustered.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+    if (selectedPin) {
+      const selectedIndex = finalSorted.findIndex(p => p.pinId === selectedPin.pinId);
+      if (selectedIndex > 0) {
+        const [pin] = finalSorted.splice(selectedIndex, 1);
+        finalSorted.unshift(pin);
+      } else if (selectedIndex === -1) {
+        finalSorted.unshift(selectedPin);
+      }
+    }
+    return finalSorted;
+  }, [pins, selectedPin, currentUser.blockedUsers, currentUser.reportedPins, localHiddenPins]);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    setTimeout(() => setRefreshing(false), 1000);
   };
+
+  const handleLike = useCallback(async (pinId: string) => {
+    try {
+      await toggleLikePin(pinId, currentUser.userId);
+    } catch (e) {
+      console.error(e);
+    }
+  }, [currentUser.userId]);
+
+  const handleOptionsPress = useCallback((item: Pin) => {
+    if (item.userId === currentUser.userId) {
+      Alert.alert("Post Options", "What would you like to do?", [
+        { text: "Delete Post", style: "destructive", onPress: () => {
+          Alert.alert("Confirm Delete", "Are you sure you want to delete this post?", [
+            { text: "Cancel", style: "cancel" },
+            { text: "Delete", style: "destructive", onPress: async () => {
+              try {
+                if (item.pinId) {
+                  await deletePin(item.pinId);
+                  Alert.alert("Success", "Post deleted successfully.");
+                }
+              } catch (e) {
+                Alert.alert("Error", "Failed to delete post.");
+              }
+            }}
+          ]);
+        }},
+        { text: "Cancel", style: "cancel" }
+      ]);
+    } else {
+      Alert.alert("Post Options", "What would you like to do?", [
+        { text: "Report Post", style: "destructive", onPress: () => {
+          Alert.alert(
+            "Report Post", 
+            "Are you sure you want to report this post? It will be hidden from your feed and sent to our team for review.", 
+            [
+              { text: "Cancel", style: "cancel" },
+              { 
+                text: "Report", 
+                style: "destructive", 
+                onPress: async () => {
+                  if (item.pinId) {
+                    try {
+                      // Optimistically hide from feed
+                      setLocalHiddenPins(prev => ({ ...prev, [item.pinId!]: true }));
+                      await reportPin(currentUser.userId, item.pinId);
+                      Alert.alert("Reported", "This post has been reported and removed from your feed.");
+                    } catch (e) {
+                      console.error("Report failed:", e);
+                      // Revert optimistic hide
+                      setLocalHiddenPins(prev => {
+                        const next = { ...prev };
+                        delete next[item.pinId!];
+                        return next;
+                      });
+                      Alert.alert("Error", "Failed to report post.");
+                    }
+                  }
+                }
+              }
+            ]
+          );
+        }},
+        { text: "Cancel", style: "cancel" }
+      ]);
+    }
+  }, [currentUser.userId]);
+
+  const handleShare = useCallback(async (pin: Pin) => {
+    setSharePin(pin);
+  }, []);
+
+  const handleToggleSave = useCallback(async (pinId: string) => {
+    const isCurrentlySaved = localSavedPins[pinId];
+    
+    // Optimistic UI update
+    setLocalSavedPins(prev => ({
+      ...prev,
+      [pinId]: !isCurrentlySaved
+    }));
+
+    try {
+      const isSavedNow = await toggleSavePin(pinId, currentUser.userId);
+      // Sync with actual server result
+      setLocalSavedPins(prev => ({
+        ...prev,
+        [pinId]: isSavedNow
+      }));
+    } catch (err) {
+      console.error('Save pin failed', err);
+      // Revert if failed
+      setLocalSavedPins(prev => ({
+        ...prev,
+        [pinId]: isCurrentlySaved
+      }));
+      Alert.alert("Error", "Failed to save post.");
+    }
+  }, [currentUser.userId, localSavedPins]);
+
+  const renderItem = useCallback(({ item }: { item: Pin }) => (
+    <FeedPinItem 
+      item={item} 
+      isActiveVideo={isVisible && activeVideoId === (item.pinId || item.timestamp.toString())}
+      currentUser={currentUser}
+      localSavedPins={localSavedPins}
+      onOpenUserProfile={onOpenUserProfile}
+      handleOptionsPress={handleOptionsPress}
+      handleLike={handleLike}
+      setCommentPinId={setCommentPinId}
+      handleShare={handleShare}
+      handleToggleSave={handleToggleSave}
+      onGoToMap={onGoToMap}
+    />
+  ), [activeVideoId, currentUser.userId, localSavedPins, isVisible, onGoToMap]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -358,57 +543,13 @@ export const HomeFeedScreen: React.FC<HomeFeedScreenProps> = ({
               contentFit="contain" 
             />
           </View>
-          <View style={{ flex: 1, alignItems: 'flex-end', position: 'relative', zIndex: 20 }}>
-            <TouchableOpacity 
-              style={styles.newPostBtn} 
-              onPress={() => setIsPostMenuOpen(!isPostMenuOpen)}
-            >
-              <Ionicons name="add" size={32} color="#FFF" />
-            </TouchableOpacity>
-            
-            {isPostMenuOpen && (
-              <View style={{
-                position: 'absolute',
-                top: 45,
-                right: 0,
-                backgroundColor: 'rgba(15, 15, 20, 0.95)',
-                borderRadius: 12,
-                borderWidth: 1,
-                borderColor: PincTheme.colors.border,
-                width: 140,
-                zIndex: 999,
-                elevation: 10,
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 5 },
-                shadowOpacity: 0.5,
-                shadowRadius: 10,
-              }}>
-                <TouchableOpacity 
-                  style={{ paddingVertical: 12, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)' }}
-                  onPress={() => { setIsPostMenuOpen(false); onStartVideoPost?.(); }}
-                >
-                  <Text style={{ color: '#FFF', fontWeight: '600', textAlign: 'center', fontSize: 13 }}>VIDEO</Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  style={{ paddingVertical: 12, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)' }}
-                  onPress={() => { setIsPostMenuOpen(false); onStartPhotoPost?.(); }}
-                >
-                  <Text style={{ color: '#FFF', fontWeight: '600', textAlign: 'center', fontSize: 13 }}>PHOTO</Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  style={{ paddingVertical: 12, paddingHorizontal: 16 }}
-                  onPress={() => { setIsPostMenuOpen(false); onStartGalleryPost?.(); }}
-                >
-                  <Text style={{ color: '#FFF', fontWeight: '600', textAlign: 'center', fontSize: 13 }}>ALBUM</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </View>
+          <View style={{ flex: 1 }} />
         </View>
 
       <FlatList
+        ref={flatListRef}
         data={sortedPins}
-        renderItem={renderPin}
+        renderItem={renderItem}
         keyExtractor={(item) => item.pinId || item.timestamp.toString()}
         extraData={activeVideoId}
         onViewableItemsChanged={onViewableItemsChanged}
@@ -428,6 +569,23 @@ export const HomeFeedScreen: React.FC<HomeFeedScreenProps> = ({
         currentUser={currentUser}
         onClose={() => setCommentPinId(null)}
       />
+
+      {/* Watermark Share Modal */}
+      {sharePin && sharePin.image_url && (
+        <Modal
+          visible={true}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setSharePin(null)}
+        >
+          <WatermarkShare 
+            photoUri={sharePin.image_url} 
+            locationName={sharePin.username || "Pinc Memory"} 
+            onClose={() => setSharePin(null)} 
+            isVideo={sharePin.media_type === 'video'}
+          />
+        </Modal>
+      )}
     </SafeAreaView>
   );
 };
@@ -554,5 +712,24 @@ const styles = StyleSheet.create({
   emptyText: {
     color: PincTheme.colors.textSecondary,
     fontSize: 14,
+  },
+  paginationContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  paginationDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    marginHorizontal: 4,
+  },
+  paginationDotActive: {
+    backgroundColor: PincTheme.colors.primary,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   }
 });

@@ -2,7 +2,7 @@ export default {
   "expo": {
     "name": "pinc",
     "slug": "pinc",
-    "version": "1.0.3",
+    "version": "1.0.5",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -19,19 +19,27 @@ export default {
       "supportsTablet": false,
       "usesAppleSignIn": true,
       "bundleIdentifier": "com.achic.pinc",
-      "buildNumber": "121",
+      "buildNumber": "159",
+      "googleServicesFile": "./GoogleService-Info.plist",
       "config": {
-        "googleMapsApiKey": process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || ""
+        "googleMapsApiKey": process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || process.env.GOOGLE_MAPS_API_KEY || "dummy_key_to_prevent_crash"
       },
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "pinc uses your GPS location to verify if you are within 50 meters of the venue for the Live Reality Check.",
         "NSMicrophoneUsageDescription": "pinc uses your microphone to record audio for videos.",
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": [
+              "com.googleusercontent.apps.929703082491-4d1jqjf73mif9i46c4t8166t1girkmvn"
+            ]
+          }
+        ]
       }
     },
     "android": {
       "package": "com.achic.pinc",
-      "versionCode": 108,
+      "versionCode": 145,
       "config": {
         "googleMaps": {
           "apiKey": process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || ""

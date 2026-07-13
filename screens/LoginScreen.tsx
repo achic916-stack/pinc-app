@@ -243,6 +243,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onAuthSuccess }) => {
             </View>
           )}
 
+          <View style={styles.eulaContainer}>
+            <Text style={styles.eulaText}>
+              By continuing, you agree to our <Text style={styles.eulaLink} onPress={() => Alert.alert("Terms of Service", "EULA and Terms of Service placeholder.")}>Terms of Service & EULA</Text>. 
+              We maintain a strict zero-tolerance policy for objectionable content and abusive users.
+            </Text>
+          </View>
+
           {/* Submit Button */}
           <TouchableOpacity
             style={[styles.submitBtn, isLoading && styles.submitBtnDisabled]}
@@ -439,5 +446,22 @@ const styles = StyleSheet.create({
   linkText: {
     color: PincTheme.colors.primary,
     fontWeight: "bold"
+  },
+  eulaContainer: {
+    marginTop: 8,
+    marginBottom: 16,
+    paddingHorizontal: 8
+  },
+  eulaText: {
+    fontFamily: PincTheme.fonts.body,
+    fontSize: 11,
+    color: PincTheme.colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 16
+  },
+  eulaLink: {
+    color: PincTheme.colors.primary,
+    fontWeight: 'bold',
+    textDecorationLine: 'underline'
   }
 });

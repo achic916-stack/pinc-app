@@ -7,9 +7,10 @@ import { useTranslation } from 'react-i18next';
 interface FollowButtonProps {
   currentUserId: string;
   targetUserId: string;
+  size?: 'small' | 'default';
 }
 
-export const FollowButton: React.FC<FollowButtonProps> = ({ currentUserId, targetUserId }) => {
+export const FollowButton: React.FC<FollowButtonProps> = ({ currentUserId, targetUserId, size = 'default' }) => {
   const { t } = useTranslation();
   const [isFollowing, setIsFollowing] = useState<boolean | null>(null);
   const [isToggling, setIsToggling] = useState(false);
@@ -56,7 +57,8 @@ export const FollowButton: React.FC<FollowButtonProps> = ({ currentUserId, targe
     <TouchableOpacity 
       style={[
         styles.button, 
-        isFollowing ? styles.buttonFollowing : styles.buttonFollow
+        isFollowing ? styles.buttonFollowing : styles.buttonFollow,
+        size === 'small' && styles.buttonSmall
       ]}
       onPress={handleToggle}
       disabled={isToggling}
@@ -66,7 +68,8 @@ export const FollowButton: React.FC<FollowButtonProps> = ({ currentUserId, targe
       ) : (
         <Text style={[
           styles.text, 
-          isFollowing ? styles.textFollowing : styles.textFollow
+          isFollowing ? styles.textFollowing : styles.textFollow,
+          size === 'small' && styles.textSmall
         ]}>
           {isFollowing ? t('following') : t('follow')}
         </Text>
@@ -102,6 +105,14 @@ const styles = StyleSheet.create({
   },
   textFollowing: {
     color: PincTheme.colors.primary,
+  },
+  buttonSmall: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  textSmall: {
+    fontSize: 10,
   }
 });
 

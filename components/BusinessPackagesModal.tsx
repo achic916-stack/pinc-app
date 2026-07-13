@@ -13,6 +13,7 @@ import {
   Alert,
   ActivityIndicator,
   Platform,
+  Linking,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Purchases, { PurchasesPackage } from "react-native-purchases";
@@ -58,20 +59,22 @@ export const BusinessPackagesModalComponent: React.FC<BusinessPackagesModalProps
     'com.achic.pinc.essential': '฿199',
     'com.achic.pinc.signature': '฿399',
     'com.achic.pinc.destination': '฿699',
+    'com.achic.pinc.crew': '฿999',
   });
 
   const [earlyBirdQuota, setEarlyBirdQuota] = useState<number | null>(null);
   const [isClaimingEarlyBird, setIsClaimingEarlyBird] = useState(false);
 
   // Track the resolved Packages from RevenueCat
-  const [rcPackages, setRcPackages] = useState<Record<'destination' | 'essential' | 'signature', PurchasesPackage | null>>({
+  const [rcPackages, setRcPackages] = useState<Record<'destination' | 'essential' | 'signature' | 'crew', PurchasesPackage | null>>({
     destination: null,
     essential: null,
     signature: null,
+    crew: null,
   });
 
   // Generic upload flow states for all packages
-  const [selectedPackage, setSelectedPackage] = useState<'destination' | 'essential' | 'signature' | null>('destination');
+  const [selectedPackage, setSelectedPackage] = useState<'destination' | 'essential' | 'signature' | 'crew' | null>('destination');
 
   // Initialize and Fetch subscriptions on mount/visible
   useEffect(() => {
@@ -99,15 +102,17 @@ export const BusinessPackagesModalComponent: React.FC<BusinessPackagesModalProps
         const offerings = await Purchases.getOfferings();
         console.log("RevenueCat: Offerings fetched:", offerings);
         if (active && offerings.current && offerings.current.availablePackages.length > 0) {
-          const packagesMap: Record<'destination' | 'essential' | 'signature', PurchasesPackage | null> = {
+          const packagesMap: Record<'destination' | 'essential' | 'signature' | 'crew', PurchasesPackage | null> = {
             destination: null,
             essential: null,
             signature: null,
+            crew: null,
           };
           const pricesMap: Record<string, string> = {
             'com.achic.pinc.destination': '฿299',
             'com.achic.pinc.essential': '฿199',
             'com.achic.pinc.signature': '฿399',
+            'com.achic.pinc.crew': '฿999',
           };
 
           offerings.current.availablePackages.forEach((pkg) => {
@@ -121,6 +126,9 @@ export const BusinessPackagesModalComponent: React.FC<BusinessPackagesModalProps
             } else if (prodId.startsWith('com.achic.pinc.signature')) {
               packagesMap.signature = pkg;
               pricesMap['com.achic.pinc.signature'] = pkg.product.priceString;
+            } else if (prodId.startsWith('com.achic.pinc.crew')) {
+              packagesMap.crew = pkg;
+              pricesMap['com.achic.pinc.crew'] = pkg.product.priceString;
             }
           });
 
@@ -150,6 +158,34 @@ export const BusinessPackagesModalComponent: React.FC<BusinessPackagesModalProps
       return;
     }
 
+
+
+    const currentUserId = auth.currentUser?.uid;
+    if (currentUserId) {
+      try {
+        const userRef = doc(db, "users", currentUserId);
+        const userSnap = await getDoc(userRef);
+        if (userSnap.exists() && userSnap.data().isVip) {
+          let tierNum = 1;
+          if (selectedPackage === 'essential') tierNum = 1;
+          else if (selectedPackage === 'signature') tierNum = 2;
+          else if (selectedPackage === 'destination') tierNum = 3;
+          else if (selectedPackage === 'crew') tierNum = 4;
+          
+          await updateDoc(userRef, {
+            role: "PREMIUM_STORE",
+            subscriptionStatus: "ACTIVE",
+            subscriptionTier: tierNum,
+          });
+          
+          setShowEssentialUpload(true);
+          return;
+        }
+      } catch (err) {
+        console.warn("Error checking VIP status:", err);
+      }
+    }
+
     const pkgToPurchase = rcPackages[selectedPackage];
     if (!pkgToPurchase) {
       Alert.alert(
@@ -171,6 +207,7 @@ export const BusinessPackagesModalComponent: React.FC<BusinessPackagesModalProps
         if (selectedPackage === 'essential') tierNum = 1;
         else if (selectedPackage === 'signature') tierNum = 2;
         else if (selectedPackage === 'destination') tierNum = 3;
+        else if (selectedPackage === 'crew') tierNum = 4;
 
         const currentUserId = auth.currentUser?.uid;
         if (currentUserId) {
@@ -317,6 +354,7 @@ export const BusinessPackagesModalComponent: React.FC<BusinessPackagesModalProps
   };
 
   const getButtonColor = () => {
+    if (selectedPackage === 'crew') return "#9D00FF";
     return "#FF4B72";
   };
 
@@ -452,6 +490,7 @@ export const BusinessPackagesModalComponent: React.FC<BusinessPackagesModalProps
       if (selectedPackage === 'essential') tier = 1;
       else if (selectedPackage === 'signature') tier = 2;
       else if (selectedPackage === 'destination') tier = 3;
+      else if (selectedPackage === 'crew') tier = 4;
 
       const finalProvince = selectedProvince === "อื่นๆ"
         ? (customProvince.trim() || "อื่นๆ")
@@ -463,7 +502,7 @@ export const BusinessPackagesModalComponent: React.FC<BusinessPackagesModalProps
         latitude,
         longitude,
         geohash,
-        category: "café",
+        category: selectedPackage === 'crew' ? "community" : "café",
         aesthetic_rating: parseFloat((4.7 + Math.random() * 0.3).toFixed(1)), // 4.7 to 5.0
         crowd_status: "Green",
         cover_image: uploadedUrls[0],
@@ -490,8 +529,8 @@ export const BusinessPackagesModalComponent: React.FC<BusinessPackagesModalProps
       Alert.alert(
         locale === "th" ? "✅ สมัครแพ็กเกจสำเร็จ!" : "✅ Subscription Successful!",
         locale === "th" 
-          ? `ร้านค้า "${shopName}" ของคุณเปิดใช้งานแพ็กเกจ ${selectedPackage?.toUpperCase()} เรียบร้อยแล้ว (โดยไม่เรียกเก็บค่าใช้จ่ายจริงเพื่อวัตถุประสงค์ในการทดสอบระบบ)\n\nตำแหน่งร้านหมุดรูปสี่เหลี่ยมพร้อมขอบสีสันตามธีมของแพ็กเกจ ได้ถูกปักขึ้นบนแผนที่ ณ พิกัดปัจจุบันของคุณแล้ว สามารถเปิดดูเพื่อทดสอบระบบได้ทันทีครับ`
-          : `Your shop "${shopName}" has successfully activated the ${selectedPackage?.toUpperCase()} package (No real charges apply; for testing purposes only).\n\nA square-shaped map pin with themed borders has been placed at your current location. You can view it on the map now to test!`,
+          ? `ระบบได้เปิดใช้งานแพ็กเกจ ${selectedPackage?.toUpperCase()} เรียบร้อยแล้ว (โดยไม่เรียกเก็บค่าใช้จ่ายจริงเพื่อวัตถุประสงค์ในการทดสอบระบบ)\n\nโลโก้หรือหมุดของคุณ ได้ถูกปักขึ้นบนแผนที่ ณ พิกัดปัจจุบันของคุณแล้ว สามารถเปิดดูเพื่อทดสอบระบบได้ทันทีครับ`
+          : `The ${selectedPackage?.toUpperCase()} package has been activated (No real charges apply; for testing purposes only).\n\nYour logo or pin has been placed at your current location. You can view it on the map now to test!`,
         [
           {
             text: locale === "th" ? "ตกลง" : "OK",
@@ -555,6 +594,7 @@ export const BusinessPackagesModalComponent: React.FC<BusinessPackagesModalProps
     const maxImages = getMaxImages();
     
     const getPackageTitle = () => {
+      if (selectedPackage === 'crew') return "🏁 Pinc Club Registration";
       if (selectedPackage === 'essential') return "📸 Essential Package";
       if (selectedPackage === 'signature') return "⭐ Signature Package";
       if (selectedPackage === 'destination') return "✨ Destination Package";
@@ -562,6 +602,11 @@ export const BusinessPackagesModalComponent: React.FC<BusinessPackagesModalProps
     };
 
     const getPackageSubtitle = () => {
+      if (selectedPackage === 'crew') {
+        return locale === "th" 
+          ? `อัปโหลดโลโก้กลุ่มและข้อมูล (สูงสุด ${maxImages} รูป)`
+          : `Upload crew logo and info (Max ${maxImages} images)`;
+      }
       return locale === "th" 
         ? `อัปโหลดรูปภาพร้านค้า (สูงสุด ${maxImages} รูป)`
         : `Upload shop images (Max ${maxImages} images)`;
@@ -605,14 +650,18 @@ export const BusinessPackagesModalComponent: React.FC<BusinessPackagesModalProps
             >
               {/* ── Shop Info Inputs ── */}
               <View style={uploadStyles.inputSection}>
-                <Text style={uploadStyles.sectionTitle}>{locale === "th" ? "ข้อมูลร้านค้า" : "Shop Information"}</Text>
+                <Text style={uploadStyles.sectionTitle}>
+                  {selectedPackage === 'crew' ? (locale === "th" ? "ข้อมูลกลุ่ม/แก๊ง" : "Crew Information") : (locale === "th" ? "ข้อมูลร้านค้า" : "Shop Information")}
+                </Text>
 
-                <Text style={uploadStyles.inputLabel}>{locale === "th" ? "ชื่อร้านค้า" : "Shop Name"}</Text>
+                <Text style={uploadStyles.inputLabel}>
+                  {selectedPackage === 'crew' ? (locale === "th" ? "ชื่อกลุ่ม/แก๊ง" : "Crew Name") : (locale === "th" ? "ชื่อร้านค้า" : "Shop Name")}
+                </Text>
                 <TextInput
                   style={uploadStyles.textInput}
                   value={shopName}
                   onChangeText={setShopName}
-                  placeholder={selectedPackage === 'essential' ? (locale === "th" ? "เช่น Coffee House Café" : "e.g. Coffee House Café") : (locale === "th" ? "เช่น Golden Roast Coffee" : "e.g. Golden Roast Coffee")}
+                  placeholder={selectedPackage === 'crew' ? (locale === "th" ? "เช่น Pinc Riders" : "e.g. Pinc Riders") : (selectedPackage === 'essential' ? (locale === "th" ? "เช่น Coffee House Café" : "e.g. Coffee House Café") : (locale === "th" ? "เช่น Golden Roast Coffee" : "e.g. Golden Roast Coffee"))}
                   placeholderTextColor={PincTheme.colors.textTertiary}
                   maxLength={40}
                 />
@@ -633,13 +682,15 @@ export const BusinessPackagesModalComponent: React.FC<BusinessPackagesModalProps
                   style={[uploadStyles.textInput, { height: 80, textAlignVertical: 'top' }]}
                   value={description}
                   onChangeText={setDescription}
-                  placeholder={locale === "th" ? "พิมพ์รายละเอียดของร้านค้า โปรโมชั่น หรือที่อยู่ที่นี่..." : "Type shop details, promotions, or address here..."}
+                  placeholder={locale === "th" ? "พิมพ์รายละเอียด โปรโมชั่น หรือข้อมูลเพิ่มเติมที่นี่..." : "Type details, promotions, or extra info here..."}
                   placeholderTextColor={PincTheme.colors.textTertiary}
                   multiline={true}
                   maxLength={200}
                 />
 
-                <Text style={uploadStyles.inputLabel}>{locale === "th" ? "จังหวัดที่ตั้งของร้านค้า" : "Shop Province"}</Text>
+                <Text style={uploadStyles.inputLabel}>
+                  {selectedPackage === 'crew' ? (locale === "th" ? "จังหวัดที่รวมกลุ่ม/พิกัด" : "Crew Province") : (locale === "th" ? "จังหวัดที่ตั้งของร้านค้า" : "Shop Province")}
+                </Text>
                 <View style={provinceStyles.badgeContainer}>
                   {THAI_PROVINCES.map((prov) => (
                     <TouchableOpacity
@@ -685,10 +736,12 @@ export const BusinessPackagesModalComponent: React.FC<BusinessPackagesModalProps
                 <Text
                   style={[
                     uploadStyles.inputLabel,
-                    { marginBottom: 12, marginTop: 0 },
+                    { marginBottom: 12, marginTop: 0, color: selectedPackage === 'crew' ? "#B366FF" : PincTheme.colors.textSecondary },
                   ]}
                 >
-                  {locale === "th" ? "รูปภาพแรกที่เลือก จะถูกนำไปใช้เป็น \"หน้าปก\" หรือ \"โลโก้\" บนแผนที่" : "The first selected image will be used as the \"cover\" or \"logo\" on the map"}
+                  {selectedPackage === 'crew' 
+                    ? (locale === "th" ? "อัปโหลดภาพโลโก้คลับ (JPEG, PNG) เพื่อให้ทีมงานนำไปลบพื้นหลังและแปลงเป็นหมุด 2D บนแผนที่" : "Upload your Club Logo (JPEG, PNG) for our team to convert into a 2D map pin")
+                    : (locale === "th" ? "รูปภาพแรกที่เลือก จะถูกนำไปใช้เป็น \"หน้าปก\" หรือ \"โลโก้\" บนแผนที่" : "The first selected image will be used as the \"cover\" or \"logo\" on the map")}
                 </Text>
 
                 <View style={uploadStyles.imageGrid}>
@@ -887,7 +940,7 @@ export const BusinessPackagesModalComponent: React.FC<BusinessPackagesModalProps
                     <Text style={[styles.packageName, { color: "#FF4B72" }]}>
                       Pinc Business
                     </Text>
-                    <Ionicons name="checkmark-circle" size={20} color="#FF4B72" />
+                    {selectedPackage === 'destination' && <Ionicons name="checkmark-circle" size={20} color="#FF4B72" />}
                   </View>
                   <Text style={styles.packageTagline}>
                     {locale === "th" ? "เปลี่ยนยอดวิวเป็นยอดขาย" : "Convert views into sales"}
@@ -905,8 +958,8 @@ export const BusinessPackagesModalComponent: React.FC<BusinessPackagesModalProps
                   <Text style={styles.promoPrice}>฿299</Text>
                   <Text style={styles.perMonth}>{locale === "th" ? "/เดือน" : "/month"}</Text>
                 </View>
-                <Text style={styles.originalPrice}>
-                  {locale === "th" ? "อัปโหลดรูปภาพได้ไม่จำกัด" : "Unlimited photo uploads"}
+                <Text style={styles.packageSubtitle}>
+                  {locale === "th" ? "อัปโหลดรูปภาพได้สูงสุด 10 รูป" : "Upload up to 10 photos"}
                 </Text>
 
                 <View style={styles.featuresList}>
@@ -919,13 +972,88 @@ export const BusinessPackagesModalComponent: React.FC<BusinessPackagesModalProps
                     {locale === "th" ? "✨ ขอเส้นทางได้" : "✨ Get directions"}
                   </Text>
                   <Text style={[styles.featureItem, { fontWeight: "700" }]}>
-                    {locale === "th" ? "✓ อัปโหลดรูปร้านค้าได้ไม่จำกัด" : "✓ Unlimited photo uploads"}
+                    {locale === "th" ? "✓ อัปโหลดรูปร้านค้าได้สูงสุด 10 รูป" : "✓ Upload up to 10 photos"}
                   </Text>
                   <Text style={styles.featureItem}>
                     {locale === "th" ? "✓ หมุดสี่เหลี่ยมขอบสีชมพูสุดพรีเมียม" : "✓ Premium pink rectangular pin"}
                   </Text>
                   <Text style={styles.featureItem}>
-                    {locale === "th" ? "✓ แสดงผลอันดับ 1 ในการค้นหา" : "✓ Top priority search ranking"}
+                    {locale === "th" ? "✓ แสดงอันดับ 1 ในการค้นหา" : "✓ Top priority search ranking"}
+                  </Text>
+                  <Text style={styles.featureItem}>
+                    {locale === "th" ? "✓ อัปเดตตำแหน่งหมุดได้ตลอดเวลา" : "✓ Update location pin at any time"}
+                  </Text>
+                </View>
+              </View>
+            </TouchableOpacity>
+
+            {/* Package 2: Pinc Club */}
+            <TouchableOpacity
+              style={[
+                styles.packageCard,
+                { borderColor: "#B366FF", borderWidth: 2.5, backgroundColor: selectedPackage === 'crew' ? "rgba(179, 102, 255, 0.08)" : "rgba(179, 102, 255, 0.03)" }
+              ]}
+              onPress={() => setSelectedPackage('crew')}
+              activeOpacity={0.9}
+            >
+              <View
+                style={[
+                  styles.packageHeader,
+                  { backgroundColor: "rgba(179, 102, 255, 0.05)" },
+                ]}
+              >
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <Text style={[styles.packageName, { color: "#B366FF" }]}>
+                      Pinc Club
+                    </Text>
+                    {selectedPackage === 'crew' && <Ionicons name="checkmark-circle" size={20} color="#B366FF" />}
+                  </View>
+                  <Text style={styles.packageTagline}>
+                    {locale === "th" ? "สร้าง Community ของคุณให้โดดเด่น" : "Make your community stand out"}
+                  </Text>
+                </View>
+                <View
+                  style={[
+                    styles.iconPlaceholder,
+                    { borderColor: "#9D00FF", borderWidth: 1.5, justifyContent: 'center', alignItems: 'center' },
+                  ]}
+                >
+                  <Text style={{ fontSize: 20 }}>🏁</Text>
+                </View>
+              </View>
+              <View style={styles.packageBody}>
+                <View style={styles.priceContainer}>
+                  <Text style={[styles.promoPrice, { color: "#9D00FF" }]}>฿999</Text>
+                  <Text style={styles.perMonth}>{locale === "th" ? "/เดือน" : "/month"}</Text>
+                </View>
+                <Text style={styles.packageSubtitle}>
+                  {locale === "th" ? "เหมาะสำหรับกลุ่มคน/คลับ/แก๊ง" : "Perfect for Teams/Clubs/Gangs"}
+                </Text>
+
+                <View style={styles.featuresList}>
+                  <Text
+                    style={[
+                      styles.featureItem,
+                      { fontWeight: "bold", color: "#9D00FF" },
+                    ]}
+                  >
+                    {locale === "th" ? "🏁 โลโก้ 2D บนแผนที่" : "🏁 Custom 2D Gang Logo"}
+                  </Text>
+                  <Text style={styles.featureItem}>
+                    {locale === "th" ? "✓ แสดงโลโก้กลุ่มของคุณเด่นชัดที่สุด" : "✓ Highlight your logo prominently"}
+                  </Text>
+                  <Text style={styles.featureItem}>
+                    {locale === "th" ? "✓ สัญลักษณ์ (Badge) ประจำแก๊งในโปรไฟล์" : "✓ Squad Badge in user profile"}
+                  </Text>
+                  <Text style={styles.featureItem}>
+                    {locale === "th" ? "✓ สร้างจุดรวมพล (Meetup Pin) พิเศษ" : "✓ Exclusive Meetup/Route Pins"}
+                  </Text>
+                  <Text style={styles.featureItem}>
+                    {locale === "th" ? "✓ ประกาศข่าวสารหากลุ่มผู้ติดตาม" : "✓ Broadcast Announcement to followers"}
+                  </Text>
+                  <Text style={styles.featureItem}>
+                    {locale === "th" ? "✓ อัปเดตตำแหน่งหมุดได้ตลอดเวลา" : "✓ Update location pin at any time"}
                   </Text>
                 </View>
               </View>
@@ -986,6 +1114,27 @@ export const BusinessPackagesModalComponent: React.FC<BusinessPackagesModalProps
                 {locale === "th" ? "กู้คืนสิทธิ์การซื้อ (Restore Purchase)" : "Restore Purchase"}
               </Text>
             </TouchableOpacity>
+
+            <View style={{ paddingHorizontal: 24, paddingBottom: Platform.OS === 'ios' ? 24 : 16, paddingTop: 8 }}>
+              <Text style={{ fontSize: 9, color: PincTheme.colors.textTertiary, textAlign: 'center', lineHeight: 12 }}>
+                {locale === "th" 
+                  ? `การสมัครสมาชิก (Auto-Renewing Subscription) จะต่ออายุอัตโนมัติเว้นแต่จะถูกยกเลิก 24 ชั่วโมงก่อนสิ้นสุดรอบบิลปัจจุบัน โดยคุณสามารถจัดการการสมัครของคุณได้ที่การตั้งค่าบัญชี ${Platform.OS === 'ios' ? 'Apple' : 'Google Play'} ของคุณหลังการซื้อ` 
+                  : `Auto-renewable subscriptions automatically renew unless canceled 24 hours before the end of the current period. You can manage your subscription in your ${Platform.OS === 'ios' ? 'Apple Account' : 'Google Play'} Settings after purchase.`}
+              </Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 6, alignItems: 'center' }}>
+                <TouchableOpacity onPress={() => Linking.openURL(Platform.OS === 'ios' ? 'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/' : 'https://pinc-app.com/')}>
+                  <Text style={{ fontSize: 9, color: PincTheme.colors.primary, textDecorationLine: 'underline' }}>
+                    Terms of Use (EULA)
+                  </Text>
+                </TouchableOpacity>
+                <Text style={{ fontSize: 9, color: PincTheme.colors.textTertiary, marginHorizontal: 8 }}>|</Text>
+                <TouchableOpacity onPress={() => Linking.openURL('https://pinc-app.com/privacy')}>
+                  <Text style={{ fontSize: 9, color: PincTheme.colors.primary, textDecorationLine: 'underline' }}>
+                    Privacy Policy
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
         </SafeAreaView>
       </View>
@@ -1112,6 +1261,13 @@ const styles = StyleSheet.create({
     color: PincTheme.colors.textTertiary,
     textDecorationLine: "line-through",
     marginTop: 2,
+  },
+  packageSubtitle: {
+    fontSize: 12,
+    fontFamily: PincTheme.fonts.body,
+    color: PincTheme.colors.textTertiary,
+    marginTop: 2,
+    marginBottom: 8,
     marginBottom: 16,
   },
   featuresList: {

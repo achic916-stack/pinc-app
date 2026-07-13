@@ -9,14 +9,15 @@ import {
   Image,
   FlatList,
   Platform,
-  Share
+  Share,
+  Alert
 } from "react-native";
 import { Audio, Video, ResizeMode } from "expo-av";
 
 import { CachedVideo } from "./CachedVideo";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { Pin, auth, toggleLikePin, subscribeToComments, fetchUserProfile, UserProfile, checkIsFollowing, toggleFollow } from "../services/firebase";
+import { Pin, auth, toggleLikePin, subscribeToComments, fetchUserProfile, UserProfile, checkIsFollowing, toggleFollow, reportPin } from "../services/firebase";
 import { PincTheme } from "../styles/theme";
 import { CommentsDrawer } from "./CommentsDrawer";
 import { WatermarkShare } from "./WatermarkShare";
@@ -51,6 +52,7 @@ const FeedItem = ({
   currentUserId: string;
   onOpenUserProfile?: (userId: string) => void;
   locale?: "en" | "th";
+  onReport?: (pinId: string) => void;
 }) => {
   const [liked, setLiked] = useState(item.likes?.includes(currentUserId) || false);
   const [likesCount, setLikesCount] = useState(item.likes?.length || item.likesCount || 0);
@@ -112,8 +114,11 @@ const FeedItem = ({
     if (item.pinId) {
       try {
         await toggleLikePin(item.pinId, currentUserId);
-      } catch (err) {
+      } catch (err: any) {
         console.warn("Failed to persist like in ReelsFeedModal:", err);
+        import('react-native').then(({ Alert }) => {
+          Alert.alert("Like Failed", err?.message || String(err));
+        });
         setLiked(liked);
         setLikesCount(likesCount);
       }
@@ -142,14 +147,14 @@ const FeedItem = ({
       {/* Media Background */}
       {item.media_type === "video" ? (
         <View style={[styles.media, { justifyContent: 'center', alignItems: 'center' }]}>
-          {item.thumbnail_url && (
+          {!!item.thumbnail_url && (
             <Image
               source={{ uri: item.thumbnail_url }}
               style={[styles.media, { position: 'absolute' }]}
               resizeMode="contain"
             />
           )}
-          {shouldMountVideo && (
+          {shouldMountVideo && !!item.image_url && (
             <CachedVideo
               source={{ uri: item.image_url }}
               style={[styles.media, { position: 'absolute' }]}
@@ -161,11 +166,13 @@ const FeedItem = ({
           )}
         </View>
       ) : (
-        <Image
-          source={{ uri: item.image_url }}
-          style={styles.media}
-          resizeMode="contain"
-        />
+        !!item.image_url && (
+          <Image
+            source={{ uri: item.image_url }}
+            style={styles.media}
+            resizeMode="contain"
+          />
+        )
       )}
 
       {/* Dark Gradient Overlay for text readability (using premium LinearGradient) */}
@@ -190,9 +197,12 @@ const FeedItem = ({
             onPress={() => onOpenUserProfile && onOpenUserProfile(item.userId)}
             style={{ flexDirection: 'row', alignItems: 'center' }}
           >
-            <Image source={{ uri: item.user_profile_pic }} style={styles.avatar} />
+            <Image 
+              source={{ uri: item.user_profile_pic || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80' }} 
+              style={styles.avatar} 
+            />
             <View>
-              <Text style={styles.username}>{item.username}</Text>
+              <Text style={styles.username}>{item.username || 'User'}</Text>
               {formattedTime ? <Text style={styles.timeText}>{formattedTime}</Text> : null}
             </View>
           </TouchableOpacity>
@@ -209,11 +219,18 @@ const FeedItem = ({
           )}
         </View>
         
-        {item.text_content ? (
-          <Text style={styles.caption} numberOfLines={2}>
-            {item.text_content}
-          </Text>
-        ) : null}
+        {(() => {
+          let captionText = item.text_content || "";
+          if (captionText.includes("Current Location")) {
+            captionText = captionText.replace(/\n?📍\s*Current Location.*/g, '');
+          }
+          captionText = captionText.trim();
+          return captionText ? (
+            <Text style={styles.caption} numberOfLines={2}>
+              {captionText}
+            </Text>
+          ) : null;
+        })()}
         
         <View style={styles.musicRow}>
           <Ionicons name="musical-note" size={12} color="#FFF" />
@@ -223,22 +240,50 @@ const FeedItem = ({
 
       {/* Bottom Right: Action Buttons */}
       <View style={styles.rightOverlay}>
-        <TouchableOpacity style={styles.actionButton} onPress={handleLike}>
+        <TouchableOpacity hitSlop={{ top: 15, bottom: 15, left: 20, right: 20 }} style={styles.actionButton} onPress={handleLike}>
           <Ionicons name={liked ? "heart" : "heart-outline"} size={36} color={liked ? "#FF2D55" : "#FFF"} />
           <Text style={styles.actionText}>{likesCount}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.actionButton} onPress={onCommentPress}>
+        <TouchableOpacity hitSlop={{ top: 15, bottom: 15, left: 20, right: 20 }} style={styles.actionButton} onPress={onCommentPress}>
           <Ionicons name="chatbubble-outline" size={32} color="#FFF" />
           <Text style={styles.actionText}>{commentsCount}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.actionButton} onPress={onSharePress}>
+        <TouchableOpacity hitSlop={{ top: 15, bottom: 15, left: 20, right: 20 }} style={styles.actionButton} onPress={onSharePress}>
           <Ionicons name="paper-plane-outline" size={32} color="#FFF" />
           <Text style={styles.actionText}>Share</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.actionButton}>
+        <TouchableOpacity 
+          hitSlop={{ top: 15, bottom: 15, left: 20, right: 20 }} 
+          style={styles.actionButton}
+          onPress={() => {
+            Alert.alert("Post Options", "What would you like to do?", [
+              { text: "Report Post", style: "destructive", onPress: () => {
+                Alert.alert("Report Post", "Are you sure you want to report this post for objectionable content?", [
+                  { text: "Cancel", style: "cancel" },
+                  {
+                    text: "Report",
+                    style: "destructive",
+                    onPress: async () => {
+                      if (item.pinId) {
+                        try {
+                          await reportPin(currentUserId, item.pinId);
+                          Alert.alert("Reported", "This post has been reported and removed.");
+                          if (onReport) onReport(item.pinId);
+                        } catch (e) {
+                          Alert.alert("Error", "Failed to report post.");
+                        }
+                      }
+                    }
+                  }
+                ]);
+              }},
+              { text: "Cancel", style: "cancel" }
+            ]);
+          }}
+        >
           <Feather name="more-horizontal" size={28} color="#FFF" />
         </TouchableOpacity>
       </View>
@@ -258,29 +303,8 @@ export const ReelsFeedModal: React.FC<ReelsFeedModalProps> = ({
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [activeCommentPinId, setActiveCommentPinId] = useState<string | null>(null);
   const [sharePin, setSharePin] = useState<Pin | null>(null);
+  const [localHiddenPins, setLocalHiddenPins] = useState<Record<string, boolean>>({});
   const flatListRef = useRef<FlatList>(null);
-
-  useEffect(() => {
-    if (visible && pins.length > 0) {
-      setCurrentIndex(initialIndex);
-      // Small delay to ensure layout is ready before scrolling
-      setTimeout(() => {
-        if (flatListRef.current) {
-          flatListRef.current.scrollToIndex({ index: initialIndex, animated: false });
-        }
-      }, 100);
-    }
-  }, [visible, initialIndex, pins.length]);
-
-  const handleViewableItemsChanged = useRef(({ viewableItems }: any) => {
-    if (viewableItems.length > 0) {
-      setCurrentIndex(viewableItems[0].index);
-    }
-  }).current;
-
-  const viewabilityConfig = useRef({
-    itemVisiblePercentThreshold: 50
-  }).current;
 
   // Build resilient currentUser object for CommentsDrawer
   const [currentUserProfile, setCurrentUserProfile] = useState<UserProfile>({
@@ -309,6 +333,40 @@ export const ReelsFeedModal: React.FC<ReelsFeedModalProps> = ({
     }
   }, [visible, currentUserId]);
 
+  const filteredPins = pins.filter(p => {
+    if (p.pinId && localHiddenPins[p.pinId]) return false;
+    if (currentUserProfile && currentUserProfile.blockedUsers?.includes(p.userId)) return false;
+    if (p.pinId && currentUserProfile && currentUserProfile.reportedPins?.includes(p.pinId)) return false;
+    return true;
+  });
+
+  useEffect(() => {
+    if (visible && pins.length > 0) {
+      setCurrentIndex(initialIndex);
+      // Small delay to ensure layout is ready before scrolling
+      setTimeout(() => {
+        if (flatListRef.current && filteredPins.length > 0 && initialIndex >= 0 && initialIndex < filteredPins.length) {
+          try {
+            flatListRef.current.scrollToIndex({ index: initialIndex, animated: false });
+          } catch (e) {
+            console.warn("Failed to scroll to index", e);
+          }
+        }
+      }, 100);
+    }
+  }, [visible, initialIndex, pins.length, filteredPins.length]);
+
+  const handleViewableItemsChanged = useRef(({ viewableItems }: any) => {
+    if (viewableItems.length > 0) {
+      setCurrentIndex(viewableItems[0].index);
+    }
+  }).current;
+
+  const viewabilityConfig = useRef({
+    itemVisiblePercentThreshold: 50
+  }).current;
+
+
   return (
     <Modal
       visible={visible}
@@ -320,7 +378,7 @@ export const ReelsFeedModal: React.FC<ReelsFeedModalProps> = ({
         {visible && (
           <FlatList
             ref={flatListRef}
-            data={pins}
+            data={filteredPins}
             keyExtractor={(item) => item.pinId || Math.random().toString()}
             horizontal
             pagingEnabled
@@ -341,6 +399,7 @@ export const ReelsFeedModal: React.FC<ReelsFeedModalProps> = ({
                 currentUserId={currentUserId}
                 onOpenUserProfile={onOpenUserProfile}
                 locale={locale}
+                onReport={(pinId) => setLocalHiddenPins(prev => ({ ...prev, [pinId]: true }))}
               />
             )}
             onViewableItemsChanged={handleViewableItemsChanged}

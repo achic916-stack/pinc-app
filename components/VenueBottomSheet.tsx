@@ -7,7 +7,8 @@ import {
   ScrollView,
   Image,
   Dimensions,
-  ActivityIndicator
+  ActivityIndicator,
+  Linking
 } from "react-native";
 import { PincTheme } from "../styles/theme";
 import { Venue, Pin } from "../services/firebase";
@@ -88,7 +89,10 @@ export const VenueBottomSheet: React.FC<VenueBottomSheetProps> = ({
                 styles.crowdIndicatorDot,
                 venue.crowd_status === "Green" && { backgroundColor: PincTheme.colors.crowdGreen },
                 venue.crowd_status === "Yellow" && { backgroundColor: PincTheme.colors.crowdYellow },
-                venue.crowd_status === "Red" && { backgroundColor: PincTheme.colors.crowdRed }
+                venue.crowd_status === "Red" && { backgroundColor: PincTheme.colors.crowdRed },
+                venue.crowd_status === "Blue" && { backgroundColor: "#3B82F6" },
+                venue.crowd_status === "Purple" && { backgroundColor: "#8B5CF6" },
+                venue.crowd_status === "Gray" && { backgroundColor: "#6B7280" }
               ]}
             />
             <Text
@@ -96,15 +100,32 @@ export const VenueBottomSheet: React.FC<VenueBottomSheetProps> = ({
                 styles.crowdText,
                 venue.crowd_status === "Green" && { color: PincTheme.colors.crowdGreen },
                 venue.crowd_status === "Yellow" && { color: PincTheme.colors.crowdYellow },
-                venue.crowd_status === "Red" && { color: PincTheme.colors.crowdRed }
+                venue.crowd_status === "Red" && { color: PincTheme.colors.crowdRed },
+                venue.crowd_status === "Blue" && { color: "#3B82F6" },
+                venue.crowd_status === "Purple" && { color: "#8B5CF6" },
+                venue.crowd_status === "Gray" && { color: "#6B7280" }
               ]}
             >
               {venue.crowd_status === "Green" && "Empty / Chill"}
               {venue.crowd_status === "Yellow" && "Moderate Queue"}
               {venue.crowd_status === "Red" && "Crowded / Long Line"}
+              {venue.crowd_status === "Blue" && "Happening Now"}
+              {venue.crowd_status === "Purple" && "Upcoming / Soon"}
+              {venue.crowd_status === "Gray" && "Closed / Offline"}
             </Text>
           </View>
         </View>
+
+        {/* Get Directions Button */}
+        <TouchableOpacity 
+          style={styles.directionsButton}
+          onPress={() => {
+            const url = `https://www.google.com/maps/dir/?api=1&destination=${venue.latitude},${venue.longitude}`;
+            Linking.openURL(url);
+          }}
+        >
+          <Text style={styles.directionsButtonText}>🗺️ ขอเส้นทาง (Get Directions)</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Premium Sliding Navigation Tabs */}
@@ -309,6 +330,21 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontFamily: PincTheme.fonts.body,
     fontWeight: "bold"
+  },
+  directionsButton: {
+    marginTop: 14,
+    backgroundColor: PincTheme.colors.primary,
+    paddingVertical: 10,
+    borderRadius: PincTheme.borderRadius.md,
+    alignItems: "center",
+    ...PincTheme.shadows.sm
+  },
+  directionsButtonText: {
+    color: "#FFF",
+    fontFamily: PincTheme.fonts.heading,
+    fontWeight: "bold",
+    fontSize: 13,
+    letterSpacing: 0.5
   },
   tabsContainer: {
     flexDirection: "row",

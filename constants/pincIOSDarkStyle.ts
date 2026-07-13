@@ -34,14 +34,28 @@ export const pincIOSDarkStyle = [
     "featureType": "landscape.man_made",
     "elementType": "geometry.fill",
     "stylers": [
-      { "color": "#212121" }
+      { "color": "#2a2b2c" }
     ]
   },
   {
     "featureType": "landscape.man_made",
     "elementType": "geometry.stroke",
     "stylers": [
-      { "color": "#121212" }
+      { "color": "#2a2b2c" }
+    ]
+  },
+  {
+    "featureType": "landscape.man_made.building",
+    "elementType": "geometry.fill",
+    "stylers": [
+      { "color": "#212121" }
+    ]
+  },
+  {
+    "featureType": "poi.business",
+    "elementType": "geometry.fill",
+    "stylers": [
+      { "color": "#1c1c1c" }
     ]
   },
   {
@@ -76,7 +90,7 @@ export const pincIOSDarkStyle = [
     "featureType": "road.highway",
     "elementType": "geometry.stroke",
     "stylers": [
-      { "color": "#121212" }
+      { "color": "#3b3b3b" }
     ]
   },
   {
@@ -97,7 +111,7 @@ export const pincIOSDarkStyle = [
     "featureType": "road.arterial",
     "elementType": "geometry.stroke",
     "stylers": [
-      { "color": "#050505" }
+      { "color": "#3b3b3b" }
     ]
   },
   {
@@ -118,7 +132,7 @@ export const pincIOSDarkStyle = [
     "featureType": "road.local",
     "elementType": "geometry.stroke",
     "stylers": [
-      { "color": "#0a0a0a" }
+      { "color": "#3b3b3b" }
     ]
   },
   {

@@ -12,21 +12,23 @@ import {
   Linking,
   Platform,
   TextInput,
-  FlatList
+  FlatList,
+  Animated,
+  Modal
 } from "react-native";
 import { Image } from "expo-image";
 import { PincTheme } from "../styles/theme";
-import { Venue, Pin, UserProfile, toggleLikePin, subscribeToComments, deletePin, db, uploadPinImage, toggleFollow, checkIsFollowing } from "../services/firebase";
+import { Venue, Pin, UserProfile, toggleLikePin, subscribeToComments, deletePin, db, uploadPinImage, toggleFollow, checkIsFollowing, reportPin } from "../services/firebase";
 import { doc, updateDoc, deleteDoc } from "firebase/firestore";
 import { t } from "../services/localization";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { compressImage } from "../services/imageCompressor";
 import { CommentsDrawer } from "./CommentsDrawer";
+import { VenueInteractionModal } from "./VenueInteractionModal";
 import { CachedVideo } from "./CachedVideo";
 import { SocialLinksDisplay } from "./SocialLinks";
 import { WatermarkShare } from "./WatermarkShare";
-import { Modal } from "react-native";
 const Audio = { Sound: { createAsync: async () => ({ sound: { playAsync: async () => { }, stopAsync: async () => { }, unloadAsync: async () => { } } }) }, setAudioModeAsync: async () => { } }; const Video = () => null; const ResizeMode = { COVER: 'cover', CONTAIN: 'contain' };
 
 
@@ -58,6 +60,7 @@ interface VenueDetailsSheetProps {
   locale?: "en" | "th";
   followingIds?: string[];
   onOpenUserProfile?: (userId: string) => void;
+  onNewPostPress?: (venueId: string) => void;
   currentUser: UserProfile;
   isFullScreen?: boolean;
   isEditing?: boolean;
@@ -73,11 +76,14 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
   locale = "en",
   followingIds = [],
   onOpenUserProfile,
+  onNewPostPress,
   currentUser,
   isFullScreen = false,
   isEditing = false
 }) => {
   const [activeTab, setActiveTab] = useState<"aesthetic" | "reality">("reality");
+  const [showInteractionModal, setShowInteractionModal] = useState(false);
+  const [interactionMode, setInteractionMode] = useState<"chat" | "board">("chat");
   const [activeVideoId, setActiveVideoId] = useState<string | null>(null);
   const [activeCommentsPinId, setActiveCommentsPinId] = useState<string | null>(null);
   const [sharePin, setSharePin] = useState<Pin | null>(null);
@@ -85,9 +91,10 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
   const [commentsCounts, setCommentsCounts] = useState<{ [pinId: string]: number }>({});
   const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null);
   const [fullScreenFeedImage, setFullScreenFeedImage] = useState<string | null>(null);
+  const [localHiddenPins, setLocalHiddenPins] = useState<Record<string, boolean>>({});
 
   // Owner checking & sponsored checks
-  const isOwner = venue ? (venue.ownerId === currentUser.userId || currentUser.role === "ADMIN") : false;
+  const isOwner = venue ? (venue.ownerId === currentUser?.userId || currentUser?.role === "ADMIN") : false;
   const isShopPackage = venue ? (venue.is_sponsored === true || (venue.sponsor_tier && venue.sponsor_tier >= 1)) : false;
   const showEditPanel = isEditing && isShopPackage && isOwner;
 
@@ -96,6 +103,9 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
   const [editedCategory, setEditedCategory] = useState<string>(venue ? (venue.category || "café") : "café");
   const [editedCrowdStatus, setEditedCrowdStatus] = useState<string>(venue ? (venue.crowd_status || "Green") : "Green");
   const [editedDescription, setEditedDescription] = useState<string>(venue ? (venue.description || "") : "");
+  const [editedSubtitle, setEditedSubtitle] = useState<string>(venue ? (venue.subtitle || "") : "");
+  const [editedName, setEditedName] = useState<string>(venue ? (venue.name || "") : "");
+  const [isEditingName, setIsEditingName] = useState(false);
   const [editedImages, setEditedImages] = useState<string[]>(venue ? (venue.images || []) : []);
   const [isUploading, setIsUploading] = useState(false);
   const [isCategoryStatusCollapsed, setIsCategoryStatusCollapsed] = useState(true);
@@ -109,6 +119,8 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
       case "art/books": return "ศิลปะ/หนังสือ"; case "realestate": return "อสังหาฯ"; case "gym": return "ฟิตเนส";
       case "event": return "อีเวนต์"; case "concert": return "คอนเสิร์ต"; case "school": return "สถานศึกษา";
       case "showroom": return "โชว์รูม"; case "sport": return "กีฬา";
+      case "community": return "แก๊ง/คอมมูนิตี้"; case "party": return "ปาร์ตี้/คลับ"; case "popup": return "ป๊อปอัพ/ตลาด";
+      case "hotel": return "ที่พัก/โรงแรม"; case "service": return "บริการ/คลินิก";
       default: return c.toUpperCase();
     }
   };
@@ -151,6 +163,8 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
       setEditedCategory(venue.category || "café");
       setEditedCrowdStatus(venue.crowd_status || "Green");
       setEditedDescription(venue.description || "");
+      setEditedSubtitle(venue.subtitle || "");
+      setEditedName(venue.name || "");
       setEditedImages(venue.images || []);
 
       const isShop = venue.is_sponsored === true || (venue.sponsor_tier && venue.sponsor_tier >= 1);
@@ -179,7 +193,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
   };
 
   const handlePickImage = async () => {
-    const maxImages = venue.sponsor_tier === 2 ? 5 : venue.sponsor_tier === 3 ? 10 : 3;
+    const maxImages = venue.sponsor_tier === 4 ? Infinity : venue.sponsor_tier === 2 ? 5 : venue.sponsor_tier === 3 ? 10 : 3;
     if (editedImages.length >= maxImages) {
       Alert.alert(
         locale === "th" ? "ครบตามกำหนด" : "Limit reached",
@@ -239,7 +253,16 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
     try {
       const compressedUri = await compressImage(localUri);
       const downloadUrl = await uploadPinImage(compressedUri, currentUser.userId);
-      setEditedImages(prev => [...prev, downloadUrl]);
+      const newImages = [...editedImages, downloadUrl];
+      setEditedImages(newImages);
+
+      // Auto-save if uploading from read-only mode
+      if (!isEditing) {
+        const venueDocRef = doc(db, "venues", venue.venueId);
+        const finalImages = [...(venue.images || []), downloadUrl];
+        await updateDoc(venueDocRef, { images: finalImages });
+        venue.images = finalImages; // Update local venue object instantly
+      }
     } catch (err: any) {
       console.error("Failed to upload image:", err);
       Alert.alert(locale === "th" ? "เกิดข้อผิดพลาด" : "Error", err.message || "Could not upload image");
@@ -263,13 +286,14 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
       const updatedCoverImage = editedImages[0];
 
       const updateData = {
+        name: editedName,
         aesthetic_rating: editedRating,
         category: editedCategory,
         crowd_status: editedCrowdStatus,
         description: editedDescription,
+        subtitle: editedSubtitle,
         images: editedImages,
-        cover_image: updatedCoverImage,
-        custom_icon_url: updatedCoverImage
+        cover_image: updatedCoverImage
       };
 
       await updateDoc(venueDocRef, updateData);
@@ -278,9 +302,10 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
       venue.category = editedCategory;
       venue.crowd_status = editedCrowdStatus;
       venue.description = editedDescription;
+      venue.subtitle = editedSubtitle;
+      venue.name = editedName;
       venue.images = editedImages;
       venue.cover_image = updatedCoverImage;
-      venue.custom_icon_url = updatedCoverImage;
 
       Alert.alert(
         locale === "th" ? "สำเร็จ" : "Success",
@@ -292,6 +317,24 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
         locale === "th" ? "เกิดข้อผิดพลาด" : "Error",
         err.message || "Could not save details"
       );
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleSaveSubtitleOnly = async () => {
+    setIsUploading(true);
+    try {
+      const venueDocRef = doc(db, "venues", venue.venueId);
+      await updateDoc(venueDocRef, { subtitle: editedSubtitle });
+      venue.subtitle = editedSubtitle;
+      Alert.alert(
+        locale === "th" ? "สำเร็จ" : "Success",
+        locale === "th" ? "บันทึกข้อความสาขา/สถานะเรียบร้อยแล้ว" : "Subtitle saved successfully"
+      );
+    } catch (err: any) {
+      console.error("Failed to save subtitle:", err);
+      Alert.alert(locale === "th" ? "เกิดข้อผิดพลาด" : "Error", err.message || "Could not save subtitle");
     } finally {
       setIsUploading(false);
     }
@@ -341,7 +384,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
   // Subscribe to comments count for each pin reactively
   useEffect(() => {
     const cleanups: (() => void)[] = [];
-    pins.forEach((pin) => {
+    (pins || []).forEach((pin) => {
       if (pin.pinId) {
         const cleanup = subscribeToComments(pin.pinId, (commentsList) => {
           setCommentsCounts(prev => ({
@@ -454,9 +497,16 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
     });
   }, [pins]);
 
-  // Filter pins based on report type
-  const aestheticPins = pins.filter(pin => pin.report_type === "aesthetic");
-  const realityPins = pins.filter(pin => pin.report_type === "live_status");
+  // Filter pins based on report type and block/report status
+  const filteredPins = (pins || []).filter(p => {
+    if (p.pinId && localHiddenPins[p.pinId]) return false;
+    if (currentUser?.blockedUsers?.includes(p.userId)) return false;
+    if (p.pinId && currentUser?.reportedPins?.includes(p.pinId)) return false;
+    return true;
+  });
+
+  const aestheticPins = filteredPins.filter(pin => pin.report_type === "aesthetic");
+  const realityPins = filteredPins.filter(pin => pin.report_type === "live_status");
 
   // Default fallback aesthetic images if no user aesthetic pins are available
   const fallbackAestheticImages = [
@@ -529,11 +579,12 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
     };
   };
 
-  const shopImages = showEditPanel
+  const shopImagesRaw = showEditPanel
     ? editedImages
     : (venue.images && venue.images.length > 0
       ? venue.images
       : [venue.cover_image].filter(Boolean));
+  const shopImages = [...shopImagesRaw].reverse();
 
   const widget = getWidgetSummary();
 
@@ -579,21 +630,22 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
           >
             {/* Header Row (Name & Delete & Rating Selector) */}
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-              <TextInput
-                style={{
-                  fontSize: 20,
-                  fontFamily: PincTheme.fonts.heading,
-                  fontWeight: 'bold',
-                  color: PincTheme.colors.textPrimary,
-                  flex: 1,
-                  borderBottomWidth: 1,
-                  borderBottomColor: PincTheme.colors.border,
-                  paddingVertical: 4,
-                  marginRight: 10
-                }}
-                value={venue.name}
-                editable={false}
-              />
+              <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: PincTheme.colors.border, marginRight: 10 }}>
+                <TextInput
+                  style={{
+                    fontSize: 20,
+                    fontFamily: PincTheme.fonts.heading,
+                    fontWeight: 'bold',
+                    color: PincTheme.colors.textPrimary,
+                    flex: 1,
+                    paddingVertical: 4,
+                  }}
+                  value={editedName}
+                  onChangeText={setEditedName}
+                  editable={true}
+                />
+                <Ionicons name="pencil" size={16} color={PincTheme.colors.textSecondary} style={{ paddingHorizontal: 4 }} />
+              </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <TouchableOpacity
                   style={{ padding: 6, backgroundColor: '#FFEBF0', borderRadius: 8 }}
@@ -601,23 +653,6 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                   activeOpacity={0.7}
                 >
                   <Ionicons name="trash-outline" size={20} color="#FF4B72" />
-                </TouchableOpacity>
-                {/* Rating Badge (Editable: Taps to trigger prompt/options) */}
-                <TouchableOpacity
-                  style={[styles.ratingBadge, { backgroundColor: PincTheme.colors.primary }]}
-                  activeOpacity={0.8}
-                  onPress={() => {
-                    Alert.alert(
-                      locale === "th" ? "ปรับแต่งคะแนนรีวิว" : "Adjust Rating Review",
-                      locale === "th" ? "กรุณาเลือกคะแนนสำหรับร้านค้าของคุณ" : "Please select a rating for your shop",
-                      [4.7, 4.8, 4.9, 5.0].map((rate) => ({
-                        text: `★ ${rate.toFixed(1)}`,
-                        onPress: () => setEditedRating(rate)
-                      })).concat([{ text: locale === "th" ? "ยกเลิก" : "Cancel", style: "cancel" }])
-                    );
-                  }}
-                >
-                  <Text style={[styles.ratingText, { color: '#FFF' }]}>★ {editedRating.toFixed(1)} ✏️</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -655,7 +690,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                   <Text style={{ fontSize: 12, fontWeight: '700', color: PincTheme.colors.textSecondary }}>CATEGORY:</Text>
                   <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
-                    {["café", "food", "bar", "shop", "clothes", "beauty", "art/books", "realestate", "gym", "event", "concert", "school", "showroom", "sport"].map((cat) => (
+                    {["café", "food", "bar", "party", "community", "event", "popup", "shop", "clothes", "beauty", "art/books", "realestate", "gym", "concert", "school", "showroom", "sport", "hotel", "service"].map((cat) => (
                       <TouchableOpacity
                         key={cat}
                         style={{
@@ -687,7 +722,10 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                     {[
                       { key: "Green", label: locale === "th" ? "Empty / Chill (โล่ง)" : "Empty / Chill", color: PincTheme.colors.crowdGreen, bg: PincTheme.colors.crowdGreenLight },
                       { key: "Yellow", label: locale === "th" ? "Moderate Queue (ปานกลาง)" : "Moderate Queue", color: PincTheme.colors.crowdYellow, bg: PincTheme.colors.crowdYellowLight },
-                      { key: "Red", label: locale === "th" ? "Crowded (หนาแน่น)" : "Crowded / Long Line", color: PincTheme.colors.crowdRed, bg: PincTheme.colors.crowdRedLight }
+                      { key: "Red", label: locale === "th" ? "Crowded (หนาแน่น)" : "Crowded / Long Line", color: PincTheme.colors.crowdRed, bg: PincTheme.colors.crowdRedLight },
+                      { key: "Blue", label: locale === "th" ? "Happening Now (กำลังมันส์)" : "Happening Now", color: "#3B82F6", bg: "#EFF6FF" },
+                      { key: "Purple", label: locale === "th" ? "Upcoming (เร็วๆ นี้)" : "Upcoming / Soon", color: "#8B5CF6", bg: "#F5F3FF" },
+                      { key: "Gray", label: locale === "th" ? "Closed (ปิด)" : "Closed / Offline", color: "#6B7280", bg: "#F3F4F6" }
                     ].map((item) => (
                       <TouchableOpacity
                         key={item.key}
@@ -741,6 +779,28 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
               />
             </View>
 
+            {/* Subtitle / Branch Text Input */}
+            <View style={{ gap: 4 }}>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: PincTheme.colors.textSecondary }}>
+                {locale === "th" ? "ชื่อสาขา / สถานะย่อย (ไม่กรอกก็ได้)" : "Branch Name / Status (Optional)"}:
+              </Text>
+              <TextInput
+                style={{
+                  borderWidth: 1,
+                  borderColor: PincTheme.colors.border,
+                  borderRadius: 8,
+                  padding: 10,
+                  fontSize: 13,
+                  color: PincTheme.colors.textPrimary,
+                  backgroundColor: PincTheme.colors.card,
+                }}
+                placeholder={locale === "th" ? "เช่น สาขาสุขุมวิท 11, กำลังปาร์ตี้อยู่!" : "e.g. Sukhumvit 11, Party time!"}
+                placeholderTextColor={PincTheme.colors.textTertiary}
+                value={editedSubtitle}
+                onChangeText={setEditedSubtitle}
+              />
+            </View>
+
             {/* Save Shop Details Button */}
             <TouchableOpacity
               style={{
@@ -777,7 +837,42 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
           /* General User Read-Only Panel */
           <>
             <View style={styles.titleRow}>
-              <Text style={styles.venueName}>{venue.name}</Text>
+              {currentUser?.userId === venue.ownerId ? (
+                isEditingName ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, borderBottomWidth: 1, borderBottomColor: PincTheme.colors.border }}>
+                    <TextInput
+                      style={[styles.venueName, { paddingVertical: 0, flex: 1 }]}
+                      value={editedName}
+                      onChangeText={setEditedName}
+                      autoFocus
+                    />
+                    <TouchableOpacity
+                      onPress={async () => {
+                        if (editedName !== venue.name) {
+                          try {
+                            const venueDocRef = doc(db, "venues", venue.venueId);
+                            await updateDoc(venueDocRef, { name: editedName });
+                            venue.name = editedName;
+                          } catch (e) {
+                            console.error("Error saving name:", e);
+                          }
+                        }
+                        setIsEditingName(false);
+                      }}
+                      style={{ paddingHorizontal: 8, paddingVertical: 4 }}
+                    >
+                      <Ionicons name="checkmark-circle" size={24} color={PincTheme.colors.primary} />
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <TouchableOpacity onPress={() => setIsEditingName(true)} style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                    <Text style={styles.venueName}>{venue.name}</Text>
+                    <Ionicons name="pencil" size={16} color={PincTheme.colors.textSecondary} style={{ marginLeft: 8 }} />
+                  </TouchableOpacity>
+                )
+              ) : (
+                <Text style={styles.venueName}>{venue.name}</Text>
+              )}
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 {isShopPackage && currentUser.userId !== venue.ownerId && venue.ownerId && (
                   <TouchableOpacity
@@ -802,9 +897,6 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                     </Text>
                   </TouchableOpacity>
                 )}
-                <View style={styles.ratingBadge}>
-                  <Text style={styles.ratingText}>★ {venue.aesthetic_rating.toFixed(1)}</Text>
-                </View>
               </View>
             </View>
 
@@ -844,17 +936,140 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
               </View>
             </View>
 
-            {venue.sponsor_tier === 3 && (
+            <TouchableOpacity
+              style={styles.directionsButton}
+              onPress={() => {
+                const url = `https://www.google.com/maps/dir/?api=1&destination=${venue.latitude},${venue.longitude}`;
+                Linking.openURL(url);
+              }}
+            >
+              <Ionicons name="navigate" size={16} color="#FFF" />
+              <Text style={styles.directionsText}>{locale === "th" ? "ขอเส้นทาง" : "Get Directions"}</Text>
+            </TouchableOpacity>
+
+            {/* Chat & Board Buttons */}
+            {venue.sponsor_tier !== 1 && (
+              <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+                <TouchableOpacity
+                  style={{
+                    flex: 1,
+                    backgroundColor: '#FFF',
+                    borderRadius: 8,
+                    paddingVertical: 10,
+                    flexDirection: 'row',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    gap: 6,
+                    borderWidth: 1,
+                    borderColor: PincTheme.colors.primary,
+                  }}
+                  activeOpacity={0.8}
+                  onPress={() => {
+                    setInteractionMode('chat');
+                    setShowInteractionModal(true);
+                  }}
+                >
+                  <Ionicons name="chatbubbles" size={16} color={PincTheme.colors.primary} />
+                  <Text style={{ color: PincTheme.colors.primary, fontWeight: '700', fontSize: 13 }}>
+                    {locale === "th" ? "ห้องแชทรวม" : "Chat"}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={{
+                    flex: 1,
+                    backgroundColor: '#FFF',
+                    borderRadius: 8,
+                    paddingVertical: 10,
+                    flexDirection: 'row',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    gap: 6,
+                    borderWidth: 1,
+                    borderColor: PincTheme.colors.primary,
+                  }}
+                  activeOpacity={0.8}
+                  onPress={() => {
+                    setInteractionMode('board');
+                    setShowInteractionModal(true);
+                  }}
+                >
+                  <Ionicons name="megaphone" size={16} color={PincTheme.colors.primary} />
+                  <Text style={{ color: PincTheme.colors.primary, fontWeight: '700', fontSize: 13 }}>
+                    {locale === "th" ? "กระดานข่าว" : "Board"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {isOwner && (
               <TouchableOpacity
-                style={styles.directionsButton}
-                onPress={() => {
-                  const url = `https://www.google.com/maps/dir/?api=1&destination=${venue.latitude},${venue.longitude}`;
-                  Linking.openURL(url);
+                style={{
+                  backgroundColor: PincTheme.colors.primary,
+                  borderRadius: 8,
+                  paddingVertical: 12,
+                  flexDirection: 'row',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  gap: 6,
+                  marginTop: 12,
+                  shadowColor: PincTheme.colors.primary,
+                  shadowOffset: { width: 0, height: 4 },
+                  shadowOpacity: 0.3,
+                  shadowRadius: 4,
+                  elevation: 5
                 }}
+                activeOpacity={0.8}
+                onPress={() => onNewPostPress?.(venue.venueId)}
               >
-                <Ionicons name="navigate" size={16} color="#FFF" />
-                <Text style={styles.directionsText}>{locale === "th" ? "ขอเส้นทาง" : "Get Directions"}</Text>
+                <Ionicons name="create" size={18} color="#FFF" />
+                <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 14 }}>
+                  {locale === "th" ? "โพสต์แจ้งข่าวสาร (ประกาศไปยัง Feed)" : "Post Announcement"}
+                </Text>
               </TouchableOpacity>
+            )}
+
+            {isOwner && (
+              <View style={{ marginTop: 12, gap: 4 }}>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: PincTheme.colors.textSecondary }}>
+                  {locale === "th" ? "ชื่อสาขา / สถานะย่อย (โชว์บนแผนที่, ไม่กรอกก็ได้)" : "Branch / Status (Shown on map, optional)"}:
+                </Text>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <TextInput
+                    style={{
+                      flex: 1,
+                      borderWidth: 1,
+                      borderColor: PincTheme.colors.border,
+                      borderRadius: 8,
+                      padding: 10,
+                      fontSize: 13,
+                      color: PincTheme.colors.textPrimary,
+                      backgroundColor: PincTheme.colors.card,
+                    }}
+                    placeholder={locale === "th" ? "เช่น สาขาสุขุมวิท 11, กำลังปาร์ตี้อยู่!" : "e.g. Sukhumvit 11, Party time!"}
+                    placeholderTextColor={PincTheme.colors.textTertiary}
+                    value={editedSubtitle}
+                    onChangeText={setEditedSubtitle}
+                  />
+                  <TouchableOpacity
+                    style={{
+                      backgroundColor: isUploading ? '#999' : '#FF4B72',
+                      paddingHorizontal: 16,
+                      borderRadius: 8,
+                      justifyContent: 'center',
+                      alignItems: 'center'
+                    }}
+                    onPress={handleSaveSubtitleOnly}
+                    disabled={isUploading}
+                  >
+                    {isUploading ? (
+                      <ActivityIndicator size="small" color="#FFF" />
+                    ) : (
+                      <Text style={{ color: '#FFF', fontWeight: 'bold' }}>Save</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
             )}
 
             {!!venue.description && (
@@ -941,11 +1156,32 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                   onLongPress={() => handleLongPressImage(uri)}
                 >
                   <Image source={{ uri }} style={styles.gridImage} contentFit="cover" />
+                  {showEditPanel && (
+                    <TouchableOpacity
+                      style={{
+                        position: 'absolute',
+                        top: 6,
+                        right: 6,
+                        backgroundColor: 'rgba(0,0,0,0.6)',
+                        borderRadius: 12,
+                        width: 24,
+                        height: 24,
+                        justifyContent: 'center',
+                        alignItems: 'center'
+                      }}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        handleLongPressImage(uri);
+                      }}
+                    >
+                      <Ionicons name="close" size={16} color="#FFF" />
+                    </TouchableOpacity>
+                  )}
                 </TouchableOpacity>
               ))}
 
               {/* Owner Add Photo Card */}
-              {showEditPanel && (
+              {isOwner && (
                 <TouchableOpacity
                   style={[
                     styles.gridImageWrapper,
@@ -1405,16 +1641,41 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                         </TouchableOpacity>
                       )}
 
-                      {/* Delete Button (Only for own posts) */}
-                      {pin.userId === currentUser.userId && (
-                        <TouchableOpacity
-                          style={[styles.actionButton, { marginLeft: "auto" }]}
-                          onPress={() => handleDeletePin(pin.pinId)}
-                          activeOpacity={0.7}
-                        >
-                          <Text style={styles.actionIcon}>🗑️</Text>
-                        </TouchableOpacity>
-                      )}
+                      {/* Options Button (Delete or Report) */}
+                      <TouchableOpacity
+                        style={[styles.actionButton, { marginLeft: "auto" }]}
+                        onPress={() => {
+                          if (pin.userId === currentUser.userId) {
+                            handleDeletePin(pin.pinId);
+                          } else {
+                            Alert.alert("Report Post", "Are you sure you want to report this post for objectionable content?", [
+                              { text: "Cancel", style: "cancel" },
+                              {
+                                text: "Report",
+                                style: "destructive",
+                                onPress: async () => {
+                                  if (pin.pinId) {
+                                    try {
+                                      setLocalHiddenPins(prev => ({ ...prev, [pin.pinId!]: true }));
+                                      await reportPin(currentUser.userId, pin.pinId);
+                                      Alert.alert("Reported", "This post has been reported and removed.");
+                                    } catch (e) {
+                                      setLocalHiddenPins(prev => {
+                                        const next = { ...prev };
+                                        delete next[pin.pinId!];
+                                        return next;
+                                      });
+                                    }
+                                  }
+                                }
+                              }
+                            ]);
+                          }
+                        }}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons name="ellipsis-vertical" size={20} color={PincTheme.colors.textSecondary} />
+                      </TouchableOpacity>
                     </View>
                   </View>
                 );
@@ -1531,6 +1792,20 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
           </Text>
         </View>
       )}
+      <VenueInteractionModal
+        visible={showInteractionModal}
+        onClose={() => setShowInteractionModal(false)}
+        venueId={venue.venueId}
+        venueName={venue.name}
+        mode={interactionMode}
+        currentUser={{
+          userId: currentUser.userId,
+          username: currentUser.username || "User",
+          profilePic: (currentUser as any).profile_pic || ""
+        }}
+        isOwner={isOwner}
+        locale={locale}
+      />
     </View>
   );
 };
