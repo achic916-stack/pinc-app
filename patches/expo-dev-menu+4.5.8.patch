@@ -1,0 +1,16 @@
+diff --git a/node_modules/expo-dev-menu/ios/Interceptors/DevMenuKeyCommandsInterceptor.swift b/node_modules/expo-dev-menu/ios/Interceptors/DevMenuKeyCommandsInterceptor.swift
+index 1234567..89abcdef 100644
+--- a/node_modules/expo-dev-menu/ios/Interceptors/DevMenuKeyCommandsInterceptor.swift
++++ b/node_modules/expo-dev-menu/ios/Interceptors/DevMenuKeyCommandsInterceptor.swift
+@@ -33,7 +33,11 @@
+ /**
+  Extend `UIResponder` so we can put our key commands to all responders.
+  */
++#if compiler(>=6.0)
++extension UIResponder: @retroactive DevMenuUIResponderExtensionProtocol {
++#else
+ extension UIResponder: DevMenuUIResponderExtensionProtocol {
++#endif
+   // NOTE: throttle the key handler because on iOS the handleKeyCommand:
+   // method gets called repeatedly if the command key is held down.
+   static private var lastKeyCommandExecutionTime: TimeInterval = 0
