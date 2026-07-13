@@ -692,7 +692,10 @@ export default function App() {
                       setSelectedUserProfileId(userId);
                     }}
                     onNewPostPress={(venueId) => {
-                      pincButtonRef.current?.openMediaSelector(venueId);
+                      handleCloseBottomSheet();
+                      setTimeout(() => {
+                        pincButtonRef.current?.openMediaSelector(venueId);
+                      }, 300);
                     }}
                     currentUser={currentUser}
                     isFullScreen={true}
@@ -713,6 +716,7 @@ export default function App() {
                     setSelectedUserProfileId(userId);
                   }}
                   onNewPostPress={(venueId) => {
+                    handleCloseBottomSheet();
                     pincButtonRef.current?.openMediaSelector(venueId);
                   }}
                   currentUser={currentUser}

@@ -1024,7 +1024,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
               >
                 <Ionicons name="create" size={18} color="#FFF" />
                 <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 14 }}>
-                  {locale === "th" ? "โพสต์แจ้งข่าวสาร (ประกาศไปยัง Feed)" : "Post Announcement"}
+                  {locale === "th" ? "โพส" : "Post"}
                 </Text>
               </TouchableOpacity>
             )}
