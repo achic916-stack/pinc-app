@@ -295,6 +295,7 @@ export const HomeFeedScreen: React.FC<HomeFeedScreenProps> = ({
   onStartVideoPost,
   onStartPhotoPost,
   onStartGalleryPost,
+  onGoToMap,
   selectedPin,
   isVisible,
 }) => {
@@ -390,7 +391,7 @@ export const HomeFeedScreen: React.FC<HomeFeedScreenProps> = ({
           return [];
         });
         anchor.media_urls = allMedia.reverse(); // Newest first
-        anchor.media_type = 'gallery';
+        anchor.media_type = 'gallery' as any;
         anchor.image_url = anchor.media_urls[0] || '';
         clustered.push(anchor);
       } else {

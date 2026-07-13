@@ -652,7 +652,7 @@ export default function App() {
                 onStartPhotoPost={() => pincButtonRef.current?.startPhotoPost()}
                 onStartGalleryPost={() => pincButtonRef.current?.startGalleryPost()}
                 onGoToMap={(lat, lng) => {
-                  setCameraTarget({ latitude: lat, longitude: lng });
+                  setCameraTarget({ latitude: lat, longitude: lng, timestamp: Date.now() });
                   setSelectedVenue(null);
                   setActiveTab('map');
                 }}
