@@ -34,9 +34,9 @@ workflows:
           cd ios && pod install
       - name: Set NODE_BINARY for Xcode script phases
         script: |
-          sudo ln -sf $(which node) /usr/local/bin/node
-          echo "export NODE_BINARY=/usr/local/bin/node" > ios/.xcode.env
-          echo "export NODE_BINARY=/usr/local/bin/node" > ios/.xcode.env.local
+          REAL_NODE_PATH=$(command -v node)
+          echo "export NODE_BINARY=\"$REAL_NODE_PATH\"" > ios/.xcode.env
+          echo "export NODE_BINARY=\"$REAL_NODE_PATH\"" > ios/.xcode.env.local
       - name: Set up keychain
         script: keychain initialize
 
