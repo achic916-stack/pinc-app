@@ -92,6 +92,20 @@ missingDimensionStrategy "store", "play"
         versionCode 146
         versionName "1.0.146"
 
+        def envFile = file("../../.env")
+        def mapsApiKey = ""
+        if (envFile.exists()) {
+            envFile.eachLine { line ->
+                if (line.startsWith("EXPO_PUBLIC_GOOGLE_MAPS_API_KEY=")) {
+                    mapsApiKey = line.replace("EXPO_PUBLIC_GOOGLE_MAPS_API_KEY=", "").trim()
+                }
+            }
+        }
+        if (mapsApiKey == "") {
+            mapsApiKey = System.getenv("EXPO_PUBLIC_GOOGLE_MAPS_API_KEY") ?: ""
+        }
+        manifestPlaceholders = [googleMapsApiKey: mapsApiKey]
+
         buildConfigField("boolean", "REACT_NATIVE_UNSTABLE_USE_RUNTIME_SCHEDULER_ALWAYS", (findProperty("reactNative.unstable_useRuntimeSchedulerAlways") ?: true).toString())
     }
     signingConfigs {
