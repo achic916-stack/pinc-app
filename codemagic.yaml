@@ -13,6 +13,9 @@ workflows:
         APP_STORE_APP_ID: "6777288825"
       groups:
         - pinc_env_vars
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.achic.pinc
       node: latest
     triggering:
       events:
@@ -34,12 +37,7 @@ workflows:
 
       - name: Add certificates to keychain
         script: keychain add-certificates
-      - name: Fetch Apple code signing files (create if not exist)
-        script: |
-          app-store-connect fetch-signing-files \
-            "$BUNDLE_ID" \
-            --type IOS_APP_STORE \
-            --create
+
       - name: Set up code signing settings on Xcode project
         script: xcode-project use-profiles
       - name: Build iOS for distribution
