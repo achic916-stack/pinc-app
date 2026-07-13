@@ -35,7 +35,8 @@ workflows:
       - name: Set NODE_BINARY for Xcode script phases
         script: |
           sudo ln -sf $(which node) /usr/local/bin/node
-          echo "export NODE_BINARY=$(which node)" > ios/.xcode.env.local
+          echo "export NODE_BINARY=/usr/local/bin/node" > ios/.xcode.env
+          echo "export NODE_BINARY=/usr/local/bin/node" > ios/.xcode.env.local
       - name: Set up keychain
         script: keychain initialize
 
@@ -53,6 +54,7 @@ workflows:
             -configuration Release \
             -destination 'generic/platform=iOS' \
             -archivePath "$CM_BUILD_DIR/pinc.xcarchive" \
+            ENABLE_USER_SCRIPT_SANDBOXING=NO \
             archive > build.log 2>&1; then
             echo "❌ BUILD FAILED! Extracting errors from log:"
             echo "======================================"
