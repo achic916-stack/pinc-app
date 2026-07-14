@@ -76,7 +76,7 @@ export const NeonHeartOverlay = forwardRef<NeonHeartRef, NeonHeartOverlayProps>(
 
   if (hearts.length === 0) return null;
 
-  const HEART_SIZE = 80; // Larger than thumb
+  const HEART_SIZE = 160; // Doubled size
   const OFFSET = HEART_SIZE / 2; // to center at tap location
 
   return (
@@ -110,8 +110,8 @@ export const NeonHeartOverlay = forwardRef<NeonHeartRef, NeonHeartOverlayProps>(
 const styles = StyleSheet.create({
   heartContainer: {
     position: 'absolute',
-    width: 80,
-    height: 80,
+    width: 160,
+    height: 160,
     alignItems: 'center',
     justifyContent: 'center',
   },

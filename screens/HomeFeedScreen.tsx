@@ -229,6 +229,7 @@ const FeedPinItem: React.FC<FeedPinItemProps> = React.memo(({
                 />
               ))}
             </View>
+            <NeonHeartOverlay ref={neonHeartRef} />
           </View>
         ) : item.image_url ? (
           <View style={[styles.mediaContainer, { aspectRatio: localAspectRatios[item.image_url] || 4/5 }]}>
@@ -257,6 +258,7 @@ const FeedPinItem: React.FC<FeedPinItemProps> = React.memo(({
                 )}
               </View>
             </TouchableWithoutFeedback>
+            <NeonHeartOverlay ref={neonHeartRef} />
           </View>
         ) : null}
 
@@ -323,8 +325,6 @@ const FeedPinItem: React.FC<FeedPinItemProps> = React.memo(({
             <Text style={{ fontSize: 13, fontWeight: '700', color: PincTheme.colors.primary }}>Go To Map</Text>
           </TouchableOpacity>
         )}
-        
-        <NeonHeartOverlay ref={neonHeartRef} />
     </View>
   );
 });
