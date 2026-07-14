@@ -24,6 +24,10 @@ import { WatermarkShare } from '../components/WatermarkShare';
 import { CommentsDrawer } from '../components/CommentsDrawer';
 import { FollowButton } from '../components/FollowButton';
 import { FullScreenMediaViewer } from '../components/FullScreenMediaViewer';
+import { VenueBottomSheet } from '../components/VenueBottomSheet';
+import { FloatingHeartsOverlay, FloatingHeartsRef } from '../components/FloatingHeartsOverlay';
+
+const defaultAvatar = 'https://firebasestorage.googleapis.com/v0/b/pinc-5460b.appspot.com/o/default-avatar.png?alt=media';
 
 interface HomeFeedScreenProps {
   pins: Pin[];
@@ -66,6 +70,7 @@ const FeedPinItem: React.FC<FeedPinItemProps> = React.memo(({
   const [likesCount, setLikesCount] = useState(item.likesCount || item.likes?.length || 0);
   const [lastTap, setLastTap] = useState(0);
   const doubleTapRef = useRef<NodeJS.Timeout | null>(null);
+  const floatingHeartsRef = useRef<FloatingHeartsRef>(null);
 
   const handleMediaTap = (url: string, type: 'video' | 'image') => {
     const now = Date.now();
@@ -76,6 +81,8 @@ const FeedPinItem: React.FC<FeedPinItemProps> = React.memo(({
       if (!liked) {
         onLikePress();
       }
+      // Always trigger animation on double tap, even if already liked
+      floatingHeartsRef.current?.triggerAnimation();
       setLastTap(0);
     } else {
       setLastTap(now);
@@ -315,6 +322,8 @@ const FeedPinItem: React.FC<FeedPinItemProps> = React.memo(({
             <Text style={{ fontSize: 13, fontWeight: '700', color: PincTheme.colors.primary }}>Go To Map</Text>
           </TouchableOpacity>
         )}
+        
+        <FloatingHeartsOverlay ref={floatingHeartsRef} />
     </View>
   );
 });

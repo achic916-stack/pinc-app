@@ -22,9 +22,10 @@ import { Feather, Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { Pin, auth, toggleLikePin, subscribeToComments, fetchUserProfile, UserProfile, checkIsFollowing, toggleFollow, reportPin } from "../services/firebase";
 import { PincTheme } from "../styles/theme";
-import { CommentsDrawer } from "./CommentsDrawer";
-import { WatermarkShare } from "./WatermarkShare";
-import { FullScreenMediaViewer } from "./FullScreenMediaViewer";
+import { CommentsDrawer } from './CommentsDrawer';
+import { WatermarkShare } from './WatermarkShare';
+import { FullScreenMediaViewer } from './FullScreenMediaViewer';
+import { FloatingHeartsOverlay, FloatingHeartsRef } from './FloatingHeartsOverlay';
 
 const { height: windowHeight, width: windowWidth } = Dimensions.get("window");
 
@@ -66,6 +67,7 @@ const FeedItem = ({
   const [commentsCount, setCommentsCount] = useState(item.commentsCount || 0);
   const [lastTap, setLastTap] = useState(0);
   const doubleTapRef = useRef<NodeJS.Timeout | null>(null);
+  const floatingHeartsRef = useRef<FloatingHeartsRef>(null);
 
   const [isFollowing, setIsFollowing] = useState(false);
   const [isTogglingFollow, setIsTogglingFollow] = useState(false);
@@ -89,6 +91,9 @@ const FeedItem = ({
     if (lastTap && (now - lastTap) < DOUBLE_PRESS_DELAY) {
       if (doubleTapRef.current) clearTimeout(doubleTapRef.current);
       if (!liked) handleLike();
+      
+      // Always trigger animation on double tap
+      floatingHeartsRef.current?.triggerAnimation();
       setLastTap(0);
     } else {
       setLastTap(now);
@@ -278,7 +283,7 @@ const FeedItem = ({
         </TouchableOpacity>
 
         <TouchableOpacity hitSlop={{ top: 15, bottom: 15, left: 20, right: 20 }} style={styles.actionButton} onPress={onSharePress}>
-          <Ionicons name="paper-plane-outline" size={32} color="#FFF" />
+          <MaterialCommunityIcons name="share" size={32} color="#FFF" />
           <Text style={styles.actionText}>Share</Text>
         </TouchableOpacity>
 
@@ -314,6 +319,8 @@ const FeedItem = ({
           <Feather name="more-horizontal" size={28} color="#FFF" />
         </TouchableOpacity>
       </View>
+      
+      <FloatingHeartsOverlay ref={floatingHeartsRef} />
     </View>
   );
 };
