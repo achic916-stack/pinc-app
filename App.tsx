@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import Purchases from "react-native-purchases";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { 
   StyleSheet, 
   View, 
@@ -83,6 +84,8 @@ export default function App() {
 
   // Active Navigation & Shelf States
   const [activeTab, setActiveTab] = useState<"home" | "map" | "photo" | "video" | "search" | "profile">("home");
+  const [lastHomeViewTime, setLastHomeViewTime] = useState<number>(Date.now());
+  const [hasNewFollowedPost, setHasNewFollowedPost] = useState(false);
   const [photoShelfVisible, setPhotoShelfVisible] = useState(false);
   const [cameraTarget, setCameraTarget] = useState<{ latitude: number; longitude: number; timestamp: number } | null>(null);
   const [focusSearchTrigger, setFocusSearchTrigger] = useState(0);
@@ -168,6 +171,10 @@ export default function App() {
     setActiveTab("home");
     setPhotoShelfVisible(false);
     setSelectedVenue(null);
+    const now = Date.now();
+    setLastHomeViewTime(now);
+    setHasNewFollowedPost(false);
+    AsyncStorage.setItem('lastHomeViewTime', now.toString()).catch(() => {});
   };
 
   const handlePhotoTabPress = () => {
@@ -229,6 +236,30 @@ export default function App() {
   useEffect(() => {
     i18n.changeLanguage(locale);
   }, [locale]);
+
+  // Load lastHomeViewTime on mount
+  useEffect(() => {
+    AsyncStorage.getItem('lastHomeViewTime').then(val => {
+      if (val) setLastHomeViewTime(parseInt(val, 10));
+    }).catch(() => {});
+  }, []);
+
+  // Check for new followed posts
+  useEffect(() => {
+    if (activeTab === 'home') {
+      setHasNewFollowedPost(false);
+      return;
+    }
+    
+    if (followingIds && followingIds.length > 0 && allPins.length > 0) {
+      const hasNew = allPins.some(pin => {
+        // Convert Firestore Timestamp to ms or use Date object
+        const pinTime = pin.timestamp && typeof (pin.timestamp as any).toDate === 'function' ? (pin.timestamp as any).toDate().getTime() : new Date(pin.timestamp).getTime();
+        return followingIds.includes(pin.userId) && pinTime > lastHomeViewTime;
+      });
+      setHasNewFollowedPost(hasNew);
+    }
+  }, [allPins, followingIds, lastHomeViewTime, activeTab]);
 
   // 1. Check Auth Status & Auto-Seed Database on mount
   useEffect(() => {
@@ -887,7 +918,22 @@ export default function App() {
               onPress={handleHomeTabPress}
               activeOpacity={0.7}
             >
-              <Ionicons name={activeTab === "home" ? "home" : "home-outline"} size={26} color={activeTab === "home" ? "#E4007F" : "#A0A0A0"} />
+              <View>
+                <Ionicons name={activeTab === "home" ? "home" : "home-outline"} size={26} color={activeTab === "home" ? "#E4007F" : "#A0A0A0"} />
+                {hasNewFollowedPost && activeTab !== "home" && (
+                  <View style={{
+                    position: 'absolute',
+                    top: -2,
+                    right: -2,
+                    width: 8,
+                    height: 8,
+                    borderRadius: 4,
+                    backgroundColor: '#FF2D55',
+                    borderWidth: 1.5,
+                    borderColor: '#121212'
+                  }} />
+                )}
+              </View>
             </TouchableOpacity>
 
             {/* Tab 1.5: Map */}
