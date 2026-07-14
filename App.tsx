@@ -943,15 +943,22 @@ export default function App() {
               {unreadCount > 0 && (
                 <View style={{
                   position: "absolute",
-                  top: 12,
-                  right: 20,
+                  top: 8,
+                  right: 18,
                   backgroundColor: PincTheme.colors.primary,
-                  width: 10,
-                  height: 10,
-                  borderRadius: 5,
+                  minWidth: 18,
+                  height: 18,
+                  borderRadius: 9,
+                  justifyContent: 'center',
+                  alignItems: 'center',
                   borderWidth: 1.5,
-                  borderColor: "rgba(26, 26, 26, 0.75)"
-                }} />
+                  borderColor: "rgba(26, 26, 26, 0.75)",
+                  paddingHorizontal: 4
+                }}>
+                  <Text style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </Text>
+                </View>
               )}
             </TouchableOpacity>
           </View>
