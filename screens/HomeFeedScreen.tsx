@@ -23,6 +23,7 @@ import { CachedVideo } from '../components/CachedVideo';
 import { WatermarkShare } from '../components/WatermarkShare';
 import { CommentsDrawer } from '../components/CommentsDrawer';
 import { FollowButton } from '../components/FollowButton';
+import { FullScreenMediaViewer } from '../components/FullScreenMediaViewer';
 
 interface HomeFeedScreenProps {
   pins: Pin[];
@@ -50,12 +51,13 @@ interface FeedPinItemProps {
   handleShare: (item: Pin) => void;
   handleToggleSave: (pinId: string) => void;
   onGoToMap?: (latitude: number, longitude: number) => void;
+  onOpenMedia: (url: string, type: 'video'|'image') => void;
 }
 
 const FeedPinItem: React.FC<FeedPinItemProps> = React.memo(({ 
   item, isActiveVideo, currentUser, localSavedPins, 
   onOpenUserProfile, handleOptionsPress, handleLike, 
-  setCommentPinId, handleShare, handleToggleSave, onGoToMap
+  setCommentPinId, handleShare, handleToggleSave, onGoToMap, onOpenMedia
 }) => {
   const [localAspectRatios, setLocalAspectRatios] = useState<Record<string, number>>({});
   const [activeMediaIndex, setActiveMediaIndex] = useState(0);
@@ -63,17 +65,24 @@ const FeedPinItem: React.FC<FeedPinItemProps> = React.memo(({
   const [liked, setLiked] = useState(item.likes?.includes(currentUser.userId) || false);
   const [likesCount, setLikesCount] = useState(item.likesCount || item.likes?.length || 0);
   const [lastTap, setLastTap] = useState(0);
+  const doubleTapRef = useRef<NodeJS.Timeout | null>(null);
 
-  const handleDoubleTap = () => {
+  const handleMediaTap = (url: string, type: 'video' | 'image') => {
     const now = Date.now();
     const DOUBLE_PRESS_DELAY = 300;
     if (lastTap && (now - lastTap) < DOUBLE_PRESS_DELAY) {
+      // Double tap!
+      if (doubleTapRef.current) clearTimeout(doubleTapRef.current);
       if (!liked) {
         onLikePress();
       }
       setLastTap(0);
     } else {
       setLastTap(now);
+      doubleTapRef.current = setTimeout(() => {
+        // Single tap!
+        onOpenMedia(url, type);
+      }, DOUBLE_PRESS_DELAY);
     }
   };
 
@@ -173,7 +182,7 @@ const FeedPinItem: React.FC<FeedPinItemProps> = React.memo(({
                 const isVid = item.media_type === "video" || url.includes(".mp4");
                 return (
                   <View key={index} style={{ width: Dimensions.get('window').width }}>
-                    <TouchableWithoutFeedback onPress={handleDoubleTap}>
+                    <TouchableWithoutFeedback onPress={() => handleMediaTap(url, isVid ? 'video' : 'image')}>
                       <View style={{ flex: 1 }}>
                         {isVid ? (
                           <CachedVideo
@@ -215,7 +224,7 @@ const FeedPinItem: React.FC<FeedPinItemProps> = React.memo(({
           </View>
         ) : item.image_url ? (
           <View style={[styles.mediaContainer, { aspectRatio: localAspectRatios[item.image_url] || 4/5 }]}>
-            <TouchableWithoutFeedback onPress={handleDoubleTap}>
+            <TouchableWithoutFeedback onPress={() => handleMediaTap(item.image_url!, isVideo ? 'video' : 'image')}>
               <View style={{ flex: 1 }}>
                 {isVideo ? (
                   <CachedVideo
@@ -328,6 +337,19 @@ export const HomeFeedScreen: React.FC<HomeFeedScreenProps> = ({
   const [commentPinId, setCommentPinId] = useState<string | null>(null);
   const [aspectRatios, setAspectRatios] = useState<Record<string, number>>({});
   const [activeVideoId, setActiveVideoId] = useState<string | null>(null);
+  const [shareItem, setShareItem] = useState<Pin | null>(null);
+  const [reportPinItem, setReportPinItem] = useState<Pin | null>(null);
+  const [reportReason, setReportReason] = useState("");
+
+  const [viewerVisible, setViewerVisible] = useState(false);
+  const [viewerMediaUrl, setViewerMediaUrl] = useState<string | null>(null);
+  const [viewerMediaType, setViewerMediaType] = useState<'image' | 'video'>('image');
+
+  const onOpenMedia = useCallback((url: string, type: 'video' | 'image') => {
+    setViewerMediaUrl(url);
+    setViewerMediaType(type);
+    setViewerVisible(true);
+  }, []);
   
   // Local state to instantly toggle bookmark UI
   const [localSavedPins, setLocalSavedPins] = useState<Record<string, boolean>>({});
@@ -510,7 +532,7 @@ export const HomeFeedScreen: React.FC<HomeFeedScreenProps> = ({
   }, [currentUser.userId]);
 
   const handleShare = useCallback(async (pin: Pin) => {
-    setSharePin(pin);
+    setShareItem(pin);
   }, []);
 
   const handleToggleSave = useCallback(async (pinId: string) => {
@@ -553,8 +575,9 @@ export const HomeFeedScreen: React.FC<HomeFeedScreenProps> = ({
       handleShare={handleShare}
       handleToggleSave={handleToggleSave}
       onGoToMap={onGoToMap}
+      onOpenMedia={onOpenMedia}
     />
-  ), [activeVideoId, currentUser.userId, localSavedPins, isVisible, onGoToMap]);
+  ), [activeVideoId, currentUser, localSavedPins, isVisible, onGoToMap, onOpenMedia]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -595,21 +618,29 @@ export const HomeFeedScreen: React.FC<HomeFeedScreenProps> = ({
       />
 
       {/* Watermark Share Modal */}
-      {sharePin && sharePin.image_url && (
+      {shareItem && shareItem.image_url && (
         <Modal
           visible={true}
           transparent={true}
           animationType="slide"
-          onRequestClose={() => setSharePin(null)}
+          onRequestClose={() => setShareItem(null)}
         >
           <WatermarkShare 
-            photoUri={sharePin.image_url} 
-            locationName={sharePin.username || "Pinc Memory"} 
-            onClose={() => setSharePin(null)} 
-            isVideo={sharePin.media_type === 'video'}
+            photoUri={shareItem.image_url} 
+            locationName={shareItem.username || "Pinc Memory"} 
+            onClose={() => setShareItem(null)} 
+            isVideo={shareItem.media_type === 'video'}
           />
         </Modal>
       )}
+
+      <FullScreenMediaViewer 
+        visible={viewerVisible}
+        mediaUrl={viewerMediaUrl}
+        mediaType={viewerMediaType}
+        onClose={() => setViewerVisible(false)}
+      />
+
     </SafeAreaView>
   );
 };

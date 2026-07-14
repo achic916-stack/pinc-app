@@ -10,7 +10,10 @@ import {
   FlatList,
   Platform,
   Share,
-  Alert
+  Alert,
+  TouchableWithoutFeedback,
+  Animated,
+  Easing
 } from "react-native";
 import { Audio, Video, ResizeMode } from "expo-av";
 
@@ -21,6 +24,7 @@ import { Pin, auth, toggleLikePin, subscribeToComments, fetchUserProfile, UserPr
 import { PincTheme } from "../styles/theme";
 import { CommentsDrawer } from "./CommentsDrawer";
 import { WatermarkShare } from "./WatermarkShare";
+import { FullScreenMediaViewer } from "./FullScreenMediaViewer";
 
 const { height: windowHeight, width: windowWidth } = Dimensions.get("window");
 
@@ -42,7 +46,9 @@ const FeedItem = ({
   onSharePress,
   currentUserId,
   onOpenUserProfile,
-  locale = "en"
+  locale = "en",
+  onReport,
+  onOpenMedia
 }: { 
   item: Pin; 
   isVisible: boolean;
@@ -53,10 +59,13 @@ const FeedItem = ({
   onOpenUserProfile?: (userId: string) => void;
   locale?: "en" | "th";
   onReport?: (pinId: string) => void;
+  onOpenMedia: (url: string, type: 'video' | 'image') => void;
 }) => {
   const [liked, setLiked] = useState(item.likes?.includes(currentUserId) || false);
   const [likesCount, setLikesCount] = useState(item.likes?.length || item.likesCount || 0);
   const [commentsCount, setCommentsCount] = useState(item.commentsCount || 0);
+  const [lastTap, setLastTap] = useState(0);
+  const doubleTapRef = useRef<NodeJS.Timeout | null>(null);
 
   const [isFollowing, setIsFollowing] = useState(false);
   const [isTogglingFollow, setIsTogglingFollow] = useState(false);
@@ -74,6 +83,21 @@ const FeedItem = ({
     checkStatus();
   }, [item.userId, currentUserId]);
 
+  const handleMediaTap = (url: string, type: 'video' | 'image') => {
+    const now = Date.now();
+    const DOUBLE_PRESS_DELAY = 300;
+    if (lastTap && (now - lastTap) < DOUBLE_PRESS_DELAY) {
+      if (doubleTapRef.current) clearTimeout(doubleTapRef.current);
+      if (!liked) handleLike();
+      setLastTap(0);
+    } else {
+      setLastTap(now);
+      doubleTapRef.current = setTimeout(() => {
+        onOpenMedia(url, type);
+      }, DOUBLE_PRESS_DELAY);
+    }
+  };
+
   const handleToggleFollow = async () => {
     if (!currentUserId || !item.userId || item.userId === currentUserId || isTogglingFollow) return;
     setIsTogglingFollow(true);
@@ -90,13 +114,11 @@ const FeedItem = ({
     }
   };
 
-  // Sync likes and check if currentUserId liked on item change
   useEffect(() => {
     setLiked(item.likes?.includes(currentUserId) || false);
     setLikesCount(item.likes?.length || item.likesCount || 0);
   }, [item, currentUserId]);
 
-  // Subscribe to real-time comments count
   useEffect(() => {
     if (!item.pinId) return;
     const unsubscribe = subscribeToComments(item.pinId, (commentsList) => {
@@ -116,9 +138,7 @@ const FeedItem = ({
         await toggleLikePin(item.pinId, currentUserId);
       } catch (err: any) {
         console.warn("Failed to persist like in ReelsFeedModal:", err);
-        import('react-native').then(({ Alert }) => {
-          Alert.alert("Like Failed", err?.message || String(err));
-        });
+        Alert.alert("Like Failed", err?.message || String(err));
         setLiked(liked);
         setLikesCount(likesCount);
       }
@@ -138,50 +158,59 @@ const FeedItem = ({
     } catch(e) {}
   }
 
+  const isVideo = item.media_type === "video";
+
   return (
     <View style={styles.itemContainer}>
       <LinearGradient 
         colors={["#0A0A0A", "#262626"]} 
         style={StyleSheet.absoluteFillObject}
       />
-      {/* Media Background */}
-      {item.media_type === "video" ? (
-        <View style={[styles.media, { justifyContent: 'center', alignItems: 'center' }]}>
-          {!!item.thumbnail_url && (
-            <Image
-              source={{ uri: item.thumbnail_url }}
-              style={[styles.media, { position: 'absolute' }]}
-              resizeMode="contain"
-            />
-          )}
-          {shouldMountVideo && !!item.image_url && (
-            <CachedVideo
-              source={{ uri: item.image_url }}
-              style={[styles.media, { position: 'absolute' }]}
-              resizeMode="contain"
-              shouldPlay={isVisible}
-              isLooping
-              useNativeControls={false}
-            />
+      
+      <TouchableWithoutFeedback onPress={() => {
+        const url = (isVideo ? item.image_url : item.image_url);
+        if (url) {
+           handleMediaTap(url, isVideo ? 'video' : 'image');
+        }
+      }}>
+        <View style={styles.media}>
+          {isVideo ? (
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+              {!!item.thumbnail_url && (
+                <Image
+                  source={{ uri: item.thumbnail_url }}
+                  style={[styles.media, { position: 'absolute' }]}
+                  resizeMode="contain"
+                />
+              )}
+              {shouldMountVideo && !!item.image_url && (
+                <CachedVideo
+                  source={{ uri: item.image_url }}
+                  style={[styles.media, { position: 'absolute' }]}
+                  resizeMode="contain"
+                  shouldPlay={isVisible}
+                  isLooping
+                  useNativeControls={false}
+                />
+              )}
+            </View>
+          ) : (
+            !!item.image_url && (
+              <Image
+                source={{ uri: item.image_url }}
+                style={styles.media}
+                resizeMode="contain"
+              />
+            )
           )}
         </View>
-      ) : (
-        !!item.image_url && (
-          <Image
-            source={{ uri: item.image_url }}
-            style={styles.media}
-            resizeMode="contain"
-          />
-        )
-      )}
+      </TouchableWithoutFeedback>
 
-      {/* Dark Gradient Overlay for text readability (using premium LinearGradient) */}
       <LinearGradient 
         colors={["transparent", "rgba(0,0,0,0.45)", "rgba(0,0,0,0.85)"]} 
         style={styles.gradientOverlay} 
       />
 
-      {/* Top Header: LIVE NEWS Badge (if applicable) */}
       {item.post_type === "live_news" && (
         <View style={styles.liveNewsHeader}>
           <View style={styles.liveNewsBadge}>
@@ -190,7 +219,6 @@ const FeedItem = ({
         </View>
       )}
 
-      {/* Bottom Left: User Info & Caption */}
       <View style={styles.bottomOverlay}>
         <View style={styles.userInfoRow}>
           <TouchableOpacity 
@@ -238,7 +266,6 @@ const FeedItem = ({
         </View>
       </View>
 
-      {/* Bottom Right: Action Buttons */}
       <View style={styles.rightOverlay}>
         <TouchableOpacity hitSlop={{ top: 15, bottom: 15, left: 20, right: 20 }} style={styles.actionButton} onPress={handleLike}>
           <Ionicons name={liked ? "heart" : "heart-outline"} size={36} color={liked ? "#FF2D55" : "#FFF"} />
@@ -305,8 +332,17 @@ export const ReelsFeedModal: React.FC<ReelsFeedModalProps> = ({
   const [sharePin, setSharePin] = useState<Pin | null>(null);
   const [localHiddenPins, setLocalHiddenPins] = useState<Record<string, boolean>>({});
   const flatListRef = useRef<FlatList>(null);
+  
+  const [viewerVisible, setViewerVisible] = useState(false);
+  const [viewerMediaUrl, setViewerMediaUrl] = useState<string | null>(null);
+  const [viewerMediaType, setViewerMediaType] = useState<'image' | 'video'>('image');
 
-  // Build resilient currentUser object for CommentsDrawer
+  const onOpenMedia = useCallback((url: string, type: 'video' | 'image') => {
+    setViewerMediaUrl(url);
+    setViewerMediaType(type);
+    setViewerVisible(true);
+  }, []);
+
   const [currentUserProfile, setCurrentUserProfile] = useState<UserProfile>({
     userId: currentUserId || auth.currentUser?.uid || "cafe_hopper",
     username: auth.currentUser?.displayName || "cafe_hopper",
@@ -343,7 +379,6 @@ export const ReelsFeedModal: React.FC<ReelsFeedModalProps> = ({
   useEffect(() => {
     if (visible && pins.length > 0) {
       setCurrentIndex(initialIndex);
-      // Small delay to ensure layout is ready before scrolling
       setTimeout(() => {
         if (flatListRef.current && filteredPins.length > 0 && initialIndex >= 0 && initialIndex < filteredPins.length) {
           try {
@@ -400,6 +435,7 @@ export const ReelsFeedModal: React.FC<ReelsFeedModalProps> = ({
                 onOpenUserProfile={onOpenUserProfile}
                 locale={locale}
                 onReport={(pinId) => setLocalHiddenPins(prev => ({ ...prev, [pinId]: true }))}
+                onOpenMedia={onOpenMedia}
               />
             )}
             onViewableItemsChanged={handleViewableItemsChanged}
@@ -418,12 +454,10 @@ export const ReelsFeedModal: React.FC<ReelsFeedModalProps> = ({
           />
         )}
 
-        {/* Global Close Button */}
         <TouchableOpacity style={styles.closeButton} onPress={onClose}>
           <Feather name="chevron-left" size={32} color="#FFF" />
         </TouchableOpacity>
 
-        {/* Comments Drawer Popup */}
         <CommentsDrawer 
           visible={activeCommentPinId !== null}
           pinId={activeCommentPinId}
@@ -433,7 +467,6 @@ export const ReelsFeedModal: React.FC<ReelsFeedModalProps> = ({
           onOpenUserProfile={onOpenUserProfile}
         />
 
-        {/* Watermark Share Modal */}
         {sharePin && sharePin.image_url && (
           <Modal
             visible={true}
@@ -449,6 +482,13 @@ export const ReelsFeedModal: React.FC<ReelsFeedModalProps> = ({
             />
           </Modal>
         )}
+
+        <FullScreenMediaViewer 
+          visible={viewerVisible}
+          mediaUrl={viewerMediaUrl}
+          mediaType={viewerMediaType}
+          onClose={() => setViewerVisible(false)}
+        />
       </View>
     </Modal>
   );
