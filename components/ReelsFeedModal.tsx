@@ -18,7 +18,7 @@ import {
 import { Audio, Video, ResizeMode } from "expo-av";
 
 import { CachedVideo } from "./CachedVideo";
-import { Feather, Ionicons } from "@expo/vector-icons";
+import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { Pin, auth, toggleLikePin, subscribeToComments, fetchUserProfile, UserProfile, checkIsFollowing, toggleFollow, reportPin } from "../services/firebase";
 import { PincTheme } from "../styles/theme";
