@@ -16,7 +16,8 @@ import {
   Modal,
   PanResponder,
   Platform,
-  Image as RNImage
+  Image as RNImage,
+  Alert
 } from "react-native";
 import { Image } from "expo-image";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
