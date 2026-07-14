@@ -13,6 +13,7 @@ import {
   Share,
   Dimensions,
   Modal,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
@@ -61,6 +62,20 @@ const FeedPinItem: React.FC<FeedPinItemProps> = React.memo(({
 
   const [liked, setLiked] = useState(item.likes?.includes(currentUser.userId) || false);
   const [likesCount, setLikesCount] = useState(item.likesCount || item.likes?.length || 0);
+  const [lastTap, setLastTap] = useState(0);
+
+  const handleDoubleTap = () => {
+    const now = Date.now();
+    const DOUBLE_PRESS_DELAY = 300;
+    if (lastTap && (now - lastTap) < DOUBLE_PRESS_DELAY) {
+      if (!liked) {
+        onLikePress();
+      }
+      setLastTap(0);
+    } else {
+      setLastTap(now);
+    }
+  };
 
   useEffect(() => {
     setLiked(item.likes?.includes(currentUser.userId) || false);
@@ -158,27 +173,31 @@ const FeedPinItem: React.FC<FeedPinItemProps> = React.memo(({
                 const isVid = item.media_type === "video" || url.includes(".mp4");
                 return (
                   <View key={index} style={{ width: Dimensions.get('window').width }}>
-                    {isVid ? (
-                      <CachedVideo
-                        source={{ uri: url }}
-                        style={styles.media}
-                        resizeMode="contain"
-                        useNativeControls
-                        isLooping
-                        shouldPlay={isActiveVideo && activeMediaIndex === index}
-                      />
-                    ) : (
-                      <Image 
-                        source={{ uri: url }} 
-                        style={styles.media} 
-                        contentFit="contain" 
-                        onLoad={(e) => {
-                          if (index === 0 && e.source.width && e.source.height) {
-                            setLocalAspectRatios(prev => ({ ...prev, [url]: e.source.width / e.source.height }));
-                          }
-                        }}
-                      />
-                    )}
+                    <TouchableWithoutFeedback onPress={handleDoubleTap}>
+                      <View style={{ flex: 1 }}>
+                        {isVid ? (
+                          <CachedVideo
+                            source={{ uri: url }}
+                            style={styles.media}
+                            resizeMode="contain"
+                            useNativeControls
+                            isLooping
+                            shouldPlay={isActiveVideo && activeMediaIndex === index}
+                          />
+                        ) : (
+                          <Image 
+                            source={{ uri: url }} 
+                            style={styles.media} 
+                            contentFit="contain" 
+                            onLoad={(e) => {
+                              if (index === 0 && e.source.width && e.source.height) {
+                                setLocalAspectRatios(prev => ({ ...prev, [url]: e.source.width / e.source.height }));
+                              }
+                            }}
+                          />
+                        )}
+                      </View>
+                    </TouchableWithoutFeedback>
                   </View>
                 );
               })}
@@ -196,27 +215,31 @@ const FeedPinItem: React.FC<FeedPinItemProps> = React.memo(({
           </View>
         ) : item.image_url ? (
           <View style={[styles.mediaContainer, { aspectRatio: localAspectRatios[item.image_url] || 4/5 }]}>
-            {isVideo ? (
-              <CachedVideo
-                source={{ uri: item.image_url }}
-                style={styles.media}
-                resizeMode="contain"
-                useNativeControls
-                isLooping
-                shouldPlay={isActiveVideo}
-              />
-            ) : (
-              <Image 
-                source={{ uri: item.image_url }} 
-                style={styles.media} 
-                contentFit="contain"
-                onLoad={(e) => {
-                  if (e.source.width && e.source.height) {
-                    setLocalAspectRatios(prev => ({ ...prev, [item.image_url]: e.source.width / e.source.height }));
-                  }
-                }}
-              />
-            )}
+            <TouchableWithoutFeedback onPress={handleDoubleTap}>
+              <View style={{ flex: 1 }}>
+                {isVideo ? (
+                  <CachedVideo
+                    source={{ uri: item.image_url }}
+                    style={styles.media}
+                    resizeMode="contain"
+                    useNativeControls
+                    isLooping
+                    shouldPlay={isActiveVideo}
+                  />
+                ) : (
+                  <Image 
+                    source={{ uri: item.image_url }} 
+                    style={styles.media} 
+                    contentFit="contain"
+                    onLoad={(e) => {
+                      if (e.source.width && e.source.height) {
+                        setLocalAspectRatios(prev => ({ ...prev, [item.image_url]: e.source.width / e.source.height }));
+                      }
+                    }}
+                  />
+                )}
+              </View>
+            </TouchableWithoutFeedback>
           </View>
         ) : null}
 
