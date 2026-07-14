@@ -25,7 +25,7 @@ import { PincTheme } from "../styles/theme";
 import { CommentsDrawer } from './CommentsDrawer';
 import { WatermarkShare } from './WatermarkShare';
 import { FullScreenMediaViewer } from './FullScreenMediaViewer';
-import { FloatingHeartsOverlay, FloatingHeartsRef } from './FloatingHeartsOverlay';
+import { NeonHeartOverlay, NeonHeartRef } from './NeonHeartOverlay';
 
 const { height: windowHeight, width: windowWidth } = Dimensions.get("window");
 
@@ -67,7 +67,7 @@ const FeedItem = ({
   const [commentsCount, setCommentsCount] = useState(item.commentsCount || 0);
   const [lastTap, setLastTap] = useState(0);
   const doubleTapRef = useRef<NodeJS.Timeout | null>(null);
-  const floatingHeartsRef = useRef<FloatingHeartsRef>(null);
+  const neonHeartRef = useRef<NeonHeartRef>(null);
 
   const [isFollowing, setIsFollowing] = useState(false);
   const [isTogglingFollow, setIsTogglingFollow] = useState(false);
@@ -85,7 +85,8 @@ const FeedItem = ({
     checkStatus();
   }, [item.userId, currentUserId]);
 
-  const handleMediaTap = (url: string, type: 'video' | 'image') => {
+  const handleMediaTap = (e: any, url: string, type: 'video' | 'image') => {
+    const { locationX, locationY } = e.nativeEvent;
     const now = Date.now();
     const DOUBLE_PRESS_DELAY = 300;
     if (lastTap && (now - lastTap) < DOUBLE_PRESS_DELAY) {
@@ -93,7 +94,7 @@ const FeedItem = ({
       if (!liked) handleLike();
       
       // Always trigger animation on double tap
-      floatingHeartsRef.current?.triggerAnimation();
+      neonHeartRef.current?.triggerAnimation(locationX, locationY);
       setLastTap(0);
     } else {
       setLastTap(now);
@@ -172,10 +173,10 @@ const FeedItem = ({
         style={StyleSheet.absoluteFillObject}
       />
       
-      <TouchableWithoutFeedback onPress={() => {
+      <TouchableWithoutFeedback onPress={(e) => {
         const url = (isVideo ? item.image_url : item.image_url);
         if (url) {
-           handleMediaTap(url, isVideo ? 'video' : 'image');
+           handleMediaTap(e, url, isVideo ? 'video' : 'image');
         }
       }}>
         <View style={styles.media}>
@@ -320,7 +321,7 @@ const FeedItem = ({
         </TouchableOpacity>
       </View>
       
-      <FloatingHeartsOverlay ref={floatingHeartsRef} />
+      <NeonHeartOverlay ref={neonHeartRef} />
     </View>
   );
 };

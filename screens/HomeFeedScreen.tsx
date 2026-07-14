@@ -25,7 +25,7 @@ import { CommentsDrawer } from '../components/CommentsDrawer';
 import { FollowButton } from '../components/FollowButton';
 import { FullScreenMediaViewer } from '../components/FullScreenMediaViewer';
 import { VenueBottomSheet } from '../components/VenueBottomSheet';
-import { FloatingHeartsOverlay, FloatingHeartsRef } from '../components/FloatingHeartsOverlay';
+import { NeonHeartOverlay, NeonHeartRef } from '../components/NeonHeartOverlay';
 
 const defaultAvatar = 'https://firebasestorage.googleapis.com/v0/b/pinc-5460b.appspot.com/o/default-avatar.png?alt=media';
 
@@ -70,9 +70,10 @@ const FeedPinItem: React.FC<FeedPinItemProps> = React.memo(({
   const [likesCount, setLikesCount] = useState(item.likesCount || item.likes?.length || 0);
   const [lastTap, setLastTap] = useState(0);
   const doubleTapRef = useRef<NodeJS.Timeout | null>(null);
-  const floatingHeartsRef = useRef<FloatingHeartsRef>(null);
+  const neonHeartRef = useRef<NeonHeartRef>(null);
 
-  const handleMediaTap = (url: string, type: 'video' | 'image') => {
+  const handleMediaTap = (e: any, url: string, type: 'video' | 'image') => {
+    const { locationX, locationY } = e.nativeEvent;
     const now = Date.now();
     const DOUBLE_PRESS_DELAY = 300;
     if (lastTap && (now - lastTap) < DOUBLE_PRESS_DELAY) {
@@ -82,7 +83,7 @@ const FeedPinItem: React.FC<FeedPinItemProps> = React.memo(({
         onLikePress();
       }
       // Always trigger animation on double tap, even if already liked
-      floatingHeartsRef.current?.triggerAnimation();
+      neonHeartRef.current?.triggerAnimation(locationX, locationY);
       setLastTap(0);
     } else {
       setLastTap(now);
@@ -189,7 +190,7 @@ const FeedPinItem: React.FC<FeedPinItemProps> = React.memo(({
                 const isVid = item.media_type === "video" || url.includes(".mp4");
                 return (
                   <View key={index} style={{ width: Dimensions.get('window').width }}>
-                    <TouchableWithoutFeedback onPress={() => handleMediaTap(url, isVid ? 'video' : 'image')}>
+                    <TouchableWithoutFeedback onPress={(e) => handleMediaTap(e, url, isVid ? 'video' : 'image')}>
                       <View style={{ flex: 1 }}>
                         {isVid ? (
                           <CachedVideo
@@ -231,7 +232,7 @@ const FeedPinItem: React.FC<FeedPinItemProps> = React.memo(({
           </View>
         ) : item.image_url ? (
           <View style={[styles.mediaContainer, { aspectRatio: localAspectRatios[item.image_url] || 4/5 }]}>
-            <TouchableWithoutFeedback onPress={() => handleMediaTap(item.image_url!, isVideo ? 'video' : 'image')}>
+            <TouchableWithoutFeedback onPress={(e) => handleMediaTap(e, item.image_url!, isVideo ? 'video' : 'image')}>
               <View style={{ flex: 1 }}>
                 {isVideo ? (
                   <CachedVideo
@@ -323,7 +324,7 @@ const FeedPinItem: React.FC<FeedPinItemProps> = React.memo(({
           </TouchableOpacity>
         )}
         
-        <FloatingHeartsOverlay ref={floatingHeartsRef} />
+        <NeonHeartOverlay ref={neonHeartRef} />
     </View>
   );
 });
