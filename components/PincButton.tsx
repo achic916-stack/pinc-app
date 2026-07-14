@@ -83,6 +83,7 @@ export interface PincButtonProps {
     bio: string;
     role?: "USER" | "ADMIN" | "PREMIUM_STORE";
     isVip?: boolean;
+    subscriptionTier?: number;
   };
   locationTrackingEnabled?: boolean;
   hideButton?: boolean;
@@ -319,7 +320,8 @@ export const PincButton = forwardRef<PincButtonRef, PincButtonProps>(({
     let finalVenue = (nearestVenue && distanceToVenue <= 10) ? nearestVenue : null;
     const loc = currentGPSLocation || userLocation || { latitude: 13.736717, longitude: 100.560481 };
     
-    let isUnmapped = isFromGallery || activeTab === 'home';
+    // Pinc Club (tier 4) can post from gallery to map
+    let isUnmapped = (isFromGallery && currentUser.subscriptionTier !== 4) || activeTab === 'home';
 
     if (forcedVenueId) {
       finalVenue = venues.find(v => v.venueId === forcedVenueId) || finalVenue;
@@ -468,7 +470,7 @@ export const PincButton = forwardRef<PincButtonRef, PincButtonProps>(({
               <Text style={styles.mediaSelectorText}>PHOTO</Text>
             </TouchableOpacity>
 
-            {activeTab !== 'map' && (
+            {(activeTab !== 'map' || currentUser.subscriptionTier === 4) && (
               <>
                 <View style={styles.mediaSelectorDivider} />
 
