@@ -130,6 +130,7 @@ interface CustomMapMarkerProps {
   zoomScale: number;
   children: React.ReactNode;
   cluster?: boolean;
+  identifier?: string;
 }
 
 const CustomMapMarker: React.FC<CustomMapMarkerProps> = ({
@@ -140,7 +141,8 @@ const CustomMapMarker: React.FC<CustomMapMarkerProps> = ({
   zIndex,
   zoomScale,
   children,
-  cluster
+  cluster,
+  identifier
 }) => {
   const [tracksView, setTracksView] = useState(true);
 
@@ -159,6 +161,9 @@ const CustomMapMarker: React.FC<CustomMapMarkerProps> = ({
     zIndex,
     tracksViewChanges: tracksView,
   };
+  if (identifier) {
+    markerProps.identifier = identifier;
+  }
   if (cluster !== undefined) {
     markerProps.cluster = cluster;
   }
@@ -555,6 +560,13 @@ export const MapScreen: React.FC<MapScreenProps> = ({
       }
       groups.push(currentGroup);
     }
+    groups.sort((groupA, groupB) => {
+      const latestA = groupA[groupA.length - 1];
+      const latestB = groupB[groupB.length - 1];
+      const timeA = (latestA.timestamp as any)?.toDate ? (latestA.timestamp as any).toDate().getTime() : new Date(latestA.timestamp || 0).getTime();
+      const timeB = (latestB.timestamp as any)?.toDate ? (latestB.timestamp as any).toDate().getTime() : new Date(latestB.timestamp || 0).getTime();
+      return (timeA || 0) - (timeB || 0);
+    });
     return groups;
   }, [validPins, displayedVenues]);
 
@@ -1001,6 +1013,11 @@ export const MapScreen: React.FC<MapScreenProps> = ({
           });
 
           if (clusterPins.length > 0) {
+            clusterPins.sort((a, b) => {
+              const timeA = (a.timestamp as any)?.toDate ? (a.timestamp as any).toDate().getTime() : new Date(a.timestamp || 0).getTime();
+              const timeB = (b.timestamp as any)?.toDate ? (b.timestamp as any).toDate().getTime() : new Date(b.timestamp || 0).getTime();
+              return (timeB || 0) - (timeA || 0);
+            });
             setReelsFeedPins(clusterPins);
           }
         }}
@@ -1026,6 +1043,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
           return (
             <CustomMapMarker
               key={pinKey}
+              identifier={firstPin.pinId}
               coordinate={{ latitude: displayLat, longitude: displayLng }}
               onPress={() => {
                 if (isDeleteMode) return;

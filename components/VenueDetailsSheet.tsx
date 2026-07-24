@@ -1002,7 +1002,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
               </View>
             )}
 
-            {isOwner && (
+            {isOwner && venue.sponsor_tier !== 3 && (
               <TouchableOpacity
                 style={{
                   backgroundColor: PincTheme.colors.primary,
@@ -1323,7 +1323,9 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                               </TouchableOpacity>
                             )
                           ) : (
-                            <Image source={{ uri: pin.image_url }} style={styles.feedImage} contentFit="cover" />
+                            <TouchableOpacity activeOpacity={0.9} onPress={() => setFullScreenFeedImage(pin.image_url)}>
+                              <Image source={{ uri: pin.image_url }} style={styles.feedImage} contentFit="cover" />
+                            </TouchableOpacity>
                           )}
                         </View>
                       )}
