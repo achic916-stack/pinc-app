@@ -659,6 +659,7 @@ export default function App() {
               cameraTarget={cameraTarget}
               targetPinId={targetPinId}
               onClearTargetPin={() => setTargetPinId(null)}
+              onClearCameraTarget={() => setCameraTarget(null)}
               focusSearchTrigger={focusSearchTrigger}
               selectedMemoryPin={activeTab === 'map' ? selectedPin : null}
               onClearMemory={() => setSelectedPin(null)}

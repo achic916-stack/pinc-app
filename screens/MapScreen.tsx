@@ -69,6 +69,7 @@ interface MapScreenProps {
   cameraTarget?: { latitude: number; longitude: number; timestamp: number } | null;
   targetPinId?: string | null;
   onClearTargetPin?: () => void;
+  onClearCameraTarget?: () => void;
   focusSearchTrigger?: number;
   selectedMemoryPin?: Pin | null;
   onClearMemory?: () => void;
@@ -156,9 +157,18 @@ const CustomMapMarker: React.FC<CustomMapMarkerProps> = ({
     return () => clearTimeout(timer);
   }, [zoomScale]);
 
+  const handlePress = (e: any) => {
+    if (e && typeof e.stopPropagation === 'function') {
+      e.stopPropagation();
+    }
+    if (onPress) {
+      onPress(e);
+    }
+  };
+
   const markerProps: any = {
     coordinate,
-    onPress,
+    onPress: handlePress,
     anchor,
     zIndex,
     tracksViewChanges: tracksView,
@@ -200,6 +210,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
   cameraTarget = null,
   targetPinId = null,
   onClearTargetPin,
+  onClearCameraTarget,
   focusSearchTrigger = 0,
   selectedMemoryPin = null,
   onClearMemory,
@@ -468,6 +479,9 @@ export const MapScreen: React.FC<MapScreenProps> = ({
           if (onClearTargetPin) {
             onClearTargetPin();
           }
+        }
+        if (onClearCameraTarget) {
+          onClearCameraTarget();
         }
       });
     }
