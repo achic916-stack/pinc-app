@@ -157,18 +157,9 @@ const CustomMapMarker: React.FC<CustomMapMarkerProps> = ({
     return () => clearTimeout(timer);
   }, [zoomScale]);
 
-  const handlePress = (e: any) => {
-    if (e && typeof e.stopPropagation === 'function') {
-      e.stopPropagation();
-    }
-    if (onPress) {
-      onPress(e);
-    }
-  };
-
   const markerProps: any = {
     coordinate,
-    onPress: handlePress,
+    onPress,
     anchor,
     zIndex,
     tracksViewChanges: tracksView,
