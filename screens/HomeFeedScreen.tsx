@@ -37,7 +37,7 @@ interface HomeFeedScreenProps {
   onStartVideoPost?: () => void;
   onStartPhotoPost?: () => void;
   onStartGalleryPost?: () => void;
-  onGoToMap?: (latitude: number, longitude: number) => void;
+  onGoToMap?: (latitude: number, longitude: number, pinId?: string) => void;
   selectedPin?: Pin | null;
   isVisible: boolean;
 }
@@ -54,7 +54,7 @@ interface FeedPinItemProps {
   setCommentPinId: (pinId: string) => void;
   handleShare: (item: Pin) => void;
   handleToggleSave: (pinId: string) => void;
-  onGoToMap?: (latitude: number, longitude: number) => void;
+  onGoToMap?: (latitude: number, longitude: number, pinId?: string) => void;
   onOpenMedia: (url: string, type: 'video'|'image') => void;
 }
 
@@ -319,7 +319,7 @@ const FeedPinItem: React.FC<FeedPinItemProps> = React.memo(({
               borderWidth: 1,
               borderColor: PincTheme.colors.primary,
             }}
-            onPress={() => onGoToMap?.(item.latitude, item.longitude)}
+            onPress={() => onGoToMap?.(item.latitude, item.longitude, item.pinId)}
           >
             <Ionicons name="map-outline" size={16} color={PincTheme.colors.primary} style={{ marginRight: 6 }} />
             <Text style={{ fontSize: 13, fontWeight: '700', color: PincTheme.colors.primary }}>Go To Map</Text>

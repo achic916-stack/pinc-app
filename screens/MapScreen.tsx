@@ -67,6 +67,7 @@ interface MapScreenProps {
   followingIds?: string[];
   locale?: "en" | "th";
   cameraTarget?: { latitude: number; longitude: number; timestamp: number } | null;
+  targetPinId?: string | null;
   focusSearchTrigger?: number;
   selectedMemoryPin?: Pin | null;
   onClearMemory?: () => void;
@@ -196,6 +197,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
   followingIds = [],
   locale = "en",
   cameraTarget = null,
+  targetPinId = null,
   focusSearchTrigger = 0,
   selectedMemoryPin = null,
   onClearMemory,
@@ -452,7 +454,17 @@ export const MapScreen: React.FC<MapScreenProps> = ({
   // Effect to pan map camera on target change
   useEffect(() => {
     if (cameraTarget && mapRef.current) {
-      flyToTarget(cameraTarget.latitude, cameraTarget.longitude, () => {});
+      // Clear any open feed modal first to prevent stale modal popping up
+      setReelsFeedPins([]);
+      flyToTarget(cameraTarget.latitude, cameraTarget.longitude, () => {
+        // After flying to target, if a specific pin was requested, open it
+        if (targetPinId) {
+          const pin = validPins.find(p => p.pinId === targetPinId);
+          if (pin) {
+            setReelsFeedPins([pin]);
+          }
+        }
+      });
     }
   }, [cameraTarget]);
 
@@ -539,6 +551,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
       const timeB = (b.timestamp as any)?.toDate ? (b.timestamp as any).toDate().getTime() : new Date(b.timestamp || 0).getTime();
       return (timeA || 0) - (timeB || 0);
     });
+    // Also sort each group's pins oldest-to-newest so group[0]=oldest seed, group[group.length-1]=newest
     const groups: Pin[][] = [];
     const processed = new Set<string>();
 
@@ -558,6 +571,14 @@ export const MapScreen: React.FC<MapScreenProps> = ({
           processed.add(otherPin.pinId!);
         }
       }
+      // Sort pins within the group: oldest first, newest last
+      // → group[0] = pin that defines map marker location (oldest/seed)
+      // → group[group.length-1] = latestPin (for thumbnail display)
+      currentGroup.sort((a, b) => {
+        const timeA = (a.timestamp as any)?.toDate ? (a.timestamp as any).toDate().getTime() : new Date(a.timestamp || 0).getTime();
+        const timeB = (b.timestamp as any)?.toDate ? (b.timestamp as any).toDate().getTime() : new Date(b.timestamp || 0).getTime();
+        return (timeA || 0) - (timeB || 0);
+      });
       groups.push(currentGroup);
     }
     groups.sort((groupA, groupB) => {

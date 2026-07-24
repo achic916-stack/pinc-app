@@ -95,6 +95,7 @@ export default function App() {
   const [expandedPin, setExpandedPin] = useState<string | null>(null);
   const [activeVideoId, setActiveVideoId] = useState<string | null>(null);
   const [selectedPin, setSelectedPin] = useState<Pin | null>(null);
+  const [targetPinId, setTargetPinId] = useState<string | null>(null);
   const pincButtonRef = useRef<PincButtonRef>(null);
 
   // Settings & GDPR States
@@ -656,6 +657,7 @@ export default function App() {
               followingIds={followingIds}
               locale={locale}
               cameraTarget={cameraTarget}
+              targetPinId={targetPinId}
               focusSearchTrigger={focusSearchTrigger}
               selectedMemoryPin={activeTab === 'map' ? selectedPin : null}
               onClearMemory={() => setSelectedPin(null)}
@@ -682,7 +684,8 @@ export default function App() {
                 onStartVideoPost={() => pincButtonRef.current?.startVideoPost()}
                 onStartPhotoPost={() => pincButtonRef.current?.startPhotoPost()}
                 onStartGalleryPost={() => pincButtonRef.current?.startGalleryPost()}
-                onGoToMap={(lat, lng) => {
+                onGoToMap={(lat, lng, pinId) => {
+                  setTargetPinId(pinId || null);
                   setCameraTarget({ latitude: lat, longitude: lng, timestamp: Date.now() });
                   setSelectedVenue(null);
                   setActiveTab('map');
