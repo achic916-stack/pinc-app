@@ -9,6 +9,9 @@ buildscript {
         kotlinVersion = findProperty('android.kotlinVersion') ?: '1.8.10'
 
         ndkVersion = "25.1.8937393"
+
+        // Pin Google Play Services Maps to stable version before SDK update broke marker press
+        playServicesVersion = "18.1.0"
     }
     repositories {
         google()
