@@ -164,7 +164,13 @@ const FeedItem = ({
     } catch(e) {}
   }
 
-  const isVideo = item.media_type === "video";
+  const isVideoUrl = (url: string | null | undefined): boolean => {
+    if (!url) return false;
+    const urlLower = url.toLowerCase();
+    return urlLower.includes('.mp4') || urlLower.includes('.mov') || urlLower.includes('.webm');
+  };
+
+  const isVideo = item.media_type === "video" || isVideoUrl(item.image_url);
 
   return (
     <View style={styles.itemContainer}>
@@ -174,22 +180,22 @@ const FeedItem = ({
       />
       
       <TouchableWithoutFeedback onPress={(e) => {
-        const url = (isVideo ? item.image_url : item.image_url);
+        const url = item.image_url;
         if (url) {
            handleMediaTap(e, url, isVideo ? 'video' : 'image');
         }
       }}>
         <View style={styles.media}>
           {isVideo ? (
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-              {!!item.thumbnail_url && (
+            <View style={{ flex: 1, width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center', backgroundColor: '#000' }}>
+              {!!item.thumbnail_url ? (
                 <Image
                   source={{ uri: item.thumbnail_url }}
                   style={[styles.media, { position: 'absolute' }]}
                   resizeMode="contain"
                 />
-              )}
-              {shouldMountVideo && !!item.image_url && (
+              ) : null}
+              {shouldMountVideo && !!item.image_url ? (
                 <CachedVideo
                   source={{ uri: item.image_url }}
                   style={[styles.media, { position: 'absolute' }]}
@@ -198,15 +204,19 @@ const FeedItem = ({
                   isLooping
                   useNativeControls={false}
                 />
-              )}
+              ) : null}
             </View>
           ) : (
-            !!item.image_url && (
+            !!item.image_url ? (
               <Image
                 source={{ uri: item.image_url }}
                 style={styles.media}
                 resizeMode="contain"
               />
+            ) : (
+              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                <Ionicons name="image-outline" size={64} color="#666" />
+              </View>
             )
           )}
         </View>

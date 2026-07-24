@@ -33,7 +33,7 @@ const Audio = { Sound: { createAsync: async () => ({ sound: { playAsync: async (
 
 import { CachedVideo } from "../components/CachedVideo";
 import { PincTheme } from "../styles/theme";
-import { Venue, Pin, auth, getUserStats, calculateDistance, db } from "../services/firebase";
+import { Venue, Pin, auth, getUserStats, calculateDistance, db, getPinTimestampMs } from "../services/firebase";
 import { doc, updateDoc } from "firebase/firestore";
 import { useTranslation } from 'react-i18next';
 import { ReelsFeedModal } from "../components/ReelsFeedModal";
@@ -68,6 +68,7 @@ interface MapScreenProps {
   locale?: "en" | "th";
   cameraTarget?: { latitude: number; longitude: number; timestamp: number } | null;
   targetPinId?: string | null;
+  onClearTargetPin?: () => void;
   focusSearchTrigger?: number;
   selectedMemoryPin?: Pin | null;
   onClearMemory?: () => void;
@@ -198,6 +199,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
   locale = "en",
   cameraTarget = null,
   targetPinId = null,
+  onClearTargetPin,
   focusSearchTrigger = 0,
   selectedMemoryPin = null,
   onClearMemory,
@@ -459,9 +461,12 @@ export const MapScreen: React.FC<MapScreenProps> = ({
       flyToTarget(cameraTarget.latitude, cameraTarget.longitude, () => {
         // After flying to target, if a specific pin was requested, open it
         if (targetPinId) {
-          const pin = validPins.find(p => p.pinId === targetPinId);
+          const pin = validPins.find(p => p.pinId === targetPinId) || allPins.find(p => p.pinId === targetPinId);
           if (pin) {
             setReelsFeedPins([pin]);
+          }
+          if (onClearTargetPin) {
+            onClearTargetPin();
           }
         }
       });
@@ -485,7 +490,8 @@ export const MapScreen: React.FC<MapScreenProps> = ({
     const filtered = allPins.filter(pin => {
       if (pin.is_pinned === false) return false;
       if (!pin.latitude || !pin.longitude) return false; // MUST have valid coordinates
-      const pinTime = new Date(pin.timestamp).getTime();
+      const pinTime = getPinTimestampMs(pin.timestamp);
+      if (!pinTime) return true; // Keep pins with pending timestamp
       const ageHours = (now - pinTime) / (1000 * 60 * 60);
       if (pin.post_type === "live_news") {
         return ageHours <= 24; // Pinc Story (formerly Live News) lasts 24h
@@ -497,7 +503,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
     // Deduplicate by pinId to guarantee stable unique keys for Map rendering
     const uniqueMap = new Map();
     filtered.forEach(p => {
-      const key = p.pinId || `${p.latitude}-${p.longitude}-${p.timestamp}`;
+      const key = p.pinId || `${p.latitude}-${p.longitude}-${getPinTimestampMs(p.timestamp)}`;
       if (!uniqueMap.has(key)) {
         uniqueMap.set(key, p);
       }
@@ -547,9 +553,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
 
     // Sort pins oldest first so that the seed pin for each cluster is the earliest posted pin
     const sortedPins = [...mapRenderablePins].sort((a, b) => {
-      const timeA = (a.timestamp as any)?.toDate ? (a.timestamp as any).toDate().getTime() : new Date(a.timestamp || 0).getTime();
-      const timeB = (b.timestamp as any)?.toDate ? (b.timestamp as any).toDate().getTime() : new Date(b.timestamp || 0).getTime();
-      return (timeA || 0) - (timeB || 0);
+      return getPinTimestampMs(a.timestamp) - getPinTimestampMs(b.timestamp);
     });
     // Also sort each group's pins oldest-to-newest so group[0]=oldest seed, group[group.length-1]=newest
     const groups: Pin[][] = [];
@@ -575,18 +579,14 @@ export const MapScreen: React.FC<MapScreenProps> = ({
       // → group[0] = pin that defines map marker location (oldest/seed)
       // → group[group.length-1] = latestPin (for thumbnail display)
       currentGroup.sort((a, b) => {
-        const timeA = (a.timestamp as any)?.toDate ? (a.timestamp as any).toDate().getTime() : new Date(a.timestamp || 0).getTime();
-        const timeB = (b.timestamp as any)?.toDate ? (b.timestamp as any).toDate().getTime() : new Date(b.timestamp || 0).getTime();
-        return (timeA || 0) - (timeB || 0);
+        return getPinTimestampMs(a.timestamp) - getPinTimestampMs(b.timestamp);
       });
       groups.push(currentGroup);
     }
     groups.sort((groupA, groupB) => {
       const latestA = groupA[groupA.length - 1];
       const latestB = groupB[groupB.length - 1];
-      const timeA = (latestA.timestamp as any)?.toDate ? (latestA.timestamp as any).toDate().getTime() : new Date(latestA.timestamp || 0).getTime();
-      const timeB = (latestB.timestamp as any)?.toDate ? (latestB.timestamp as any).toDate().getTime() : new Date(latestB.timestamp || 0).getTime();
-      return (timeA || 0) - (timeB || 0);
+      return getPinTimestampMs(latestA.timestamp) - getPinTimestampMs(latestB.timestamp);
     });
     return groups;
   }, [validPins, displayedVenues]);
@@ -1017,28 +1017,49 @@ export const MapScreen: React.FC<MapScreenProps> = ({
         }}
         onClusterPress={(cluster: any, markers?: any[]) => {
           if (!markers) return;
-          const availablePins = [...validPins];
           const clusterPins: Pin[] = [];
+          const addedPinIds = new Set<string>();
+
           markers.forEach((m: any) => {
-            const foundIdx = availablePins.findIndex(p => {
-              const pKey = p.pinId || `${p.latitude}-${p.longitude}-${p.timestamp}`;
-              const mKey = m.properties?.identifier || m.id || '';
-              return pKey === mKey ||
-                (Math.abs(p.latitude - m.geometry?.coordinates?.[1]) < 0.00001 &&
-                  Math.abs(p.longitude - m.geometry?.coordinates?.[0]) < 0.00001);
+            const mLat = m.geometry?.coordinates?.[1];
+            const mLng = m.geometry?.coordinates?.[0];
+            const mKey = m.properties?.identifier || m.id || '';
+
+            // Find matching groups from groupedValidPins
+            groupedValidPins.forEach(group => {
+              const firstPin = group[0];
+              const pKey = firstPin.pinId || `${firstPin.latitude}-${firstPin.longitude}-${getPinTimestampMs(firstPin.timestamp)}`;
+              const isMatch = (pKey === mKey) || (mLat && mLng && calculateDistance(firstPin.latitude, firstPin.longitude, mLat, mLng) < 50);
+
+              if (isMatch) {
+                group.forEach(p => {
+                  const idKey = p.pinId || `${p.latitude}-${p.longitude}-${getPinTimestampMs(p.timestamp)}`;
+                  if (!addedPinIds.has(idKey)) {
+                    addedPinIds.add(idKey);
+                    clusterPins.push(p);
+                  }
+                });
+              }
             });
-            if (foundIdx !== -1) {
-              clusterPins.push(availablePins[foundIdx]);
-              availablePins.splice(foundIdx, 1);
-            }
           });
 
-          if (clusterPins.length > 0) {
-            clusterPins.sort((a, b) => {
-              const timeA = (a.timestamp as any)?.toDate ? (a.timestamp as any).toDate().getTime() : new Date(a.timestamp || 0).getTime();
-              const timeB = (b.timestamp as any)?.toDate ? (b.timestamp as any).toDate().getTime() : new Date(b.timestamp || 0).getTime();
-              return (timeB || 0) - (timeA || 0);
+          // Fallback: if no pins found via group match, search validPins by proximity to cluster center
+          if (clusterPins.length === 0 && cluster?.geometry?.coordinates) {
+            const cLat = cluster.geometry.coordinates[1];
+            const cLng = cluster.geometry.coordinates[0];
+            validPins.forEach(p => {
+              if (calculateDistance(p.latitude, p.longitude, cLat, cLng) < 1000) {
+                const idKey = p.pinId || `${p.latitude}-${p.longitude}-${getPinTimestampMs(p.timestamp)}`;
+                if (!addedPinIds.has(idKey)) {
+                  addedPinIds.add(idKey);
+                  clusterPins.push(p);
+                }
+              }
             });
+          }
+
+          if (clusterPins.length > 0) {
+            clusterPins.sort((a, b) => getPinTimestampMs(b.timestamp) - getPinTimestampMs(a.timestamp));
             setReelsFeedPins(clusterPins);
           }
         }}
@@ -1070,9 +1091,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                 if (isDeleteMode) return;
                 if (group.length > 1) {
                   const sortedNewestFirst = [...group].sort((a, b) => {
-                    const timeA = (a.timestamp as any)?.toDate ? (a.timestamp as any).toDate().getTime() : new Date(a.timestamp || 0).getTime();
-                    const timeB = (b.timestamp as any)?.toDate ? (b.timestamp as any).toDate().getTime() : new Date(b.timestamp || 0).getTime();
-                    return (timeB || 0) - (timeA || 0);
+                    return getPinTimestampMs(b.timestamp) - getPinTimestampMs(a.timestamp);
                   });
                   setReelsFeedPins(sortedNewestFirst);
                 } else {
