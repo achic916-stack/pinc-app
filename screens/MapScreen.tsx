@@ -153,9 +153,9 @@ const CustomMapMarker: React.FC<CustomMapMarkerProps> = ({
     setTracksView(true);
     const timer = setTimeout(() => {
       setTracksView(false);
-    }, zoomScale <= 0.6 ? 200 : 5000);
+    }, 500);
     return () => clearTimeout(timer);
-  }, [zoomScale]);
+  }, [coordinate?.latitude, coordinate?.longitude, identifier]);
 
   const markerProps: any = {
     coordinate,
@@ -551,8 +551,8 @@ export const MapScreen: React.FC<MapScreenProps> = ({
     // 1. Identify all sponsored venue IDs
     const sponsoredVenueIds = new Set(displayedVenues.filter(v => v.is_sponsored || (v.sponsor_tier && v.sponsor_tier >= 1)).map(v => v.venueId));
 
-    // 2. Filter out pins that belong to a sponsored venue so they don't render on the map directly
-    let mapRenderablePins = validPins.filter(pin => !pin.venueId || !sponsoredVenueIds.has(pin.venueId));
+    // 2. All valid user pins are renderable on the map
+    let mapRenderablePins = validPins;
 
     if (isFilterFriends) {
       mapRenderablePins = mapRenderablePins.filter(pin => 
