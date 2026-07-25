@@ -221,6 +221,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [isSearchVisible, setIsSearchVisible] = useState(false);
   const [isFilterFriends, setIsFilterFriends] = useState(false);
+  const [reelsFeedPins, setReelsFeedPinsRaw] = useState<Pin[]>([]);
   const modalClosedAtRef = useRef<number>(0);
   const mapMovingRef = useRef<boolean>(false);
   const lastMapMoveRef = useRef<number>(0);
