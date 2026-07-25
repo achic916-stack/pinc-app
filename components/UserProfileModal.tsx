@@ -42,6 +42,7 @@ import { ChatModal } from "./ChatModal";
 import { WatermarkShare } from "./WatermarkShare";
 import { ChatInboxModal } from "./ChatInboxModal";
 import { AdminStatsModal } from "./AdminStatsModal";
+import { ReelsFeedModal } from "./ReelsFeedModal";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -94,6 +95,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const [isFollowing, setIsFollowing] = useState(false);
   const [isFollowedBy, setIsFollowedBy] = useState(false);
   const [isTogglingFollow, setIsTogglingFollow] = useState(false);
+  const [selectedFeedPins, setSelectedFeedPins] = useState<Pin[]>([]);
   
   // States
   const [stats, setStats] = useState({ followersCount: 0, followingCount: 0 });
@@ -705,8 +707,13 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                         key={`post-${pin.pinId}`}
                         style={{ width: "50%", padding: 8 }}
                         onPress={() => {
-                          onClose();
-                          if (onSelectMemory) onSelectMemory(pin);
+                          const startIndex = pins.findIndex(p => p.pinId === pin.pinId);
+                          if (startIndex !== -1) {
+                            const reordered = [...pins.slice(startIndex), ...pins.slice(0, startIndex)];
+                            setSelectedFeedPins(reordered);
+                          } else {
+                            setSelectedFeedPins([pin]);
+                          }
                         }}
                       >
                         <View style={styles.memoryCard}>
@@ -726,8 +733,13 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                         key={`saved-${pin.pinId}`}
                         style={{ width: "50%", padding: 8 }}
                         onPress={() => {
-                          onClose();
-                          if (onSelectMemory) onSelectMemory(pin);
+                          const startIndex = savedPinsData.findIndex(p => p.pinId === pin.pinId);
+                          if (startIndex !== -1) {
+                            const reordered = [...savedPinsData.slice(startIndex), ...savedPinsData.slice(0, startIndex)];
+                            setSelectedFeedPins(reordered);
+                          } else {
+                            setSelectedFeedPins([pin]);
+                          }
                         }}
                       >
                         <View style={styles.memoryCard}>
@@ -1048,6 +1060,21 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       <AdminStatsModal
         visible={showAdminStats}
         onClose={() => setShowAdminStats(false)}
+      />
+
+      {/* Full-Screen Reels Media Viewer */}
+      <ReelsFeedModal
+        visible={selectedFeedPins.length > 0}
+        pins={selectedFeedPins}
+        onClose={() => setSelectedFeedPins([])}
+        currentUserId={currentUserId}
+        onOpenUserProfile={(targetUserId) => {
+          setSelectedFeedPins([]);
+          if (targetUserId !== userId && setUserId) {
+            setUserId(targetUserId);
+          }
+        }}
+        locale={locale as any}
       />
     </>
   );

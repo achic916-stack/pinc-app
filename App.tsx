@@ -769,11 +769,6 @@ export default function App() {
             userId={selectedUserProfileId}
             currentUserId={currentUser?.userId || ""}
             onClose={() => setSelectedUserProfileId(null)}
-            onSelectMemory={(pin) => {
-              setSelectedPin(pin);
-              setSelectedUserProfileId(null);
-              setActiveTab("home");
-            }}
             locale={locale}
             setLocale={setLocale}
             onDeletePin={handleDeletePin}
@@ -891,10 +886,6 @@ export default function App() {
                   locale={locale}
                   setLocale={setLocale}
                   currentUserProfile={currentUser as UserProfile}
-                  onSelectMemory={(pin) => {
-                    setSelectedPin(pin);
-                    setActiveTab("home");
-                  }}
                   onDeletePin={handleDeletePin}
                   setUserId={setSelectedUserProfileId}
                   venues={venues}
