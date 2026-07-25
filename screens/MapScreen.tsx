@@ -281,8 +281,9 @@ export const MapScreen: React.FC<MapScreenProps> = ({
 
   // Filter venues based on isFilterFriends state
   const displayedVenues = useMemo(() => {
+    if (!venues || !Array.isArray(venues)) return [];
     if (!isFilterFriends) return venues;
-    return venues.filter((venue) => venue.is_sponsored || followingVenueIds.has(venue.venueId));
+    return venues.filter((venue) => venue && (venue.is_sponsored || (followingVenueIds && typeof followingVenueIds.has === 'function' && followingVenueIds.has(venue.venueId))));
   }, [venues, isFilterFriends, followingVenueIds]);
 
   // Effect to autofocus search bar on trigger
@@ -519,8 +520,10 @@ export const MapScreen: React.FC<MapScreenProps> = ({
 
   // Time-Decay Logic: filter out expired pins
   const validPins = useMemo(() => {
+    if (!allPins || !Array.isArray(allPins)) return [];
     const now = Date.now();
     const filtered = allPins.filter(pin => {
+      if (!pin) return false;
       if (pin.is_pinned === false) return false;
       if (!pin.latitude || !pin.longitude) return false; // MUST have valid coordinates
       const pinTime = getPinTimestampMs(pin.timestamp);
@@ -546,7 +549,8 @@ export const MapScreen: React.FC<MapScreenProps> = ({
 
   // Precompute the oldest permanent pin (pioneer pin) for each 500m location area globally
   const pioneerPinIds = useMemo(() => {
-    const sortedAll = [...allPins].filter(p => p.post_type !== "live_news" && p.latitude && p.longitude).sort((a, b) => {
+    if (!allPins || !Array.isArray(allPins)) return new Set<string>();
+    const sortedAll = [...allPins].filter(p => p && p.post_type !== "live_news" && p.latitude && p.longitude).sort((a, b) => {
       const timeA = getPinTimestampMs(a.timestamp);
       const timeB = getPinTimestampMs(b.timestamp);
       return timeA - timeB;
@@ -585,7 +589,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
 
     if (isFilterFriends) {
       mapRenderablePins = mapRenderablePins.filter(pin => 
-        pin.userId === currentUserId || followingIds.includes(pin.userId)
+        pin && (pin.userId === currentUserId || (Array.isArray(followingIds) && followingIds.includes(pin.userId)))
       );
     }
 
@@ -1127,8 +1131,11 @@ export const MapScreen: React.FC<MapScreenProps> = ({
           const isDeleteMode = deleteModePinId === firstPin.pinId;
           const pinKey = `pin-${firstPin.pinId || `${firstPin.latitude}_${firstPin.longitude}`}`;
 
+          const avatarUri = (group && Array.isArray(group)) ? (group.find(p => p && typeof p.user_profile_pic === 'string' && p.user_profile_pic.trim().length > 0)?.user_profile_pic 
+            || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80') : 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80';
+
           const closeSponsor = displayedVenues.find(
-            v => v.is_sponsored && calculateDistance(firstPin.latitude, firstPin.longitude, v.latitude, v.longitude) < 10
+            v => v && v.is_sponsored && calculateDistance(firstPin.latitude, firstPin.longitude, v.latitude, v.longitude) < 10
           );
 
           let displayLat = firstPin.latitude;
@@ -1268,23 +1275,19 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                     backgroundColor: isLiveNews ? PincTheme.colors.crowdRed : (firstPin.pinColor === 'rainbow' ? (zoomScale > 0.6 ? 'transparent' : '#9400D3') : (firstPin.pinColor || '#FF69B4')),
                     overflow: 'hidden'
                   }}>
-                    {zoomScale > 0.6 ? (() => {
-                      const avatarUri = group.find(p => p.user_profile_pic && p.user_profile_pic.trim().length > 0)?.user_profile_pic 
-                        || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80';
-                      return (
-                        <RNImage
-                          source={{ uri: avatarUri }}
-                          style={{ 
-                            width: '100%', 
-                            height: '100%', 
-                            borderRadius: getMarkerSize(zoomScale) / 2,
-                            borderWidth: firstPin.pinColor === 'rainbow' ? 1 : 0.5,
-                            borderColor: '#000000'
-                          }}
-                          resizeMode="cover"
-                        />
-                      );
-                    })() : null}
+                    {zoomScale > 0.6 && (
+                      <RNImage
+                        source={{ uri: avatarUri }}
+                        style={{ 
+                          width: '100%', 
+                          height: '100%', 
+                          borderRadius: getMarkerSize(zoomScale) / 2,
+                          borderWidth: firstPin.pinColor === 'rainbow' ? 1 : 0.5,
+                          borderColor: '#000000'
+                        }}
+                        resizeMode="cover"
+                      />
+                    )}
                   </View>
                   {zoomScale > 0.6 && pioneerPinIds.has(firstPin.pinId || "") && (
                     <View style={{
