@@ -6,6 +6,7 @@ import { PincTheme } from "../styles/theme";
 
 interface CachedVideoProps {
   source: { uri: string } | null;
+  poster?: string | null;
   style?: any;
   resizeMode?: "cover" | "contain" | "stretch";
   shouldPlay?: boolean;
@@ -13,7 +14,7 @@ interface CachedVideoProps {
   useNativeControls?: boolean;
 }
 
-export const CachedVideo: React.FC<CachedVideoProps> = ({ source, ...props }) => {
+export const CachedVideo: React.FC<CachedVideoProps> = ({ source, poster, ...props }) => {
   const videoUri = source?.uri || "";
   const webviewRef = useRef<WebView>(null);
 
@@ -48,6 +49,7 @@ export const CachedVideo: React.FC<CachedVideoProps> = ({ source, ...props }) =>
 
   // Generate HTML for the WebView
   const objectFit = (props.resizeMode === "cover") ? "cover" : "contain";
+  const posterAttr = poster ? `poster="${poster}"` : "";
   
   // Using WebView completely avoids the native ExoPlayer crashes by offloading video decoding
   // to the Chromium engine, which has much broader codec support and software fallbacks.
@@ -65,6 +67,7 @@ export const CachedVideo: React.FC<CachedVideoProps> = ({ source, ...props }) =>
       <video 
         id="main-video"
         src="${videoUri}" 
+        ${posterAttr}
         ${props.shouldPlay ? "autoplay" : ""} 
         ${props.isLooping ? "loop" : ""} 
         ${props.useNativeControls ? "controls" : ""} 

@@ -194,10 +194,15 @@ const FeedItem = ({
                   style={[styles.media, { position: 'absolute' }]}
                   resizeMode="contain"
                 />
-              ) : null}
+              ) : (
+                <View style={[StyleSheet.absoluteFill, { justifyContent: 'center', alignItems: 'center', backgroundColor: '#111' }]}>
+                  <ActivityIndicator size="large" color={PincTheme.colors.primary} />
+                </View>
+              )}
               {shouldMountVideo && !!item.image_url ? (
                 <CachedVideo
                   source={{ uri: item.image_url }}
+                  poster={item.thumbnail_url}
                   style={[styles.media, { position: 'absolute' }]}
                   resizeMode="contain"
                   shouldPlay={isVisible}

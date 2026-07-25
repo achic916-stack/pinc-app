@@ -126,14 +126,15 @@ const RadarPulse: React.FC = () => {
 
 interface CustomMapMarkerProps {
   coordinate: { latitude: number; longitude: number };
-  onPress?: (e: any) => void;
-  onLongPress?: (e: any) => void;
+  onPress?: () => void;
+  onLongPress?: () => void;
   anchor?: { x: number; y: number };
   zIndex?: number;
   zoomScale: number;
-  children: React.ReactNode;
+  children?: React.ReactNode;
   cluster?: boolean;
   identifier?: string;
+  tracksViewChanges?: boolean;
 }
 
 const CustomMapMarker: React.FC<CustomMapMarkerProps> = ({
@@ -145,24 +146,26 @@ const CustomMapMarker: React.FC<CustomMapMarkerProps> = ({
   zoomScale,
   children,
   cluster,
-  identifier
+  identifier,
+  tracksViewChanges: tracksViewOverride
 }) => {
   const [tracksView, setTracksView] = useState(true);
 
   useEffect(() => {
+    if (tracksViewOverride !== undefined) return;
     setTracksView(true);
     const timer = setTimeout(() => {
       setTracksView(false);
-    }, 500);
+    }, 2500);
     return () => clearTimeout(timer);
-  }, [coordinate?.latitude, coordinate?.longitude, identifier]);
+  }, [coordinate?.latitude, coordinate?.longitude, identifier, tracksViewOverride]);
 
   const markerProps: any = {
     coordinate,
     onPress,
     anchor,
     zIndex,
-    tracksViewChanges: tracksView,
+    tracksViewChanges: tracksViewOverride !== undefined ? tracksViewOverride : tracksView,
   };
   if (identifier) {
     markerProps.identifier = identifier;
@@ -1337,6 +1340,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
               anchor={{ x: 0.5, y: 0.5 }}
               zoomScale={zoomScale}
               cluster={false}
+              tracksViewChanges={true}
             >
               <View pointerEvents="none" style={{ 
                 width: 140, 
