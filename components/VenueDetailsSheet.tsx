@@ -491,8 +491,8 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
   const pioneerPin = React.useMemo(() => {
     if (!pins || pins.length === 0) return null;
     return [...pins].reduce((oldest, current) => {
-      const oldestTime = new Date(oldest.timestamp).getTime();
-      const currentTime = new Date(current.timestamp).getTime();
+      const oldestTime = getPinTimestampMs(oldest?.timestamp);
+      const currentTime = getPinTimestampMs(current?.timestamp);
       return currentTime < oldestTime ? current : oldest;
     });
   }, [pins]);
@@ -524,8 +524,8 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
 
     // Filter reports from verified users within the last 2 hours
     const verifiedRecent = realityPins.filter(pin => {
-      const pinTime = pin.timestamp instanceof Date ? pin.timestamp : new Date(pin.timestamp);
-      return pin.is_live_verified && pinTime.getTime() >= twoHoursAgo.getTime();
+      const pinTimeMs = getPinTimestampMs(pin.timestamp);
+      return pin.is_live_verified && pinTimeMs >= twoHoursAgo.getTime();
     });
 
     const targetList = verifiedRecent.length > 0 ? verifiedRecent : realityPins.filter(pin => pin.is_live_verified);

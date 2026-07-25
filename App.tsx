@@ -645,7 +645,13 @@ export default function App() {
       ) : (
         /* If logged in, show Main Map Dashboard */
         <>
-          <View style={{ flex: 1, display: activeTab === 'map' ? 'flex' : 'none' }}>
+          <View 
+            style={[
+              { flex: 1, position: 'absolute', width: '100%', height: '100%', zIndex: 1 },
+              activeTab === 'map' ? { opacity: 1 } : { opacity: 0, top: 10000 }
+            ]}
+            pointerEvents={activeTab === 'map' ? 'auto' : 'none'}
+          >
             <MapScreen
               venues={venues}
               allPins={allPins}
