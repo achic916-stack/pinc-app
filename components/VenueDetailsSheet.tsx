@@ -94,7 +94,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
   const [localHiddenPins, setLocalHiddenPins] = useState<Record<string, boolean>>({});
 
   // Owner checking & sponsored checks
-  const isOwner = venue ? (venue.ownerId === currentUser?.userId || currentUser?.role === "ADMIN") : false;
+  const isOwner = venue ? (venue.ownerId === currentUser?.userId || venue.userId === currentUser?.userId || currentUser?.role === "ADMIN") : false;
   const isShopPackage = venue ? (venue.is_sponsored === true || (venue.sponsor_tier && venue.sponsor_tier >= 1)) : false;
   const showEditPanel = isEditing && isShopPackage && isOwner;
 
@@ -465,9 +465,26 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
 
   const currentStatus = venue.crowd_status?.toLowerCase();
 
+  const parseToDate = (dateInput: any): Date => {
+    if (!dateInput) return new Date();
+    if (dateInput instanceof Date) return isNaN(dateInput.getTime()) ? new Date() : dateInput;
+    if (typeof dateInput.toDate === 'function') {
+      try {
+        const d = dateInput.toDate();
+        return isNaN(d.getTime()) ? new Date() : d;
+      } catch (e) {
+        return new Date();
+      }
+    }
+    if (typeof dateInput === 'number') return new Date(dateInput);
+    if (dateInput.seconds) return new Date(dateInput.seconds * 1000);
+    const parsed = new Date(dateInput);
+    return isNaN(parsed.getTime()) ? new Date() : parsed;
+  };
+
   // Helper to check if a post is from today (UTC timezone independent)
   const isToday = (dateInput: any) => {
-    const date = dateInput instanceof Date ? dateInput : new Date(dateInput);
+    const date = parseToDate(dateInput);
     const today = new Date();
     return (
       date.getUTCDate() === today.getUTCDate() &&
@@ -478,7 +495,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
 
   // Helper to check if a post is from yesterday (UTC timezone independent)
   const isYesterday = (dateInput: any) => {
-    const date = dateInput instanceof Date ? dateInput : new Date(dateInput);
+    const date = parseToDate(dateInput);
     const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
     return (
       date.getUTCDate() === yesterday.getUTCDate() &&
@@ -1231,7 +1248,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
 
                 {/* Chronological Customer Review Cards */}
                 {realityPins.map((pin) => {
-                  const pinDate = pin.timestamp instanceof Date ? pin.timestamp : new Date(pin.timestamp);
+                  const pinDate = parseToDate(pin.timestamp);
                   const isPostToday = isToday(pinDate);
                   const isPostYesterday = isYesterday(pinDate);
                   const isFriend = followingIds.includes(pin.userId);
@@ -1474,7 +1491,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
           ) : (
             <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
               {realityPins.map((pin) => {
-                const pinDate = pin.timestamp instanceof Date ? pin.timestamp : new Date(pin.timestamp);
+                const pinDate = parseToDate(pin.timestamp);
                 const isPostToday = isToday(pinDate);
                 const isPostYesterday = isYesterday(pinDate);
                 const isFriend = followingIds.includes(pin.userId);
