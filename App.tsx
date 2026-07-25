@@ -29,7 +29,6 @@ import { PincTheme } from "./styles/theme";
 import { ReelsFeedModal } from "./components/ReelsFeedModal";
 import { CachedVideo } from "./components/CachedVideo";
 import { HomeFeedScreen } from "./screens/HomeFeedScreen";
-import { MapErrorBoundary } from "./components/MapErrorBoundary";
 
 
 const getSafeVideoUrl = (url: string | null | undefined) => {
@@ -96,7 +95,6 @@ export default function App() {
   const [expandedPin, setExpandedPin] = useState<string | null>(null);
   const [activeVideoId, setActiveVideoId] = useState<string | null>(null);
   const [selectedPin, setSelectedPin] = useState<Pin | null>(null);
-  const [targetPinId, setTargetPinId] = useState<string | null>(null);
   const pincButtonRef = useRef<PincButtonRef>(null);
 
   // Settings & GDPR States
@@ -214,7 +212,7 @@ export default function App() {
   // Filter current user's uploaded pins, newest first
   const currentUserPins = allPins
     .filter(pin => pin.userId === currentUser?.userId)
-    .sort((a, b) => getPinTimestampMs(b.timestamp) - getPinTimestampMs(a.timestamp));
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
   // 0. Initialize RevenueCat SDK on mount
   useEffect(() => {
@@ -255,7 +253,8 @@ export default function App() {
     
     if (followingIds && followingIds.length > 0 && allPins.length > 0) {
       const hasNew = allPins.some(pin => {
-        const pinTime = getPinTimestampMs(pin.timestamp);
+        // Convert Firestore Timestamp to ms or use Date object
+        const pinTime = pin.timestamp && typeof (pin.timestamp as any).toDate === 'function' ? (pin.timestamp as any).toDate().getTime() : new Date(pin.timestamp).getTime();
         return followingIds.includes(pin.userId) && pinTime > lastHomeViewTime;
       });
       setHasNewFollowedPost(hasNew);
@@ -646,38 +645,29 @@ export default function App() {
       ) : (
         /* If logged in, show Main Map Dashboard */
         <>
-          {activeTab === 'map' && (
-            <View 
-              style={{ flex: 1, position: 'absolute', width: '100%', height: '100%', zIndex: 1 }}
-            >
-            <MapErrorBoundary>
-              <MapScreen
-                venues={venues}
-                allPins={allPins}
-                userLocation={userLocation}
-                isLoadingVenues={isLoadingVenues}
-                onSelectVenue={handleSelectVenue}
-                followingVenueIds={followingVenueIds}
-                followingIds={followingIds}
-                locale={locale}
-                cameraTarget={cameraTarget}
-                targetPinId={targetPinId}
-                onClearTargetPin={() => setTargetPinId(null)}
-                onClearCameraTarget={() => setCameraTarget(null)}
-                focusSearchTrigger={focusSearchTrigger}
-                selectedMemoryPin={activeTab === 'map' ? selectedPin : null}
-                onClearMemory={() => setSelectedPin(null)}
-                currentUserId={currentUser?.userId}
-                settingCrewBaseVenue={settingCrewBaseVenue}
-                onClearCrewBaseMode={() => setSettingCrewBaseVenue(null)}
-                onDeletePin={handleDeletePin}
-                onOpenUserProfile={(userId) => {
-                  setSelectedUserProfileId(userId);
-                }}
-              />
-            </MapErrorBoundary>
-            </View>
-          )}
+          <View style={{ flex: 1, display: activeTab === 'map' ? 'flex' : 'none' }}>
+            <MapScreen
+              venues={venues}
+              allPins={allPins}
+              userLocation={userLocation}
+              isLoadingVenues={isLoadingVenues}
+              onSelectVenue={handleSelectVenue}
+              followingVenueIds={followingVenueIds}
+              followingIds={followingIds}
+              locale={locale}
+              cameraTarget={cameraTarget}
+              focusSearchTrigger={focusSearchTrigger}
+              selectedMemoryPin={activeTab === 'map' ? selectedPin : null}
+              onClearMemory={() => setSelectedPin(null)}
+              currentUserId={currentUser?.userId}
+              settingCrewBaseVenue={settingCrewBaseVenue}
+              onClearCrewBaseMode={() => setSettingCrewBaseVenue(null)}
+              onDeletePin={handleDeletePin}
+              onOpenUserProfile={(userId) => {
+                setSelectedUserProfileId(userId);
+              }}
+            />
+          </View>
           <View style={{ flex: 1, display: activeTab === 'home' ? 'flex' : 'none', position: 'absolute', width: '100%', height: '100%', zIndex: 5 }}>
             <HomeFeedScreen 
                 pins={allPins}
@@ -692,8 +682,7 @@ export default function App() {
                 onStartVideoPost={() => pincButtonRef.current?.startVideoPost()}
                 onStartPhotoPost={() => pincButtonRef.current?.startPhotoPost()}
                 onStartGalleryPost={() => pincButtonRef.current?.startGalleryPost()}
-                onGoToMap={(lat, lng, pinId) => {
-                  setTargetPinId(pinId || null);
+                onGoToMap={(lat, lng) => {
                   setCameraTarget({ latitude: lat, longitude: lng, timestamp: Date.now() });
                   setSelectedVenue(null);
                   setActiveTab('map');
@@ -775,6 +764,11 @@ export default function App() {
             userId={selectedUserProfileId}
             currentUserId={currentUser?.userId || ""}
             onClose={() => setSelectedUserProfileId(null)}
+            onSelectMemory={(pin) => {
+              setSelectedPin(pin);
+              setSelectedUserProfileId(null);
+              setActiveTab("home");
+            }}
             locale={locale}
             setLocale={setLocale}
             onDeletePin={handleDeletePin}
@@ -892,6 +886,10 @@ export default function App() {
                   locale={locale}
                   setLocale={setLocale}
                   currentUserProfile={currentUser as UserProfile}
+                  onSelectMemory={(pin) => {
+                    setSelectedPin(pin);
+                    setActiveTab("home");
+                  }}
                   onDeletePin={handleDeletePin}
                   setUserId={setSelectedUserProfileId}
                   venues={venues}

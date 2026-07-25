@@ -89,8 +89,8 @@ missingDimensionStrategy "store", "play"
         applicationId 'com.achic.pinc'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 187
-        versionName "1.0.7"
+        versionCode 188
+        versionName "1.0.6"
 
         def envFile = file("../../.env")
         def mapsApiKey = ""
@@ -102,7 +102,7 @@ missingDimensionStrategy "store", "play"
             }
         }
         if (mapsApiKey == "") {
-            mapsApiKey = System.getenv("EXPO_PUBLIC_GOOGLE_MAPS_API_KEY") ?: "AIzaSyBjcAr826N7qcadrZYn3a8527Di5lWzMY0"
+            mapsApiKey = System.getenv("EXPO_PUBLIC_GOOGLE_MAPS_API_KEY") ?: ""
         }
         manifestPlaceholders = [googleMapsApiKey: mapsApiKey]
 

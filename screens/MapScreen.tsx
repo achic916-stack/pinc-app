@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo, useEffect, useCallback } from "react";
+import React, { useState, useRef, useMemo, useEffect } from "react";
 import { darkMapStyle } from "./darkMapStyle";
 import { pincDarkStyle } from '../constants/pincDarkStyle';
 import { pincIOSDarkStyle } from '../constants/pincIOSDarkStyle';
@@ -28,12 +28,12 @@ import { LinearGradient } from "expo-linear-gradient";
 
 const Marker = Platform.OS === 'web' ? View : RNMaps.Marker;
 const PROVIDER_GOOGLE = Platform.OS === 'web' ? null : RNMaps.PROVIDER_GOOGLE;
-const MapView = Platform.OS === 'web' ? View : RNMaps.default;
+const MapView = Platform.OS === 'web' ? View : RNMapClustering;
 const Audio = { Sound: { createAsync: async () => ({ sound: { playAsync: async () => { }, stopAsync: async () => { }, unloadAsync: async () => { } } }) }, setAudioModeAsync: async () => { } }; const Video = () => null; const ResizeMode = { COVER: 'cover', CONTAIN: 'contain' };
 
 import { CachedVideo } from "../components/CachedVideo";
 import { PincTheme } from "../styles/theme";
-import { Venue, Pin, auth, getUserStats, calculateDistance, db, getPinTimestampMs } from "../services/firebase";
+import { Venue, Pin, auth, getUserStats, calculateDistance, db } from "../services/firebase";
 import { doc, updateDoc } from "firebase/firestore";
 import { useTranslation } from 'react-i18next';
 import { ReelsFeedModal } from "../components/ReelsFeedModal";
@@ -67,9 +67,6 @@ interface MapScreenProps {
   followingIds?: string[];
   locale?: "en" | "th";
   cameraTarget?: { latitude: number; longitude: number; timestamp: number } | null;
-  targetPinId?: string | null;
-  onClearTargetPin?: () => void;
-  onClearCameraTarget?: () => void;
   focusSearchTrigger?: number;
   selectedMemoryPin?: Pin | null;
   onClearMemory?: () => void;
@@ -126,15 +123,14 @@ const RadarPulse: React.FC = () => {
 
 interface CustomMapMarkerProps {
   coordinate: { latitude: number; longitude: number };
-  onPress?: () => void;
-  onLongPress?: () => void;
+  onPress?: (e: any) => void;
+  onLongPress?: (e: any) => void;
   anchor?: { x: number; y: number };
   zIndex?: number;
   zoomScale: number;
-  children?: React.ReactNode;
+  children: React.ReactNode;
   cluster?: boolean;
   identifier?: string;
-  tracksViewChanges?: boolean;
 }
 
 const CustomMapMarker: React.FC<CustomMapMarkerProps> = ({
@@ -146,36 +142,24 @@ const CustomMapMarker: React.FC<CustomMapMarkerProps> = ({
   zoomScale,
   children,
   cluster,
-  identifier,
-  tracksViewChanges: tracksViewOverride
+  identifier
 }) => {
   const [tracksView, setTracksView] = useState(true);
 
   useEffect(() => {
-    if (tracksViewOverride !== undefined) return;
     setTracksView(true);
     const timer = setTimeout(() => {
       setTracksView(false);
-    }, 500);
+    }, zoomScale <= 0.6 ? 200 : 5000);
     return () => clearTimeout(timer);
-  }, [coordinate?.latitude, coordinate?.longitude, identifier, tracksViewOverride]);
-
-  if (
-    !coordinate ||
-    typeof coordinate.latitude !== 'number' ||
-    typeof coordinate.longitude !== 'number' ||
-    isNaN(coordinate.latitude) ||
-    isNaN(coordinate.longitude)
-  ) {
-    return null;
-  }
+  }, [zoomScale]);
 
   const markerProps: any = {
     coordinate,
     onPress,
     anchor,
     zIndex,
-    tracksViewChanges: tracksViewOverride !== undefined ? tracksViewOverride : (Platform.OS === 'android' ? true : tracksView),
+    tracksViewChanges: tracksView,
   };
   if (identifier) {
     markerProps.identifier = identifier;
@@ -212,9 +196,6 @@ export const MapScreen: React.FC<MapScreenProps> = ({
   followingIds = [],
   locale = "en",
   cameraTarget = null,
-  targetPinId = null,
-  onClearTargetPin,
-  onClearCameraTarget,
   focusSearchTrigger = 0,
   selectedMemoryPin = null,
   onClearMemory,
@@ -231,29 +212,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [isSearchVisible, setIsSearchVisible] = useState(false);
   const [isFilterFriends, setIsFilterFriends] = useState(false);
-  const [reelsFeedPins, setReelsFeedPinsRaw] = useState<Pin[]>([]);
-  const modalClosedAtRef = useRef<number>(0);
-  const mapMovingRef = useRef<boolean>(false);
-  const lastMapMoveRef = useRef<number>(0);
-  const MAP_MOVE_SUPPRESS_MS = 1000;
-  const MODAL_CLOSE_COOLDOWN_MS = 2000;
-
-  const setReelsFeedPins = useCallback((pins: Pin[]) => {
-    if (pins.length > 0) {
-      if (Date.now() - modalClosedAtRef.current < MODAL_CLOSE_COOLDOWN_MS) {
-        return; // Ignore spurious press events shortly after user explicitly closes modal
-      }
-      if (mapMovingRef.current || Date.now() - lastMapMoveRef.current < MAP_MOVE_SUPPRESS_MS) {
-        return; // Ignore spurious press events during/right after map movement
-      }
-    }
-    setReelsFeedPinsRaw(pins);
-  }, []);
-
-  const closeReelsFeed = useCallback(() => {
-    modalClosedAtRef.current = Date.now();
-    setReelsFeedPinsRaw([]);
-  }, []);
+  const [reelsFeedPins, setReelsFeedPins] = useState<Pin[]>([]);
   const [deleteModePinId, setDeleteModePinId] = useState<string | null>(null);
   const [currentCenterRegion, setCurrentCenterRegion] = useState<{ latitude: number; longitude: number } | null>(null);
   const [isUpdatingBase, setIsUpdatingBase] = useState(false);
@@ -292,9 +251,8 @@ export const MapScreen: React.FC<MapScreenProps> = ({
 
   // Filter venues based on isFilterFriends state
   const displayedVenues = useMemo(() => {
-    if (!venues || !Array.isArray(venues)) return [];
     if (!isFilterFriends) return venues;
-    return venues.filter((venue) => venue && (venue.is_sponsored || (followingVenueIds && typeof followingVenueIds.has === 'function' && followingVenueIds.has(venue.venueId))));
+    return venues.filter((venue) => venue.is_sponsored || followingVenueIds.has(venue.venueId));
   }, [venues, isFilterFriends, followingVenueIds]);
 
   // Effect to autofocus search bar on trigger
@@ -494,27 +452,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
   // Effect to pan map camera on target change
   useEffect(() => {
     if (cameraTarget && mapRef.current) {
-      // Clear any open feed modal first to prevent stale modal popping up
-      setReelsFeedPins([]);
-      const targetPinToOpen = targetPinId;
-
-      // Immediately clear target props in parent state so stale values do not persist during animation
-      if (onClearTargetPin) {
-        onClearTargetPin();
-      }
-      if (onClearCameraTarget) {
-        onClearCameraTarget();
-      }
-
-      flyToTarget(cameraTarget.latitude, cameraTarget.longitude, () => {
-        // After flying to target, if a specific pin was requested, open it
-        if (targetPinToOpen) {
-          const pin = validPins.find(p => p.pinId === targetPinToOpen) || allPins.find(p => p.pinId === targetPinToOpen);
-          if (pin) {
-            setReelsFeedPins([pin]);
-          }
-        }
-      });
+      flyToTarget(cameraTarget.latitude, cameraTarget.longitude, () => {});
     }
   }, [cameraTarget]);
 
@@ -531,14 +469,11 @@ export const MapScreen: React.FC<MapScreenProps> = ({
 
   // Time-Decay Logic: filter out expired pins
   const validPins = useMemo(() => {
-    if (!allPins || !Array.isArray(allPins)) return [];
     const now = Date.now();
     const filtered = allPins.filter(pin => {
-      if (!pin) return false;
       if (pin.is_pinned === false) return false;
       if (!pin.latitude || !pin.longitude) return false; // MUST have valid coordinates
-      const pinTime = getPinTimestampMs(pin.timestamp);
-      if (!pinTime) return true; // Keep pins with pending timestamp
+      const pinTime = new Date(pin.timestamp).getTime();
       const ageHours = (now - pinTime) / (1000 * 60 * 60);
       if (pin.post_type === "live_news") {
         return ageHours <= 24; // Pinc Story (formerly Live News) lasts 24h
@@ -550,7 +485,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
     // Deduplicate by pinId to guarantee stable unique keys for Map rendering
     const uniqueMap = new Map();
     filtered.forEach(p => {
-      const key = p.pinId || `${p.latitude}-${p.longitude}-${getPinTimestampMs(p.timestamp)}`;
+      const key = p.pinId || `${p.latitude}-${p.longitude}-${p.timestamp}`;
       if (!uniqueMap.has(key)) {
         uniqueMap.set(key, p);
       }
@@ -560,133 +495,80 @@ export const MapScreen: React.FC<MapScreenProps> = ({
 
   // Precompute the oldest permanent pin (pioneer pin) for each 500m location area globally
   const pioneerPinIds = useMemo(() => {
-    try {
-      if (!allPins || !Array.isArray(allPins)) return new Set<string>();
-      const sortedAll = [...allPins].filter(p => p && p.post_type !== "live_news" && p.latitude && p.longitude).sort((a, b) => {
-        const timeA = a ? getPinTimestampMs(a.timestamp) : 0;
-        const timeB = b ? getPinTimestampMs(b.timestamp) : 0;
-        return timeA - timeB;
-      });
-      const pioneerIds = new Set<string>();
-      const pioneerLocations: {lat: number, lng: number}[] = [];
+    const sortedAll = [...allPins].filter(p => p.post_type !== "live_news" && p.latitude && p.longitude).sort((a, b) => {
+      const timeA = (a.timestamp as any)?.toDate ? (a.timestamp as any).toDate().getTime() : new Date(a.timestamp || 0).getTime();
+      const timeB = (b.timestamp as any)?.toDate ? (b.timestamp as any).toDate().getTime() : new Date(b.timestamp || 0).getTime();
+      return (timeA || 0) - (timeB || 0);
+    });
+    const pioneerIds = new Set<string>();
+    const pioneerLocations: {lat: number, lng: number}[] = [];
 
-      for (const pin of sortedAll) {
-         if (!pin || !pin.latitude || !pin.longitude) continue;
-         let isPioneer = true;
-         // Spatial check: only compare with nearby pioneer locations
-         for (const loc of pioneerLocations) {
-            // Fast bounding box check (~0.005 deg ≈ 550m) before exact Haversine
-            if (Math.abs(pin.latitude - loc.lat) > 0.006 || Math.abs(pin.longitude - loc.lng) > 0.006) {
-              continue;
-            }
-            if (calculateDistance(pin.latitude, pin.longitude, loc.lat, loc.lng) <= 500) {
-               isPioneer = false;
-               break;
-            }
-         }
-         if (isPioneer) {
-            if (pin.pinId) pioneerIds.add(pin.pinId);
-            pioneerLocations.push({lat: pin.latitude, lng: pin.longitude});
-         }
-      }
-      return pioneerIds;
-    } catch (e) {
-      console.warn("Error in pioneerPinIds:", e);
-      return new Set<string>();
+    for (const pin of sortedAll) {
+       let isPioneer = true;
+       for (const loc of pioneerLocations) {
+          if (calculateDistance(pin.latitude, pin.longitude, loc.lat, loc.lng) <= 500) {
+             isPioneer = false;
+             break;
+          }
+       }
+       if (isPioneer) {
+          if (pin.pinId) pioneerIds.add(pin.pinId);
+          pioneerLocations.push({lat: pin.latitude, lng: pin.longitude});
+       }
     }
+    return pioneerIds;
   }, [allPins]);
 
   // Group pins within 500 meters. The representative pin (group[0]) is the oldest (first posted) pin.
   const groupedValidPins = useMemo(() => {
-    try {
-      // 1. Identify all sponsored venue IDs
-      const sponsoredVenueIds = new Set((displayedVenues || []).filter(v => v && (v.is_sponsored || (v.sponsor_tier && v.sponsor_tier >= 1))).map(v => v.venueId));
+    // 1. Identify all sponsored venue IDs
+    const sponsoredVenueIds = new Set(displayedVenues.filter(v => v.is_sponsored || (v.sponsor_tier && v.sponsor_tier >= 1)).map(v => v.venueId));
 
-      // 2. Filter out pins that belong to a sponsored venue so they don't render as separate user markers
-      let mapRenderablePins = (validPins || []).filter(pin => pin && (!pin.venueId || !sponsoredVenueIds.has(pin.venueId)));
+    // 2. Filter out pins that belong to a sponsored venue so they don't render on the map directly
+    let mapRenderablePins = validPins.filter(pin => !pin.venueId || !sponsoredVenueIds.has(pin.venueId));
 
-      if (isFilterFriends) {
-        mapRenderablePins = mapRenderablePins.filter(pin => 
-          pin && (pin.userId === currentUserId || (Array.isArray(followingIds) && followingIds.includes(pin.userId)))
-        );
-      }
-
-      // Sort pins oldest first so that the seed pin for each cluster is the earliest posted pin
-      const sortedPins = [...mapRenderablePins].sort((a, b) => {
-        const tA = a ? getPinTimestampMs(a.timestamp) : 0;
-        const tB = b ? getPinTimestampMs(b.timestamp) : 0;
-        return tA - tB;
-      });
-
-      // Partition pins by userId for O(N) grouping speed instead of O(N^2)
-      const pinsByUserId = new Map<string, Pin[]>();
-      for (const pin of sortedPins) {
-        if (!pin) continue;
-        const uid = pin.userId || 'anonymous';
-        let userPins = pinsByUserId.get(uid);
-        if (!userPins) {
-          userPins = [];
-          pinsByUserId.set(uid, userPins);
-        }
-        userPins.push(pin);
-      }
-
-      const groups: Pin[][] = [];
-
-      // Group per-user pins within 500m
-      pinsByUserId.forEach((userPins) => {
-        if (!userPins || !Array.isArray(userPins)) return;
-        const processed = new Set<string>();
-
-        for (const pin of userPins) {
-          if (!pin) continue;
-          const pinKey = pin.pinId || `${pin.latitude}_${pin.longitude}_${getPinTimestampMs(pin.timestamp)}`;
-          if (processed.has(pinKey)) continue;
-          const currentGroup = [pin];
-          processed.add(pinKey);
-
-          for (const otherPin of userPins) {
-            if (!otherPin) continue;
-            const otherKey = otherPin.pinId || `${otherPin.latitude}_${otherPin.longitude}_${getPinTimestampMs(otherPin.timestamp)}`;
-            if (processed.has(otherKey)) continue;
-
-            // Quick bounding box check (~0.006 deg approx 600m)
-            if (Math.abs((pin.latitude || 0) - (otherPin.latitude || 0)) > 0.006 || Math.abs((pin.longitude || 0) - (otherPin.longitude || 0)) > 0.006) {
-              continue;
-            }
-
-            const distance = calculateDistance(pin.latitude, pin.longitude, otherPin.latitude, otherPin.longitude);
-            
-            if (distance <= 500) {
-              currentGroup.push(otherPin);
-              processed.add(otherKey);
-            }
-          }
-          // Sort pins within the group: oldest first, newest last
-          currentGroup.sort((a, b) => {
-            const tA = a ? getPinTimestampMs(a.timestamp) : 0;
-            const tB = b ? getPinTimestampMs(b.timestamp) : 0;
-            return tA - tB;
-          });
-          if (currentGroup.length > 0) {
-            groups.push(currentGroup);
-          }
-        }
-      });
-
-      groups.sort((groupA, groupB) => {
-        const latestA = groupA && groupA.length > 0 ? groupA[groupA.length - 1] : null;
-        const latestB = groupB && groupB.length > 0 ? groupB[groupB.length - 1] : null;
-        const tA = latestA ? getPinTimestampMs(latestA.timestamp) : 0;
-        const tB = latestB ? getPinTimestampMs(latestB.timestamp) : 0;
-        return tA - tB;
-      });
-      return groups;
-    } catch (e) {
-      console.warn("Error in groupedValidPins:", e);
-      return [];
+    if (isFilterFriends) {
+      mapRenderablePins = mapRenderablePins.filter(pin => 
+        pin.userId === currentUserId || followingIds.includes(pin.userId)
+      );
     }
-  }, [validPins, displayedVenues, isFilterFriends, currentUserId, followingIds]);
+
+    // Sort pins oldest first so that the seed pin for each cluster is the earliest posted pin
+    const sortedPins = [...mapRenderablePins].sort((a, b) => {
+      const timeA = (a.timestamp as any)?.toDate ? (a.timestamp as any).toDate().getTime() : new Date(a.timestamp || 0).getTime();
+      const timeB = (b.timestamp as any)?.toDate ? (b.timestamp as any).toDate().getTime() : new Date(b.timestamp || 0).getTime();
+      return (timeA || 0) - (timeB || 0);
+    });
+    const groups: Pin[][] = [];
+    const processed = new Set<string>();
+
+    for (const pin of sortedPins) {
+      if (processed.has(pin.pinId!)) continue;
+      const currentGroup = [pin];
+      processed.add(pin.pinId!);
+
+      for (const otherPin of sortedPins) {
+        if (processed.has(otherPin.pinId!)) continue;
+        if (pin.userId !== otherPin.userId) continue;
+
+        const distance = calculateDistance(pin.latitude, pin.longitude, otherPin.latitude, otherPin.longitude);
+        
+        if (distance <= 500) {
+          currentGroup.push(otherPin);
+          processed.add(otherPin.pinId!);
+        }
+      }
+      groups.push(currentGroup);
+    }
+    groups.sort((groupA, groupB) => {
+      const latestA = groupA[groupA.length - 1];
+      const latestB = groupB[groupB.length - 1];
+      const timeA = (latestA.timestamp as any)?.toDate ? (latestA.timestamp as any).toDate().getTime() : new Date(latestA.timestamp || 0).getTime();
+      const timeB = (latestB.timestamp as any)?.toDate ? (latestB.timestamp as any).toDate().getTime() : new Date(latestB.timestamp || 0).getTime();
+      return (timeA || 0) - (timeB || 0);
+    });
+    return groups;
+  }, [validPins, displayedVenues]);
 
   // Fetch follower stats for validPins
   useEffect(() => {
@@ -734,7 +616,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
         : latestPin.image_url;
     }
 
-    const timestamp = latestPin ? getPinTimestampMs(latestPin.timestamp) : 0;
+    const timestamp = latestPin ? new Date(latestPin.timestamp).getTime() : 0;
     return { photoUrl, timestamp, latestPin };
   }, [validPins]);
 
@@ -742,8 +624,6 @@ export const MapScreen: React.FC<MapScreenProps> = ({
   const [zoomScale, setZoomScale] = useState(1.0);
 
   const handleRegionChange = (region: { latitude: number; longitude: number; latitudeDelta: number; longitudeDelta: number }) => {
-    mapMovingRef.current = true;
-    lastMapMoveRef.current = Date.now();
     const newScale = (region.latitudeDelta && region.latitudeDelta > 0.05) ? 0.4 : 1.0;
     setZoomScale(prevScale => {
       if (prevScale !== newScale) {
@@ -754,10 +634,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
   };
 
   const handleRegionChangeComplete = (region: { latitude: number; longitude: number; latitudeDelta: number; longitudeDelta: number }) => {
-    mapMovingRef.current = false;
-    lastMapMoveRef.current = Date.now();
     handleRegionChange(region);
-    mapMovingRef.current = false;
     setCurrentCenterRegion({ latitude: region.latitude, longitude: region.longitude });
   };
 
@@ -770,7 +647,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
   };
 
   // Start at user location at street level height if available, else default
-  const initialRegion = (userLocation && typeof userLocation.latitude === 'number' && typeof userLocation.longitude === 'number' && !isNaN(userLocation.latitude) && !isNaN(userLocation.longitude)) ? {
+  const initialRegion = userLocation ? {
     latitude: userLocation.latitude,
     longitude: userLocation.longitude,
     latitudeDelta: 0.005,
@@ -786,10 +663,9 @@ export const MapScreen: React.FC<MapScreenProps> = ({
     if (!searchQuery.trim()) return [];
     const queryStr = searchQuery.toLowerCase().trim();
 
-    const matchedVenues = (displayedVenues || []).filter((venue) => {
-      if (!venue) return false;
-      const nameMatch = (venue.name || '').toLowerCase().includes(queryStr);
-      const catMatch = (venue.category || '').toLowerCase().includes(queryStr);
+    const matchedVenues = displayedVenues.filter((venue) => {
+      const nameMatch = venue.name.toLowerCase().includes(queryStr);
+      const catMatch = venue.category.toLowerCase().includes(queryStr);
       
       let packageMatch = false;
       if (venue.is_sponsored) {
@@ -819,8 +695,8 @@ export const MapScreen: React.FC<MapScreenProps> = ({
     const matchedPosts: any[] = [];
     let postCount = 0;
 
-    (allPins || []).forEach(p => {
-       if (p && p.userId && !usersMap.has(p.userId)) {
+    allPins.forEach(p => {
+       if (p.userId && !usersMap.has(p.userId)) {
           usersMap.set(p.userId, {
              userId: p.userId,
              username: p.username || 'Unknown',
@@ -829,7 +705,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
              longitude: p.longitude,
           });
        }
-       if (p && postCount < 5 && ((p.text_content || '').toLowerCase().includes(queryStr) || (p.username || '').toLowerCase().includes(queryStr))) {
+       if (postCount < 5 && ((p.text_content || '').toLowerCase().includes(queryStr) || (p.username || '').toLowerCase().includes(queryStr))) {
           if (p.latitude && p.longitude) {
             matchedPosts.push({ type: 'post', item: p });
             postCount++;
@@ -838,7 +714,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
     });
 
     const matchedUsers = Array.from(usersMap.values())
-       .filter(u => u && (u.username || '').toLowerCase().includes(queryStr) && u.latitude && u.longitude)
+       .filter(u => u.username.toLowerCase().includes(queryStr) && u.latitude && u.longitude)
        .map(u => ({ type: 'user', item: u }))
        .slice(0, 5);
 
@@ -998,36 +874,170 @@ export const MapScreen: React.FC<MapScreenProps> = ({
         showsTraffic={false}
         showsIndoors={true}
         showsUserLocation={!!userLocation}
+        showsMyLocationButton={false}
+        spiralEnabled={false}
+        preserveClusterPressBehavior={true}
+        loadingEnabled={true}
+        loadingBackgroundColor="#14141e"
+        loadingIndicatorColor={PincTheme.colors.primary}
         onRegionChange={handleRegionChange}
         onRegionChangeComplete={handleRegionChangeComplete}
+        clusterColor={PincTheme.colors.primary}
+        clusterTextColor="#FFFFFF"
+        radius={15}
+        renderCluster={(cluster: any) => {
+          const { id, geometry, onPress, properties } = cluster;
+          const points = properties.point_count;
+          const centerLat = geometry.coordinates[1];
+          const centerLng = geometry.coordinates[0];
+
+          let nearestPin: any = null;
+          let minDistance = Infinity;
+          validPins.forEach(p => {
+            const d = Math.pow(p.latitude - centerLat, 2) + Math.pow(p.longitude - centerLng, 2);
+            if (d < minDistance) {
+              minDistance = d;
+              nearestPin = p;
+            }
+          });
+
+          // Find the actual pins in this cluster by sorting validPins by distance
+          const sortedByDistance = [...validPins].map(p => {
+            const d = Math.pow(p.latitude - centerLat, 2) + Math.pow(p.longitude - centerLng, 2);
+            return { p, d };
+          }).sort((a, b) => a.d - b.d);
+          
+          // Get the pins belonging to this cluster
+          const clusterPinsRaw = sortedByDistance.slice(0, points).map(item => item.p);
+          
+          // Calculate max physical distance from center
+          let maxPhysicalDistance = 0;
+          sortedByDistance.slice(0, points).forEach(item => {
+            const dist = calculateDistance(item.p.latitude, item.p.longitude, centerLat, centerLng);
+            if (dist > maxPhysicalDistance) maxPhysicalDistance = dist;
+          });
+
+          // Sort by timestamp: oldest first (back), newest last (front)
+          const clusterPins = clusterPinsRaw.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+          
+          // If the cluster spans a large physical distance (> 150m), it's just a zoomed-out grouping.
+          // Don't show them as "stacked" (overlapping) because they aren't actually at the same spot.
+          // Just show the representative (newest) pin. If they are truly close (<= 150m), show the overlap.
+          const displayPins = maxPhysicalDistance > 150 ? clusterPins.slice(-1) : clusterPins.slice(-3);
+
+          const clusterKey = `cluster-${id}-${points}`;
+          const baseTierColor = nearestPin ? getTierColor(followerStatsCache[nearestPin.userId] || 0) : '#E0E0E0';
+
+          return (
+            <CustomMapMarker key={clusterKey} coordinate={{ latitude: centerLat, longitude: centerLng }} onPress={onPress} zoomScale={zoomScale}>
+              <View style={{ alignItems: 'center', paddingBottom: 10, paddingHorizontal: 10, backgroundColor: 'transparent' }}>
+                {zoomScale > 0.6 ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    {displayPins.map((pin, index) => {
+                      const picUrl = pin.user_profile_pic;
+                      const pTierColor = getTierColor(followerStatsCache[pin.userId] || 0);
+                      
+                      return (
+                        <View key={pin.pinId} style={{ 
+                          marginLeft: index === 0 ? 0 : -20, // Overlap by roughly half a circle
+                          position: 'relative',
+                          zIndex: index 
+                        }}>
+                          {picUrl ? (
+                            <RNImage
+                              source={{ uri: picUrl }}
+                              style={{
+                                width: 44,
+                                height: 44,
+                                borderRadius: 22,
+                                borderWidth: 2,
+                                borderColor: pTierColor,
+                                backgroundColor: PincTheme.colors.card
+                              }}
+                              resizeMode="cover"
+                            />
+                          ) : (
+                            <View style={{
+                              width: 44, height: 44, borderRadius: 22,
+                              backgroundColor: pTierColor,
+                              borderWidth: 2, borderColor: PincTheme.colors.card
+                            }} />
+                          )}
+                          
+                          {/* Show badge only on the very last (front-most) pin if points > 3 */}
+                          {index === displayPins.length - 1 && points > 3 && (
+                            <View style={{
+                              position: 'absolute',
+                              bottom: -4, right: -4,
+                              backgroundColor: '#FF3B30',
+                              borderRadius: 10,
+                              paddingHorizontal: 5, paddingVertical: 2,
+                              borderWidth: 1.5, borderColor: '#FFFFFF'
+                            }}>
+                              <Text style={{ color: '#FFFFFF', fontSize: 10, fontWeight: 'bold' }}>{points > 99 ? '99+' : points}</Text>
+                            </View>
+                          )}
+                        </View>
+                      );
+                    })}
+                  </View>
+                ) : (
+                  <View style={{
+                    width: 3, height: 3, borderRadius: 1.5,
+                    backgroundColor: baseTierColor
+                  }} />
+                )}
+              </View>
+            </CustomMapMarker>
+          );
+        }}
         onPress={() => {
           setDeleteModePinId(null);
         }}
+        onClusterPress={(cluster: any, markers?: any[]) => {
+          if (!markers) return;
+          const availablePins = [...validPins];
+          const clusterPins: Pin[] = [];
+          markers.forEach((m: any) => {
+            const foundIdx = availablePins.findIndex(p => {
+              const pKey = p.pinId || `${p.latitude}-${p.longitude}-${p.timestamp}`;
+              const mKey = m.properties?.identifier || m.id || '';
+              return pKey === mKey ||
+                (Math.abs(p.latitude - m.geometry?.coordinates?.[1]) < 0.00001 &&
+                  Math.abs(p.longitude - m.geometry?.coordinates?.[0]) < 0.00001);
+            });
+            if (foundIdx !== -1) {
+              clusterPins.push(availablePins[foundIdx]);
+              availablePins.splice(foundIdx, 1);
+            }
+          });
+
+          if (clusterPins.length > 0) {
+            clusterPins.sort((a, b) => {
+              const timeA = (a.timestamp as any)?.toDate ? (a.timestamp as any).toDate().getTime() : new Date(a.timestamp || 0).getTime();
+              const timeB = (b.timestamp as any)?.toDate ? (b.timestamp as any).toDate().getTime() : new Date(b.timestamp || 0).getTime();
+              return (timeB || 0) - (timeA || 0);
+            });
+            setReelsFeedPins(clusterPins);
+          }
+        }}
       >
         {groupedValidPins.map((group) => {
-          if (!group || !Array.isArray(group) || group.length === 0) return null;
           const firstPin = group[0];
           const latestPin = group[group.length - 1];
-          const fLat = Number(firstPin?.latitude);
-          const fLng = Number(firstPin?.longitude);
-          if (isNaN(fLat) || isNaN(fLng) || fLat === 0 || fLng === 0) return null;
-
           const isLiveNews = latestPin.post_type === "live_news";
           const isDeleteMode = deleteModePinId === firstPin.pinId;
-          const pinKey = `pin-${firstPin.pinId || `${fLat}_${fLng}`}`;
+          const pinKey = `pin-${firstPin.pinId || `${firstPin.latitude}-${firstPin.longitude}-${firstPin.timestamp}`}-${latestPin.user_profile_pic || ''}`;
 
-          const avatarUri = (group && Array.isArray(group)) ? (group.find(p => p && typeof p.user_profile_pic === 'string' && p.user_profile_pic.trim().length > 0)?.user_profile_pic 
-            || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80') : 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80';
-
-          const closeSponsor = (displayedVenues || []).find(
-            v => v && v.is_sponsored && v.latitude && v.longitude && calculateDistance(fLat, fLng, Number(v.latitude), Number(v.longitude)) < 10
+          const closeSponsor = displayedVenues.find(
+            v => v.is_sponsored && calculateDistance(firstPin.latitude, firstPin.longitude, v.latitude, v.longitude) < 10
           );
 
-          let displayLat = fLat;
-          let displayLng = fLng;
+          let displayLat = firstPin.latitude;
+          let displayLng = firstPin.longitude;
           if (closeSponsor) {
-            displayLat = fLat - 0.00010;
-            displayLng = fLng + 0.00010;
+            displayLat = firstPin.latitude - 0.00010;
+            displayLng = firstPin.longitude + 0.00010;
           }
 
           return (
@@ -1037,20 +1047,21 @@ export const MapScreen: React.FC<MapScreenProps> = ({
               coordinate={{ latitude: displayLat, longitude: displayLng }}
               onPress={() => {
                 if (isDeleteMode) return;
-                if (mapMovingRef.current) return;
-                if (onSelectVenue) {
-                  onSelectVenue(null as any);
+                if (group.length > 1) {
+                  const sortedNewestFirst = [...group].sort((a, b) => {
+                    const timeA = (a.timestamp as any)?.toDate ? (a.timestamp as any).toDate().getTime() : new Date(a.timestamp || 0).getTime();
+                    const timeB = (b.timestamp as any)?.toDate ? (b.timestamp as any).toDate().getTime() : new Date(b.timestamp || 0).getTime();
+                    return (timeB || 0) - (timeA || 0);
+                  });
+                  setReelsFeedPins(sortedNewestFirst);
+                } else {
+                  if (onSelectVenue) {
+                    onSelectVenue(null as any);
+                  }
+                  if (firstPin.pinId) {
+                    setReelsFeedPins([firstPin]);
+                  }
                 }
-                // Enrich group with user's pins from sponsored venues too
-                const userId = firstPin.userId;
-                const allUserPinsNearby = validPins.filter(p => 
-                  p.userId === userId && 
-                  calculateDistance(firstPin.latitude, firstPin.longitude, p.latitude, p.longitude) <= 500
-                );
-                const sortedNewestFirst = [...allUserPinsNearby].sort((a, b) => {
-                  return getPinTimestampMs(b.timestamp) - getPinTimestampMs(a.timestamp);
-                });
-                setReelsFeedPins(sortedNewestFirst.length > 0 ? sortedNewestFirst : [firstPin]);
               }}
               onLongPress={() => {
                 if (currentUserId && latestPin.userId === currentUserId) {
@@ -1076,7 +1087,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                 </View>
               )}
 
-              <View pointerEvents="none" style={{ alignItems: 'center', paddingBottom: 28, paddingTop: isLiveNews ? 28 : 20, paddingHorizontal: 22, backgroundColor: 'transparent' }}>
+              <View style={{ alignItems: 'center', paddingBottom: 28, paddingTop: isLiveNews ? 28 : 20, paddingHorizontal: 22, backgroundColor: 'transparent' }}>
                 {isLiveNews && zoomScale > 0.6 && (
                   <View style={{
                     position: 'absolute',
@@ -1095,18 +1106,56 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                   borderRadius: getMarkerSize(zoomScale) / 2,
                   zIndex: 10
                 }}>
-                  {zoomScale > 0.6 && (
-                    <View style={{
-                      position: 'absolute',
-                      top: -6,
-                      left: -6,
-                      width: getMarkerSize(zoomScale) + 12,
-                      height: getMarkerSize(zoomScale) + 12,
-                      borderRadius: (getMarkerSize(zoomScale) + 12) / 2,
-                      backgroundColor: isLiveNews ? PincTheme.colors.crowdRed : (firstPin.pinColor === 'rainbow' ? '#9400D3' : (firstPin.pinColor || '#FF69B4')),
-                      opacity: 0.35,
-                    }} />
-                  )}
+                  {zoomScale > 0.6 && (firstPin.pinColor === 'rainbow' ? (
+                    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' }}>
+                      {[
+                        ...Array.from({ length: 9 }).map((_, i) => {
+                          const layerIndex = 9 - i;
+                          const spread = 9 + layerIndex;
+                          const progress = layerIndex / 9;
+                          return {
+                            spread: spread,
+                            color: '#9400D3',
+                            opacity: 0.25 * Math.pow(1 - progress, 2)
+                          };
+                        }),
+                        { spread: 9, color: '#9400D3', opacity: 1.00 },
+                        { spread: 7.5, color: '#0044FF', opacity: 1.00 },
+                        { spread: 6, color: '#00CC44', opacity: 1.00 },
+                        { spread: 4.5, color: '#FFEE00', opacity: 1.00 },
+                        { spread: 3, color: '#FF8C00', opacity: 1.00 },
+                        { spread: 1.5, color: '#FF0000', opacity: 1.00 },
+                      ].map((layer, i) => (
+                        <View key={`glow-${i}`} style={{
+                          position: 'absolute',
+                          top: -layer.spread,
+                          left: -layer.spread,
+                          width: getMarkerSize(zoomScale) + layer.spread * 2,
+                          height: getMarkerSize(zoomScale) + layer.spread * 2,
+                          borderRadius: (getMarkerSize(zoomScale) + layer.spread * 2) / 2,
+                          backgroundColor: layer.color,
+                          opacity: layer.opacity,
+                        }} />
+                      ))}
+                    </View>
+                  ) : (
+                    Array.from({ length: 9 }).map((_, i) => {
+                      const glowSpread = i + 1; // 1px to 9px spread
+                      const progress = glowSpread / 9;
+                      const opacity = (isLiveNews ? 0.20 : 0.15) * Math.pow(1 - progress, 2);
+                      return (
+                        <View key={`glow-${i}`} style={{
+                          position: 'absolute',
+                          top: -glowSpread, left: -glowSpread,
+                          width: getMarkerSize(zoomScale) + glowSpread * 2,
+                          height: getMarkerSize(zoomScale) + glowSpread * 2,
+                          borderRadius: (getMarkerSize(zoomScale) + glowSpread * 2) / 2,
+                          backgroundColor: isLiveNews ? PincTheme.colors.crowdRed : (firstPin.pinColor || '#FF69B4'),
+                          opacity: opacity,
+                        }} />
+                      );
+                    })
+                  ))}
                   {(followerStatsCache[firstPin.userId] || 0) >= 100000000 && (
                     <View style={{ 
                       position: 'absolute', top: -16, left: 0, right: 0, alignItems: 'center', zIndex: 100, elevation: 20
@@ -1122,18 +1171,23 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                     backgroundColor: isLiveNews ? PincTheme.colors.crowdRed : (firstPin.pinColor === 'rainbow' ? (zoomScale > 0.6 ? 'transparent' : '#9400D3') : (firstPin.pinColor || '#FF69B4')),
                     overflow: 'hidden'
                   }}>
-                    {zoomScale > 0.6 && (
-                      <RNImage
-                        source={{ uri: avatarUri }}
-                        style={{ 
-                          width: '100%', 
-                          height: '100%', 
-                          borderWidth: firstPin.pinColor === 'rainbow' ? 1 : 0.5,
-                          borderColor: '#000000'
-                        }}
-                        resizeMode="cover"
-                      />
-                    )}
+                    {zoomScale > 0.6 ? (
+                      latestPin.user_profile_pic ? (
+                        <RNImage
+                          source={{ uri: latestPin.user_profile_pic }}
+                          style={{ 
+                            width: '100%', 
+                            height: '100%', 
+                            borderRadius: getMarkerSize(zoomScale) / 2,
+                            borderWidth: firstPin.pinColor === 'rainbow' ? 1 : 0.5,
+                            borderColor: '#000000'
+                          }}
+                          resizeMode="cover"
+                        />
+                      ) : (
+                        <View style={{ width: '100%', height: '100%', borderRadius: getMarkerSize(zoomScale) / 2, backgroundColor: PincTheme.colors.card, borderWidth: firstPin.pinColor === 'rainbow' ? 1 : 0.5, borderColor: '#000000' }} />
+                      )
+                    ) : null}
                   </View>
                   {zoomScale > 0.6 && pioneerPinIds.has(firstPin.pinId || "") && (
                     <View style={{
@@ -1184,9 +1238,9 @@ export const MapScreen: React.FC<MapScreenProps> = ({
             </CustomMapMarker>
           );
         })}
-        {selectedMemoryPin && typeof selectedMemoryPin.latitude === 'number' && typeof selectedMemoryPin.longitude === 'number' && !isNaN(selectedMemoryPin.latitude) && !isNaN(selectedMemoryPin.longitude) && (
+        {selectedMemoryPin && (
           <Marker
-            coordinate={{ latitude: Number(selectedMemoryPin.latitude), longitude: Number(selectedMemoryPin.longitude) }}
+            coordinate={{ latitude: selectedMemoryPin.latitude, longitude: selectedMemoryPin.longitude }}
             tracksViewChanges={false}
             zIndex={9999}
           >
@@ -1198,11 +1252,11 @@ export const MapScreen: React.FC<MapScreenProps> = ({
         )}
 
         {(() => {
-          const sponsored = (displayedVenues || []).filter(venue => venue && typeof venue.latitude === 'number' && typeof venue.longitude === 'number' && (venue.is_sponsored || (venue.sponsor_tier && venue.sponsor_tier >= 1)));
+          const sponsored = displayedVenues.filter(venue => venue.is_sponsored);
           const coordsCount: Record<string, number> = {};
           return sponsored.map(venue => {
-            const latKey = (venue.latitude || 0).toFixed(4);
-            const lngKey = (venue.longitude || 0).toFixed(4);
+            const latKey = venue.latitude.toFixed(4);
+            const lngKey = venue.longitude.toFixed(4);
             const key = `${latKey},${lngKey}`;
             let lat = venue.latitude;
             let lng = venue.longitude;
@@ -1239,7 +1293,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
               zoomScale={zoomScale}
               cluster={false}
             >
-              <View pointerEvents="none" style={{ 
+              <View style={{ 
                 width: 140, 
                 height: 140, 
                 alignItems: 'center', 
@@ -1288,7 +1342,8 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                             source={{ uri: venue.cover_image }}
                             style={{
                               width: innerWidth,
-                              height: innerHeight
+                              height: innerHeight,
+                              borderRadius: 8
                             }}
                             resizeMode="cover"
                           />
@@ -1551,7 +1606,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
       <ReelsFeedModal
         visible={reelsFeedPins.length > 0}
         pins={reelsFeedPins}
-        onClose={closeReelsFeed}
+        onClose={() => setReelsFeedPins([])}
         currentUserId={currentUserId || auth.currentUser?.uid || ""}
         onOpenUserProfile={onOpenUserProfile}
         locale={locale}
