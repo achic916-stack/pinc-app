@@ -645,13 +645,10 @@ export default function App() {
       ) : (
         /* If logged in, show Main Map Dashboard */
         <>
-          <View 
-            style={[
-              { flex: 1, position: 'absolute', width: '100%', height: '100%' },
-              activeTab === 'map' ? { opacity: 1, zIndex: 1 } : { opacity: 0, zIndex: -10 }
-            ]}
-            pointerEvents={activeTab === 'map' ? 'auto' : 'none'}
-          >
+          {activeTab === 'map' && (
+            <View 
+              style={{ flex: 1, position: 'absolute', width: '100%', height: '100%', zIndex: 1 }}
+            >
             <MapScreen
               venues={venues}
               allPins={allPins}
@@ -676,7 +673,8 @@ export default function App() {
                 setSelectedUserProfileId(userId);
               }}
             />
-          </View>
+            </View>
+          )}
           <View style={{ flex: 1, display: activeTab === 'home' ? 'flex' : 'none', position: 'absolute', width: '100%', height: '100%', zIndex: 5 }}>
             <HomeFeedScreen 
                 pins={allPins}
