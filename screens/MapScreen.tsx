@@ -222,16 +222,17 @@ export const MapScreen: React.FC<MapScreenProps> = ({
   const [isSearchVisible, setIsSearchVisible] = useState(false);
   const [isFilterFriends, setIsFilterFriends] = useState(false);
   const [reelsFeedPins, setReelsFeedPinsRaw] = useState<Pin[]>([]);
-  const modalClosedAtRef = useRef<number>(0);
-  const MODAL_COOLDOWN_MS = 1000;
+  const mapMovingRef = useRef<boolean>(false);
+  const lastMapMoveRef = useRef<number>(0);
+  const MAP_MOVE_SUPPRESS_MS = 600;
   const setReelsFeedPins = useCallback((pins: Pin[]) => {
-    if (pins.length > 0 && Date.now() - modalClosedAtRef.current < MODAL_COOLDOWN_MS) {
-      return; // Ignore spurious Android marker press events right after closing
+    // Block spurious Android onPress events that fire during/right after map movement
+    if (pins.length > 0 && (mapMovingRef.current || Date.now() - lastMapMoveRef.current < MAP_MOVE_SUPPRESS_MS)) {
+      return;
     }
     setReelsFeedPinsRaw(pins);
   }, []);
   const closeReelsFeed = useCallback(() => {
-    modalClosedAtRef.current = Date.now();
     setReelsFeedPinsRaw([]);
   }, []);
   const [deleteModePinId, setDeleteModePinId] = useState<string | null>(null);
@@ -566,8 +567,8 @@ export const MapScreen: React.FC<MapScreenProps> = ({
     // 1. Identify all sponsored venue IDs
     const sponsoredVenueIds = new Set(displayedVenues.filter(v => v.is_sponsored || (v.sponsor_tier && v.sponsor_tier >= 1)).map(v => v.venueId));
 
-    // 2. All valid user pins are renderable on the map
-    let mapRenderablePins = validPins;
+    // 2. Filter out pins that belong to a sponsored venue so they don't render as separate user markers
+    let mapRenderablePins = validPins.filter(pin => !pin.venueId || !sponsoredVenueIds.has(pin.venueId));
 
     if (isFilterFriends) {
       mapRenderablePins = mapRenderablePins.filter(pin => 
@@ -671,6 +672,8 @@ export const MapScreen: React.FC<MapScreenProps> = ({
   const [zoomScale, setZoomScale] = useState(1.0);
 
   const handleRegionChange = (region: { latitude: number; longitude: number; latitudeDelta: number; longitudeDelta: number }) => {
+    mapMovingRef.current = true;
+    lastMapMoveRef.current = Date.now();
     const newScale = (region.latitudeDelta && region.latitudeDelta > 0.05) ? 0.4 : 1.0;
     setZoomScale(prevScale => {
       if (prevScale !== newScale) {
@@ -681,7 +684,10 @@ export const MapScreen: React.FC<MapScreenProps> = ({
   };
 
   const handleRegionChangeComplete = (region: { latitude: number; longitude: number; latitudeDelta: number; longitudeDelta: number }) => {
+    mapMovingRef.current = false;
+    lastMapMoveRef.current = Date.now();
     handleRegionChange(region);
+    mapMovingRef.current = false;
     setCurrentCenterRegion({ latitude: region.latitude, longitude: region.longitude });
   };
 
@@ -1115,13 +1121,20 @@ export const MapScreen: React.FC<MapScreenProps> = ({
               coordinate={{ latitude: displayLat, longitude: displayLng }}
               onPress={() => {
                 if (isDeleteMode) return;
+                if (mapMovingRef.current) return;
                 if (onSelectVenue) {
                   onSelectVenue(null as any);
                 }
-                const sortedNewestFirst = [...group].sort((a, b) => {
+                // Enrich group with user's pins from sponsored venues too
+                const userId = firstPin.userId;
+                const allUserPinsNearby = validPins.filter(p => 
+                  p.userId === userId && 
+                  calculateDistance(firstPin.latitude, firstPin.longitude, p.latitude, p.longitude) <= 500
+                );
+                const sortedNewestFirst = [...allUserPinsNearby].sort((a, b) => {
                   return getPinTimestampMs(b.timestamp) - getPinTimestampMs(a.timestamp);
                 });
-                setReelsFeedPins(sortedNewestFirst);
+                setReelsFeedPins(sortedNewestFirst.length > 0 ? sortedNewestFirst : [firstPin]);
               }}
               onLongPress={() => {
                 if (currentUserId && latestPin.userId === currentUserId) {
@@ -1352,7 +1365,6 @@ export const MapScreen: React.FC<MapScreenProps> = ({
               anchor={{ x: 0.5, y: 0.5 }}
               zoomScale={zoomScale}
               cluster={false}
-              tracksViewChanges={true}
             >
               <View pointerEvents="none" style={{ 
                 width: 140, 
