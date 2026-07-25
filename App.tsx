@@ -29,6 +29,7 @@ import { PincTheme } from "./styles/theme";
 import { ReelsFeedModal } from "./components/ReelsFeedModal";
 import { CachedVideo } from "./components/CachedVideo";
 import { HomeFeedScreen } from "./screens/HomeFeedScreen";
+import { MapErrorBoundary } from "./components/MapErrorBoundary";
 
 
 const getSafeVideoUrl = (url: string | null | undefined) => {
@@ -649,30 +650,32 @@ export default function App() {
             <View 
               style={{ flex: 1, position: 'absolute', width: '100%', height: '100%', zIndex: 1 }}
             >
-            <MapScreen
-              venues={venues}
-              allPins={allPins}
-              userLocation={userLocation}
-              isLoadingVenues={isLoadingVenues}
-              onSelectVenue={handleSelectVenue}
-              followingVenueIds={followingVenueIds}
-              followingIds={followingIds}
-              locale={locale}
-              cameraTarget={cameraTarget}
-              targetPinId={targetPinId}
-              onClearTargetPin={() => setTargetPinId(null)}
-              onClearCameraTarget={() => setCameraTarget(null)}
-              focusSearchTrigger={focusSearchTrigger}
-              selectedMemoryPin={activeTab === 'map' ? selectedPin : null}
-              onClearMemory={() => setSelectedPin(null)}
-              currentUserId={currentUser?.userId}
-              settingCrewBaseVenue={settingCrewBaseVenue}
-              onClearCrewBaseMode={() => setSettingCrewBaseVenue(null)}
-              onDeletePin={handleDeletePin}
-              onOpenUserProfile={(userId) => {
-                setSelectedUserProfileId(userId);
-              }}
-            />
+            <MapErrorBoundary>
+              <MapScreen
+                venues={venues}
+                allPins={allPins}
+                userLocation={userLocation}
+                isLoadingVenues={isLoadingVenues}
+                onSelectVenue={handleSelectVenue}
+                followingVenueIds={followingVenueIds}
+                followingIds={followingIds}
+                locale={locale}
+                cameraTarget={cameraTarget}
+                targetPinId={targetPinId}
+                onClearTargetPin={() => setTargetPinId(null)}
+                onClearCameraTarget={() => setCameraTarget(null)}
+                focusSearchTrigger={focusSearchTrigger}
+                selectedMemoryPin={activeTab === 'map' ? selectedPin : null}
+                onClearMemory={() => setSelectedPin(null)}
+                currentUserId={currentUser?.userId}
+                settingCrewBaseVenue={settingCrewBaseVenue}
+                onClearCrewBaseMode={() => setSettingCrewBaseVenue(null)}
+                onDeletePin={handleDeletePin}
+                onOpenUserProfile={(userId) => {
+                  setSelectedUserProfileId(userId);
+                }}
+              />
+            </MapErrorBoundary>
             </View>
           )}
           <View style={{ flex: 1, display: activeTab === 'home' ? 'flex' : 'none', position: 'absolute', width: '100%', height: '100%', zIndex: 5 }}>

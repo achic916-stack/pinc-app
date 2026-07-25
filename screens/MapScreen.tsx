@@ -988,7 +988,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
       {/* 2. Map view rendering */}
       <MapView
         ref={mapRef}
-        provider={PROVIDER_GOOGLE as any}
+        provider={Platform.OS === 'ios' ? PROVIDER_GOOGLE : undefined}
         customMapStyle={Platform.OS === 'ios' ? pincIOSDarkStyle : pincDarkStyle}
         style={styles.map}
         initialRegion={initialRegion}
