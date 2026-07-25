@@ -49,7 +49,17 @@ const isVideoUrl = (url: string | null | undefined): boolean => {
     urlLower.includes("video") ||
     urlLower.includes(".mp4?") ||
     urlLower.includes(".mov?")
-  );
+};
+
+const getPinTimestampMs = (timestamp: any): number => {
+  if (!timestamp) return 0;
+  if (typeof timestamp === 'number') return timestamp;
+  if (typeof timestamp.toDate === 'function') {
+    try { return timestamp.toDate().getTime(); } catch (e) { return 0; }
+  }
+  if (timestamp.seconds) return timestamp.seconds * 1000;
+  const parsed = new Date(timestamp).getTime();
+  return isNaN(parsed) ? 0 : parsed;
 };
 
 const getMarkerSize = (scale: number) => {
@@ -519,56 +529,89 @@ export const MapScreen: React.FC<MapScreenProps> = ({
     return pioneerIds;
   }, [allPins]);
 
-  // Group pins within 500 meters. The representative pin (group[0]) is the oldest (first posted) pin.
+  // Group pins within 500 meters per user. The representative pin (group[0]) is the oldest (first posted) pin.
   const groupedValidPins = useMemo(() => {
-    // 1. Identify all sponsored venue IDs
-    const sponsoredVenueIds = new Set(displayedVenues.filter(v => v.is_sponsored || (v.sponsor_tier && v.sponsor_tier >= 1)).map(v => v.venueId));
+    try {
+      // 1. Identify all sponsored venue IDs
+      const sponsoredVenueIds = new Set((displayedVenues || []).filter(v => v && (v.is_sponsored || (v.sponsor_tier && v.sponsor_tier >= 1))).map(v => v.venueId));
 
-    // 2. Filter out pins that belong to a sponsored venue so they don't render on the map directly
-    let mapRenderablePins = validPins.filter(pin => !pin.venueId || !sponsoredVenueIds.has(pin.venueId));
+      // 2. Filter out pins that belong to a sponsored venue so they don't render on the map directly
+      let mapRenderablePins = (validPins || []).filter(pin => pin && (!pin.venueId || !sponsoredVenueIds.has(pin.venueId)));
 
-    if (isFilterFriends) {
-      mapRenderablePins = mapRenderablePins.filter(pin => 
-        pin.userId === currentUserId || followingIds.includes(pin.userId)
-      );
-    }
-
-    // Sort pins oldest first so that the seed pin for each cluster is the earliest posted pin
-    const sortedPins = [...mapRenderablePins].sort((a, b) => {
-      const timeA = (a.timestamp as any)?.toDate ? (a.timestamp as any).toDate().getTime() : new Date(a.timestamp || 0).getTime();
-      const timeB = (b.timestamp as any)?.toDate ? (b.timestamp as any).toDate().getTime() : new Date(b.timestamp || 0).getTime();
-      return (timeA || 0) - (timeB || 0);
-    });
-    const groups: Pin[][] = [];
-    const processed = new Set<string>();
-
-    for (const pin of sortedPins) {
-      if (processed.has(pin.pinId!)) continue;
-      const currentGroup = [pin];
-      processed.add(pin.pinId!);
-
-      for (const otherPin of sortedPins) {
-        if (processed.has(otherPin.pinId!)) continue;
-        if (pin.userId !== otherPin.userId) continue;
-
-        const distance = calculateDistance(pin.latitude, pin.longitude, otherPin.latitude, otherPin.longitude);
-        
-        if (distance <= 500) {
-          currentGroup.push(otherPin);
-          processed.add(otherPin.pinId!);
-        }
+      if (isFilterFriends) {
+        mapRenderablePins = mapRenderablePins.filter(pin => 
+          pin && (pin.userId === currentUserId || (Array.isArray(followingIds) && followingIds.includes(pin.userId)))
+        );
       }
-      groups.push(currentGroup);
+
+      // Sort pins oldest first so that the seed pin for each cluster is the earliest posted pin
+      const sortedPins = [...mapRenderablePins].sort((a, b) => {
+        const timeA = a ? getPinTimestampMs(a.timestamp) : 0;
+        const timeB = b ? getPinTimestampMs(b.timestamp) : 0;
+        return timeA - timeB;
+      });
+
+      // Partition pins by userId for O(N) grouping speed instead of O(N^2)
+      const pinsByUserId = new Map<string, Pin[]>();
+      for (const pin of sortedPins) {
+        if (!pin) continue;
+        const uid = pin.userId || 'anonymous';
+        let userPins = pinsByUserId.get(uid);
+        if (!userPins) {
+          userPins = [];
+          pinsByUserId.set(uid, userPins);
+        }
+        userPins.push(pin);
+      }
+
+      const groups: Pin[][] = [];
+
+      // Group per-user pins within 500m
+      pinsByUserId.forEach((userPins) => {
+        if (!userPins || !Array.isArray(userPins)) return;
+        const processed = new Set<string>();
+
+        for (const pin of userPins) {
+          if (!pin) continue;
+          const pinKey = pin.pinId || `${pin.latitude}_${pin.longitude}_${getPinTimestampMs(pin.timestamp)}`;
+          if (processed.has(pinKey)) continue;
+          const currentGroup = [pin];
+          processed.add(pinKey);
+
+          for (const otherPin of userPins) {
+            if (!otherPin) continue;
+            const otherKey = otherPin.pinId || `${otherPin.latitude}_${otherPin.longitude}_${getPinTimestampMs(otherPin.timestamp)}`;
+            if (processed.has(otherKey)) continue;
+
+            // Quick bounding box check (~0.006 deg approx 600m) before Haversine
+            if (Math.abs((pin.latitude || 0) - (otherPin.latitude || 0)) > 0.006 || Math.abs((pin.longitude || 0) - (otherPin.longitude || 0)) > 0.006) {
+              continue;
+            }
+
+            const distance = calculateDistance(pin.latitude, pin.longitude, otherPin.latitude, otherPin.longitude);
+            
+            if (distance <= 500) {
+              currentGroup.push(otherPin);
+              processed.add(otherKey);
+            }
+          }
+          groups.push(currentGroup);
+        }
+      });
+
+      groups.sort((groupA, groupB) => {
+        const latestA = groupA[groupA.length - 1];
+        const latestB = groupB[groupB.length - 1];
+        const timeA = latestA ? getPinTimestampMs(latestA.timestamp) : 0;
+        const timeB = latestB ? getPinTimestampMs(latestB.timestamp) : 0;
+        return timeA - timeB;
+      });
+      return groups;
+    } catch (e) {
+      console.warn("Error in groupedValidPins:", e);
+      return [];
     }
-    groups.sort((groupA, groupB) => {
-      const latestA = groupA[groupA.length - 1];
-      const latestB = groupB[groupB.length - 1];
-      const timeA = (latestA.timestamp as any)?.toDate ? (latestA.timestamp as any).toDate().getTime() : new Date(latestA.timestamp || 0).getTime();
-      const timeB = (latestB.timestamp as any)?.toDate ? (latestB.timestamp as any).toDate().getTime() : new Date(latestB.timestamp || 0).getTime();
-      return (timeA || 0) - (timeB || 0);
-    });
-    return groups;
-  }, [validPins, displayedVenues]);
+  }, [validPins, displayedVenues, isFilterFriends, currentUserId, followingIds]);
 
   // Fetch follower stats for validPins
   useEffect(() => {
@@ -1027,7 +1070,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
           const latestPin = group[group.length - 1];
           const isLiveNews = latestPin.post_type === "live_news";
           const isDeleteMode = deleteModePinId === firstPin.pinId;
-          const pinKey = `pin-${firstPin.pinId || `${firstPin.latitude}-${firstPin.longitude}-${firstPin.timestamp}`}-${latestPin.user_profile_pic || ''}`;
+          const pinKey = `pin-${firstPin.pinId || `${firstPin.latitude}-${firstPin.longitude}-${firstPin.userId}`}`;
 
           const closeSponsor = displayedVenues.find(
             v => v.is_sponsored && calculateDistance(firstPin.latitude, firstPin.longitude, v.latitude, v.longitude) < 10
@@ -1273,7 +1316,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
             return { ...venue, _renderLat: lat, _renderLng: lng };
           });
         })().map(venue => {
-          const sponsorKey = `sponsor-${venue.venueId}-${venue.custom_icon_url || venue.cover_image}-${venue.aesthetic_rating}-${venue.crowd_status}`;
+          const sponsorKey = `sponsor-${venue.venueId}`;
           const isZoomedOut = zoomScale <= 0.6;
           const markerHeight = isZoomedOut ? 3 : Math.max(50, getMarkerSize(zoomScale) * 1.2);
           const markerWidth = markerHeight;
