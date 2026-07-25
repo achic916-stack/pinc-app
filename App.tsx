@@ -647,8 +647,8 @@ export default function App() {
         <>
           <View 
             style={[
-              { flex: 1, position: 'absolute', width: '100%', height: '100%', zIndex: 1 },
-              activeTab === 'map' ? { opacity: 1 } : { opacity: 0, top: 10000 }
+              { flex: 1, position: 'absolute', width: '100%', height: '100%' },
+              activeTab === 'map' ? { opacity: 1, zIndex: 1 } : { opacity: 0, zIndex: -10 }
             ]}
             pointerEvents={activeTab === 'map' ? 'auto' : 'none'}
           >

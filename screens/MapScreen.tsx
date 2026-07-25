@@ -1054,17 +1054,20 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                         <View key={pin.pinId} style={{ 
                           marginLeft: index === 0 ? 0 : -20, // Overlap by roughly half a circle
                           position: 'relative',
-                          zIndex: index 
+                          zIndex: index,
+                          width: 44,
+                          height: 44,
+                          borderRadius: 22,
+                          borderWidth: 2,
+                          borderColor: pTierColor,
+                          backgroundColor: PincTheme.colors.card,
+                          overflow: 'hidden'
                         }}>
                           <RNImage
                             source={{ uri: picUrl }}
                             style={{
-                              width: 44,
-                              height: 44,
-                              borderRadius: 22,
-                              borderWidth: 2,
-                              borderColor: pTierColor,
-                              backgroundColor: PincTheme.colors.card
+                              width: '100%',
+                              height: '100%'
                             }}
                             resizeMode="cover"
                           />
@@ -1307,7 +1310,6 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                         style={{ 
                           width: '100%', 
                           height: '100%', 
-                          borderRadius: getMarkerSize(zoomScale) / 2,
                           borderWidth: firstPin.pinColor === 'rainbow' ? 1 : 0.5,
                           borderColor: '#000000'
                         }}
@@ -1468,8 +1470,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                             source={{ uri: venue.cover_image }}
                             style={{
                               width: innerWidth,
-                              height: innerHeight,
-                              borderRadius: 8
+                              height: innerHeight
                             }}
                             resizeMode="cover"
                           />
