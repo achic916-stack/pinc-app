@@ -51,18 +51,37 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // ==========================================
 // Helper for robustly extracting timestamp in milliseconds from any timestamp format
 export function getPinTimestampMs(timestamp: any): number {
-  if (!timestamp) return 0;
+  if (!timestamp) return Date.now();
   if (typeof timestamp.toDate === 'function') {
-    try { return timestamp.toDate().getTime(); } catch(e) {}
+    try { 
+      const t = timestamp.toDate().getTime();
+      if (!isNaN(t) && t > 0) return t;
+    } catch(e) {}
   }
-  if (timestamp.seconds !== undefined) {
+  if (typeof timestamp.toMillis === 'function') {
+    try { 
+      const t = timestamp.toMillis();
+      if (!isNaN(t) && t > 0) return t;
+    } catch(e) {}
+  }
+  if (timestamp.seconds !== undefined && typeof timestamp.seconds === 'number') {
     return timestamp.seconds * 1000;
   }
-  if (timestamp instanceof Date) {
-    return timestamp.getTime();
+  if (timestamp._seconds !== undefined && typeof timestamp._seconds === 'number') {
+    return timestamp._seconds * 1000;
   }
-  const parsed = new Date(timestamp).getTime();
-  return isNaN(parsed) ? 0 : parsed;
+  if (timestamp instanceof Date) {
+    const t = timestamp.getTime();
+    return isNaN(t) ? Date.now() : t;
+  }
+  if (typeof timestamp === 'number') {
+    return timestamp;
+  }
+  if (typeof timestamp === 'string') {
+    const parsed = new Date(timestamp).getTime();
+    if (!isNaN(parsed) && parsed > 0) return parsed;
+  }
+  return Date.now();
 }
 
 const firebaseConfig = {

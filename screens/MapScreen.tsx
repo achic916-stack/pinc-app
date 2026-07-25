@@ -569,19 +569,21 @@ export const MapScreen: React.FC<MapScreenProps> = ({
     const processed = new Set<string>();
 
     for (const pin of sortedPins) {
-      if (processed.has(pin.pinId!)) continue;
+      const pinKey = pin.pinId || `${pin.latitude}_${pin.longitude}_${getPinTimestampMs(pin.timestamp)}`;
+      if (processed.has(pinKey)) continue;
       const currentGroup = [pin];
-      processed.add(pin.pinId!);
+      processed.add(pinKey);
 
       for (const otherPin of sortedPins) {
-        if (processed.has(otherPin.pinId!)) continue;
+        const otherKey = otherPin.pinId || `${otherPin.latitude}_${otherPin.longitude}_${getPinTimestampMs(otherPin.timestamp)}`;
+        if (processed.has(otherKey)) continue;
         if (pin.userId !== otherPin.userId) continue;
 
         const distance = calculateDistance(pin.latitude, pin.longitude, otherPin.latitude, otherPin.longitude);
         
         if (distance <= 500) {
           currentGroup.push(otherPin);
-          processed.add(otherPin.pinId!);
+          processed.add(otherKey);
         }
       }
       // Sort pins within the group: oldest first, newest last
@@ -1098,19 +1100,13 @@ export const MapScreen: React.FC<MapScreenProps> = ({
               coordinate={{ latitude: displayLat, longitude: displayLng }}
               onPress={() => {
                 if (isDeleteMode) return;
-                if (group.length > 1) {
-                  const sortedNewestFirst = [...group].sort((a, b) => {
-                    return getPinTimestampMs(b.timestamp) - getPinTimestampMs(a.timestamp);
-                  });
-                  setReelsFeedPins(sortedNewestFirst);
-                } else {
-                  if (onSelectVenue) {
-                    onSelectVenue(null as any);
-                  }
-                  if (firstPin.pinId) {
-                    setReelsFeedPins([firstPin]);
-                  }
+                if (onSelectVenue) {
+                  onSelectVenue(null as any);
                 }
+                const sortedNewestFirst = [...group].sort((a, b) => {
+                  return getPinTimestampMs(b.timestamp) - getPinTimestampMs(a.timestamp);
+                });
+                setReelsFeedPins(sortedNewestFirst);
               }}
               onLongPress={() => {
                 if (currentUserId && latestPin.userId === currentUserId) {
