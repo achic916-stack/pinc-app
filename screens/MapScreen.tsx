@@ -997,7 +997,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
         showsBuildings={true}
         showsTraffic={false}
         showsIndoors={true}
-        showsUserLocation
+        showsUserLocation={!!userLocation}
         onRegionChange={handleRegionChange}
         onRegionChangeComplete={handleRegionChangeComplete}
         onPress={() => {
