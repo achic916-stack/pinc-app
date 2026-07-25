@@ -723,7 +723,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
         : latestPin.image_url;
     }
 
-    const timestamp = latestPin ? new Date(latestPin.timestamp).getTime() : 0;
+    const timestamp = latestPin ? getPinTimestampMs(latestPin.timestamp) : 0;
     return { photoUrl, timestamp, latestPin };
   }, [validPins]);
 

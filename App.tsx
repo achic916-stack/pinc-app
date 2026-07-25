@@ -213,7 +213,7 @@ export default function App() {
   // Filter current user's uploaded pins, newest first
   const currentUserPins = allPins
     .filter(pin => pin.userId === currentUser?.userId)
-    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    .sort((a, b) => getPinTimestampMs(b.timestamp) - getPinTimestampMs(a.timestamp));
 
   // 0. Initialize RevenueCat SDK on mount
   useEffect(() => {
@@ -254,8 +254,7 @@ export default function App() {
     
     if (followingIds && followingIds.length > 0 && allPins.length > 0) {
       const hasNew = allPins.some(pin => {
-        // Convert Firestore Timestamp to ms or use Date object
-        const pinTime = pin.timestamp && typeof (pin.timestamp as any).toDate === 'function' ? (pin.timestamp as any).toDate().getTime() : new Date(pin.timestamp).getTime();
+        const pinTime = getPinTimestampMs(pin.timestamp);
         return followingIds.includes(pin.userId) && pinTime > lastHomeViewTime;
       });
       setHasNewFollowedPost(hasNew);
