@@ -549,109 +549,132 @@ export const MapScreen: React.FC<MapScreenProps> = ({
 
   // Precompute the oldest permanent pin (pioneer pin) for each 500m location area globally
   const pioneerPinIds = useMemo(() => {
-    if (!allPins || !Array.isArray(allPins)) return new Set<string>();
-    const sortedAll = [...allPins].filter(p => p && p.post_type !== "live_news" && p.latitude && p.longitude).sort((a, b) => {
-      const timeA = getPinTimestampMs(a.timestamp);
-      const timeB = getPinTimestampMs(b.timestamp);
-      return timeA - timeB;
-    });
-    const pioneerIds = new Set<string>();
-    const pioneerLocations: {lat: number, lng: number}[] = [];
+    try {
+      if (!allPins || !Array.isArray(allPins)) return new Set<string>();
+      const sortedAll = [...allPins].filter(p => p && p.post_type !== "live_news" && p.latitude && p.longitude).sort((a, b) => {
+        const timeA = a ? getPinTimestampMs(a.timestamp) : 0;
+        const timeB = b ? getPinTimestampMs(b.timestamp) : 0;
+        return timeA - timeB;
+      });
+      const pioneerIds = new Set<string>();
+      const pioneerLocations: {lat: number, lng: number}[] = [];
 
-    for (const pin of sortedAll) {
-       let isPioneer = true;
-       // Spatial check: only compare with nearby pioneer locations
-       for (const loc of pioneerLocations) {
-          // Fast bounding box check (~0.005 deg ≈ 550m) before exact Haversine
-          if (Math.abs(pin.latitude - loc.lat) > 0.006 || Math.abs(pin.longitude - loc.lng) > 0.006) {
-            continue;
-          }
-          if (calculateDistance(pin.latitude, pin.longitude, loc.lat, loc.lng) <= 500) {
-             isPioneer = false;
-             break;
-          }
-       }
-       if (isPioneer) {
-          if (pin.pinId) pioneerIds.add(pin.pinId);
-          pioneerLocations.push({lat: pin.latitude, lng: pin.longitude});
-       }
+      for (const pin of sortedAll) {
+         if (!pin || !pin.latitude || !pin.longitude) continue;
+         let isPioneer = true;
+         // Spatial check: only compare with nearby pioneer locations
+         for (const loc of pioneerLocations) {
+            // Fast bounding box check (~0.005 deg ≈ 550m) before exact Haversine
+            if (Math.abs(pin.latitude - loc.lat) > 0.006 || Math.abs(pin.longitude - loc.lng) > 0.006) {
+              continue;
+            }
+            if (calculateDistance(pin.latitude, pin.longitude, loc.lat, loc.lng) <= 500) {
+               isPioneer = false;
+               break;
+            }
+         }
+         if (isPioneer) {
+            if (pin.pinId) pioneerIds.add(pin.pinId);
+            pioneerLocations.push({lat: pin.latitude, lng: pin.longitude});
+         }
+      }
+      return pioneerIds;
+    } catch (e) {
+      console.warn("Error in pioneerPinIds:", e);
+      return new Set<string>();
     }
-    return pioneerIds;
   }, [allPins]);
 
   // Group pins within 500 meters. The representative pin (group[0]) is the oldest (first posted) pin.
   const groupedValidPins = useMemo(() => {
-    // 1. Identify all sponsored venue IDs
-    const sponsoredVenueIds = new Set(displayedVenues.filter(v => v.is_sponsored || (v.sponsor_tier && v.sponsor_tier >= 1)).map(v => v.venueId));
+    try {
+      // 1. Identify all sponsored venue IDs
+      const sponsoredVenueIds = new Set((displayedVenues || []).filter(v => v && (v.is_sponsored || (v.sponsor_tier && v.sponsor_tier >= 1))).map(v => v.venueId));
 
-    // 2. Filter out pins that belong to a sponsored venue so they don't render as separate user markers
-    let mapRenderablePins = validPins.filter(pin => !pin.venueId || !sponsoredVenueIds.has(pin.venueId));
+      // 2. Filter out pins that belong to a sponsored venue so they don't render as separate user markers
+      let mapRenderablePins = (validPins || []).filter(pin => pin && (!pin.venueId || !sponsoredVenueIds.has(pin.venueId)));
 
-    if (isFilterFriends) {
-      mapRenderablePins = mapRenderablePins.filter(pin => 
-        pin && (pin.userId === currentUserId || (Array.isArray(followingIds) && followingIds.includes(pin.userId)))
-      );
-    }
-
-    // Sort pins oldest first so that the seed pin for each cluster is the earliest posted pin
-    const sortedPins = [...mapRenderablePins].sort((a, b) => {
-      return getPinTimestampMs(a.timestamp) - getPinTimestampMs(b.timestamp);
-    });
-
-    // Partition pins by userId for O(N) grouping speed instead of O(N^2)
-    const pinsByUserId = new Map<string, Pin[]>();
-    for (const pin of sortedPins) {
-      const uid = pin.userId || 'anonymous';
-      let userPins = pinsByUserId.get(uid);
-      if (!userPins) {
-        userPins = [];
-        pinsByUserId.set(uid, userPins);
+      if (isFilterFriends) {
+        mapRenderablePins = mapRenderablePins.filter(pin => 
+          pin && (pin.userId === currentUserId || (Array.isArray(followingIds) && followingIds.includes(pin.userId)))
+        );
       }
-      userPins.push(pin);
-    }
 
-    const groups: Pin[][] = [];
+      // Sort pins oldest first so that the seed pin for each cluster is the earliest posted pin
+      const sortedPins = [...mapRenderablePins].sort((a, b) => {
+        const tA = a ? getPinTimestampMs(a.timestamp) : 0;
+        const tB = b ? getPinTimestampMs(b.timestamp) : 0;
+        return tA - tB;
+      });
 
-    // Group per-user pins within 500m
-    pinsByUserId.forEach((userPins) => {
-      const processed = new Set<string>();
+      // Partition pins by userId for O(N) grouping speed instead of O(N^2)
+      const pinsByUserId = new Map<string, Pin[]>();
+      for (const pin of sortedPins) {
+        if (!pin) continue;
+        const uid = pin.userId || 'anonymous';
+        let userPins = pinsByUserId.get(uid);
+        if (!userPins) {
+          userPins = [];
+          pinsByUserId.set(uid, userPins);
+        }
+        userPins.push(pin);
+      }
 
-      for (const pin of userPins) {
-        const pinKey = pin.pinId || `${pin.latitude}_${pin.longitude}_${getPinTimestampMs(pin.timestamp)}`;
-        if (processed.has(pinKey)) continue;
-        const currentGroup = [pin];
-        processed.add(pinKey);
+      const groups: Pin[][] = [];
 
-        for (const otherPin of userPins) {
-          const otherKey = otherPin.pinId || `${otherPin.latitude}_${otherPin.longitude}_${getPinTimestampMs(otherPin.timestamp)}`;
-          if (processed.has(otherKey)) continue;
+      // Group per-user pins within 500m
+      pinsByUserId.forEach((userPins) => {
+        if (!userPins || !Array.isArray(userPins)) return;
+        const processed = new Set<string>();
 
-          // Quick bounding box check (~0.006 deg approx 600m)
-          if (Math.abs(pin.latitude - otherPin.latitude) > 0.006 || Math.abs(pin.longitude - otherPin.longitude) > 0.006) {
-            continue;
+        for (const pin of userPins) {
+          if (!pin) continue;
+          const pinKey = pin.pinId || `${pin.latitude}_${pin.longitude}_${getPinTimestampMs(pin.timestamp)}`;
+          if (processed.has(pinKey)) continue;
+          const currentGroup = [pin];
+          processed.add(pinKey);
+
+          for (const otherPin of userPins) {
+            if (!otherPin) continue;
+            const otherKey = otherPin.pinId || `${otherPin.latitude}_${otherPin.longitude}_${getPinTimestampMs(otherPin.timestamp)}`;
+            if (processed.has(otherKey)) continue;
+
+            // Quick bounding box check (~0.006 deg approx 600m)
+            if (Math.abs((pin.latitude || 0) - (otherPin.latitude || 0)) > 0.006 || Math.abs((pin.longitude || 0) - (otherPin.longitude || 0)) > 0.006) {
+              continue;
+            }
+
+            const distance = calculateDistance(pin.latitude, pin.longitude, otherPin.latitude, otherPin.longitude);
+            
+            if (distance <= 500) {
+              currentGroup.push(otherPin);
+              processed.add(otherKey);
+            }
           }
-
-          const distance = calculateDistance(pin.latitude, pin.longitude, otherPin.latitude, otherPin.longitude);
-          
-          if (distance <= 500) {
-            currentGroup.push(otherPin);
-            processed.add(otherKey);
+          // Sort pins within the group: oldest first, newest last
+          currentGroup.sort((a, b) => {
+            const tA = a ? getPinTimestampMs(a.timestamp) : 0;
+            const tB = b ? getPinTimestampMs(b.timestamp) : 0;
+            return tA - tB;
+          });
+          if (currentGroup.length > 0) {
+            groups.push(currentGroup);
           }
         }
-        // Sort pins within the group: oldest first, newest last
-        currentGroup.sort((a, b) => {
-          return getPinTimestampMs(a.timestamp) - getPinTimestampMs(b.timestamp);
-        });
-        groups.push(currentGroup);
-      }
-    });
+      });
 
-    groups.sort((groupA, groupB) => {
-      const latestA = groupA[groupA.length - 1];
-      const latestB = groupB[groupB.length - 1];
-      return getPinTimestampMs(latestA.timestamp) - getPinTimestampMs(latestB.timestamp);
-    });
-    return groups;
+      groups.sort((groupA, groupB) => {
+        const latestA = groupA && groupA.length > 0 ? groupA[groupA.length - 1] : null;
+        const latestB = groupB && groupB.length > 0 ? groupB[groupB.length - 1] : null;
+        const tA = latestA ? getPinTimestampMs(latestA.timestamp) : 0;
+        const tB = latestB ? getPinTimestampMs(latestB.timestamp) : 0;
+        return tA - tB;
+      });
+      return groups;
+    } catch (e) {
+      console.warn("Error in groupedValidPins:", e);
+      return [];
+    }
   }, [validPins, displayedVenues, isFilterFriends, currentUserId, followingIds]);
 
   // Fetch follower stats for validPins
@@ -1125,8 +1148,10 @@ export const MapScreen: React.FC<MapScreenProps> = ({
         }}
       >
         {groupedValidPins.map((group) => {
+          if (!group || !Array.isArray(group) || group.length === 0) return null;
           const firstPin = group[0];
           const latestPin = group[group.length - 1];
+          if (!firstPin || !latestPin || !firstPin.latitude || !firstPin.longitude) return null;
           const isLiveNews = latestPin.post_type === "live_news";
           const isDeleteMode = deleteModePinId === firstPin.pinId;
           const pinKey = `pin-${firstPin.pinId || `${firstPin.latitude}_${firstPin.longitude}`}`;
