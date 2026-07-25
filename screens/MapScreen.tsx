@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo, useEffect } from "react";
+import React, { useState, useRef, useMemo, useEffect, useCallback } from "react";
 import { darkMapStyle } from "./darkMapStyle";
 import { pincDarkStyle } from '../constants/pincDarkStyle';
 import { pincIOSDarkStyle } from '../constants/pincIOSDarkStyle';
@@ -156,7 +156,7 @@ const CustomMapMarker: React.FC<CustomMapMarkerProps> = ({
     setTracksView(true);
     const timer = setTimeout(() => {
       setTracksView(false);
-    }, 2500);
+    }, 500);
     return () => clearTimeout(timer);
   }, [coordinate?.latitude, coordinate?.longitude, identifier, tracksViewOverride]);
 
@@ -221,7 +221,19 @@ export const MapScreen: React.FC<MapScreenProps> = ({
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [isSearchVisible, setIsSearchVisible] = useState(false);
   const [isFilterFriends, setIsFilterFriends] = useState(false);
-  const [reelsFeedPins, setReelsFeedPins] = useState<Pin[]>([]);
+  const [reelsFeedPins, setReelsFeedPinsRaw] = useState<Pin[]>([]);
+  const modalClosedAtRef = useRef<number>(0);
+  const MODAL_COOLDOWN_MS = 1000;
+  const setReelsFeedPins = useCallback((pins: Pin[]) => {
+    if (pins.length > 0 && Date.now() - modalClosedAtRef.current < MODAL_COOLDOWN_MS) {
+      return; // Ignore spurious Android marker press events right after closing
+    }
+    setReelsFeedPinsRaw(pins);
+  }, []);
+  const closeReelsFeed = useCallback(() => {
+    modalClosedAtRef.current = Date.now();
+    setReelsFeedPinsRaw([]);
+  }, []);
   const [deleteModePinId, setDeleteModePinId] = useState<string | null>(null);
   const [currentCenterRegion, setCurrentCenterRegion] = useState<{ latitude: number; longitude: number } | null>(null);
   const [isUpdatingBase, setIsUpdatingBase] = useState(false);
@@ -1655,7 +1667,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
       <ReelsFeedModal
         visible={reelsFeedPins.length > 0}
         pins={reelsFeedPins}
-        onClose={() => setReelsFeedPins([])}
+        onClose={closeReelsFeed}
         currentUserId={currentUserId || auth.currentUser?.uid || ""}
         onOpenUserProfile={onOpenUserProfile}
         locale={locale}
