@@ -28,7 +28,7 @@ import { LinearGradient } from "expo-linear-gradient";
 
 const Marker = Platform.OS === 'web' ? View : RNMaps.Marker;
 const PROVIDER_GOOGLE = Platform.OS === 'web' ? null : RNMaps.PROVIDER_GOOGLE;
-const MapView = Platform.OS === 'web' ? View : RNMapClustering;
+const MapView = Platform.OS === 'web' ? View : RNMaps.default;
 const Audio = { Sound: { createAsync: async () => ({ sound: { playAsync: async () => { }, stopAsync: async () => { }, unloadAsync: async () => { } } }) }, setAudioModeAsync: async () => { } }; const Video = () => null; const ResizeMode = { COVER: 'cover', CONTAIN: 'contain' };
 
 import { CachedVideo } from "../components/CachedVideo";
@@ -987,168 +987,10 @@ export const MapScreen: React.FC<MapScreenProps> = ({
         showsTraffic={false}
         showsIndoors={true}
         showsUserLocation
-        showsMyLocationButton={false}
-        spiralEnabled={false}
-        preserveClusterPressBehavior={true}
-        loadingEnabled={true}
-        loadingBackgroundColor="#14141e"
-        loadingIndicatorColor={PincTheme.colors.primary}
         onRegionChange={handleRegionChange}
         onRegionChangeComplete={handleRegionChangeComplete}
-        clusterColor={PincTheme.colors.primary}
-        clusterTextColor="#FFFFFF"
-        radius={15}
-        renderCluster={(cluster: any) => {
-          const { id, geometry, onPress, properties } = cluster;
-          const points = properties.point_count;
-          const centerLat = geometry.coordinates[1];
-          const centerLng = geometry.coordinates[0];
-
-          let nearestPin: any = null;
-          let minDistance = Infinity;
-          validPins.forEach(p => {
-            const d = Math.pow(p.latitude - centerLat, 2) + Math.pow(p.longitude - centerLng, 2);
-            if (d < minDistance) {
-              minDistance = d;
-              nearestPin = p;
-            }
-          });
-
-          // Find the actual pins in this cluster by sorting validPins by distance
-          const sortedByDistance = [...validPins].map(p => {
-            const d = Math.pow(p.latitude - centerLat, 2) + Math.pow(p.longitude - centerLng, 2);
-            return { p, d };
-          }).sort((a, b) => a.d - b.d);
-          
-          // Get the pins belonging to this cluster
-          const clusterPinsRaw = sortedByDistance.slice(0, points).map(item => item.p);
-          
-          // Calculate max physical distance from center
-          let maxPhysicalDistance = 0;
-          sortedByDistance.slice(0, points).forEach(item => {
-            const dist = calculateDistance(item.p.latitude, item.p.longitude, centerLat, centerLng);
-            if (dist > maxPhysicalDistance) maxPhysicalDistance = dist;
-          });
-
-          // Sort by timestamp: oldest first (back), newest last (front)
-          const clusterPins = clusterPinsRaw.sort((a, b) => getPinTimestampMs(a.timestamp) - getPinTimestampMs(b.timestamp));
-          
-          // If the cluster spans a large physical distance (> 150m), it's just a zoomed-out grouping.
-          // Don't show them as "stacked" (overlapping) because they aren't actually at the same spot.
-          // Just show the representative (newest) pin. If they are truly close (<= 150m), show the overlap.
-          const displayPins = maxPhysicalDistance > 150 ? clusterPins.slice(-1) : clusterPins.slice(-3);
-
-          const clusterKey = `cluster-${id}-${points}`;
-          const baseTierColor = nearestPin ? getTierColor(followerStatsCache[nearestPin.userId] || 0) : '#E0E0E0';
-
-          return (
-            <CustomMapMarker key={clusterKey} coordinate={{ latitude: centerLat, longitude: centerLng }} onPress={onPress} zoomScale={zoomScale}>
-              <View style={{ alignItems: 'center', paddingBottom: 10, paddingHorizontal: 10, backgroundColor: 'transparent' }}>
-                {zoomScale > 0.6 ? (
-                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    {displayPins.map((pin, index) => {
-                      const picUrl = pin.user_profile_pic || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80';
-                      const pTierColor = getTierColor(followerStatsCache[pin.userId] || 0);
-                      
-                      return (
-                        <View key={pin.pinId} style={{ 
-                          marginLeft: index === 0 ? 0 : -20, // Overlap by roughly half a circle
-                          position: 'relative',
-                          zIndex: index,
-                          width: 44,
-                          height: 44,
-                          borderRadius: 22,
-                          borderWidth: 2,
-                          borderColor: pTierColor,
-                          backgroundColor: PincTheme.colors.card,
-                          overflow: 'hidden'
-                        }}>
-                          <RNImage
-                            source={{ uri: picUrl }}
-                            style={{
-                              width: '100%',
-                              height: '100%'
-                            }}
-                            resizeMode="cover"
-                          />
-                          
-                          {/* Show badge only on the very last (front-most) pin if points > 3 */}
-                          {index === displayPins.length - 1 && points > 3 && (
-                            <View style={{
-                              position: 'absolute',
-                              bottom: -4, right: -4,
-                              backgroundColor: '#FF3B30',
-                              borderRadius: 10,
-                              paddingHorizontal: 5, paddingVertical: 2,
-                              borderWidth: 1.5, borderColor: '#FFFFFF'
-                            }}>
-                              <Text style={{ color: '#FFFFFF', fontSize: 10, fontWeight: 'bold' }}>{points > 99 ? '99+' : points}</Text>
-                            </View>
-                          )}
-                        </View>
-                      );
-                    })}
-                  </View>
-                ) : (
-                  <View style={{
-                    width: 3, height: 3, borderRadius: 1.5,
-                    backgroundColor: baseTierColor
-                  }} />
-                )}
-              </View>
-            </CustomMapMarker>
-          );
-        }}
         onPress={() => {
           setDeleteModePinId(null);
-        }}
-        onClusterPress={(cluster: any, markers?: any[]) => {
-          if (!markers) return;
-          const clusterPins: Pin[] = [];
-          const addedPinIds = new Set<string>();
-
-          markers.forEach((m: any) => {
-            const mLat = m.geometry?.coordinates?.[1];
-            const mLng = m.geometry?.coordinates?.[0];
-            const mKey = m.properties?.identifier || m.id || '';
-
-            // Find matching groups from groupedValidPins
-            groupedValidPins.forEach(group => {
-              const firstPin = group[0];
-              const pKey = firstPin.pinId || `${firstPin.latitude}-${firstPin.longitude}-${getPinTimestampMs(firstPin.timestamp)}`;
-              const isMatch = (pKey === mKey) || (mLat && mLng && calculateDistance(firstPin.latitude, firstPin.longitude, mLat, mLng) < 50);
-
-              if (isMatch) {
-                group.forEach(p => {
-                  const idKey = p.pinId || `${p.latitude}-${p.longitude}-${getPinTimestampMs(p.timestamp)}`;
-                  if (!addedPinIds.has(idKey)) {
-                    addedPinIds.add(idKey);
-                    clusterPins.push(p);
-                  }
-                });
-              }
-            });
-          });
-
-          // Fallback: if no pins found via group match, search validPins by proximity to cluster center
-          if (clusterPins.length === 0 && cluster?.geometry?.coordinates) {
-            const cLat = cluster.geometry.coordinates[1];
-            const cLng = cluster.geometry.coordinates[0];
-            validPins.forEach(p => {
-              if (calculateDistance(p.latitude, p.longitude, cLat, cLng) < 1000) {
-                const idKey = p.pinId || `${p.latitude}-${p.longitude}-${getPinTimestampMs(p.timestamp)}`;
-                if (!addedPinIds.has(idKey)) {
-                  addedPinIds.add(idKey);
-                  clusterPins.push(p);
-                }
-              }
-            });
-          }
-
-          if (clusterPins.length > 0) {
-            clusterPins.sort((a, b) => getPinTimestampMs(b.timestamp) - getPinTimestampMs(a.timestamp));
-            setReelsFeedPins(clusterPins);
-          }
         }}
       >
         {groupedValidPins.map((group) => {
