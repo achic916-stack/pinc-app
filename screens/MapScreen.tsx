@@ -1031,7 +1031,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
           });
 
           // Sort by timestamp: oldest first (back), newest last (front)
-          const clusterPins = clusterPinsRaw.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+          const clusterPins = clusterPinsRaw.sort((a, b) => getPinTimestampMs(a.timestamp) - getPinTimestampMs(b.timestamp));
           
           // If the cluster spans a large physical distance (> 150m), it's just a zoomed-out grouping.
           // Don't show them as "stacked" (overlapping) because they aren't actually at the same spot.
