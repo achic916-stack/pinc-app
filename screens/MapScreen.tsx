@@ -49,6 +49,7 @@ const isVideoUrl = (url: string | null | undefined): boolean => {
     urlLower.includes("video") ||
     urlLower.includes(".mp4?") ||
     urlLower.includes(".mov?")
+  );
 };
 
 const getPinTimestampMs = (timestamp: any): number => {
