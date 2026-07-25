@@ -160,6 +160,16 @@ const CustomMapMarker: React.FC<CustomMapMarkerProps> = ({
     return () => clearTimeout(timer);
   }, [coordinate?.latitude, coordinate?.longitude, identifier, tracksViewOverride]);
 
+  if (
+    !coordinate ||
+    typeof coordinate.latitude !== 'number' ||
+    typeof coordinate.longitude !== 'number' ||
+    isNaN(coordinate.latitude) ||
+    isNaN(coordinate.longitude)
+  ) {
+    return null;
+  }
+
   const markerProps: any = {
     coordinate,
     onPress,
@@ -760,7 +770,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
   };
 
   // Start at user location at street level height if available, else default
-  const initialRegion = userLocation ? {
+  const initialRegion = (userLocation && typeof userLocation.latitude === 'number' && typeof userLocation.longitude === 'number' && !isNaN(userLocation.latitude) && !isNaN(userLocation.longitude)) ? {
     latitude: userLocation.latitude,
     longitude: userLocation.longitude,
     latitudeDelta: 0.005,
@@ -776,9 +786,10 @@ export const MapScreen: React.FC<MapScreenProps> = ({
     if (!searchQuery.trim()) return [];
     const queryStr = searchQuery.toLowerCase().trim();
 
-    const matchedVenues = displayedVenues.filter((venue) => {
-      const nameMatch = venue.name.toLowerCase().includes(queryStr);
-      const catMatch = venue.category.toLowerCase().includes(queryStr);
+    const matchedVenues = (displayedVenues || []).filter((venue) => {
+      if (!venue) return false;
+      const nameMatch = (venue.name || '').toLowerCase().includes(queryStr);
+      const catMatch = (venue.category || '').toLowerCase().includes(queryStr);
       
       let packageMatch = false;
       if (venue.is_sponsored) {
@@ -808,8 +819,8 @@ export const MapScreen: React.FC<MapScreenProps> = ({
     const matchedPosts: any[] = [];
     let postCount = 0;
 
-    allPins.forEach(p => {
-       if (p.userId && !usersMap.has(p.userId)) {
+    (allPins || []).forEach(p => {
+       if (p && p.userId && !usersMap.has(p.userId)) {
           usersMap.set(p.userId, {
              userId: p.userId,
              username: p.username || 'Unknown',
@@ -818,7 +829,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
              longitude: p.longitude,
           });
        }
-       if (postCount < 5 && ((p.text_content || '').toLowerCase().includes(queryStr) || (p.username || '').toLowerCase().includes(queryStr))) {
+       if (p && postCount < 5 && ((p.text_content || '').toLowerCase().includes(queryStr) || (p.username || '').toLowerCase().includes(queryStr))) {
           if (p.latitude && p.longitude) {
             matchedPosts.push({ type: 'post', item: p });
             postCount++;
@@ -827,7 +838,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
     });
 
     const matchedUsers = Array.from(usersMap.values())
-       .filter(u => u.username.toLowerCase().includes(queryStr) && u.latitude && u.longitude)
+       .filter(u => u && (u.username || '').toLowerCase().includes(queryStr) && u.latitude && u.longitude)
        .map(u => ({ type: 'user', item: u }))
        .slice(0, 5);
 
@@ -997,23 +1008,26 @@ export const MapScreen: React.FC<MapScreenProps> = ({
           if (!group || !Array.isArray(group) || group.length === 0) return null;
           const firstPin = group[0];
           const latestPin = group[group.length - 1];
-          if (!firstPin || !latestPin || !firstPin.latitude || !firstPin.longitude) return null;
+          const fLat = Number(firstPin?.latitude);
+          const fLng = Number(firstPin?.longitude);
+          if (isNaN(fLat) || isNaN(fLng) || fLat === 0 || fLng === 0) return null;
+
           const isLiveNews = latestPin.post_type === "live_news";
           const isDeleteMode = deleteModePinId === firstPin.pinId;
-          const pinKey = `pin-${firstPin.pinId || `${firstPin.latitude}_${firstPin.longitude}`}`;
+          const pinKey = `pin-${firstPin.pinId || `${fLat}_${fLng}`}`;
 
           const avatarUri = (group && Array.isArray(group)) ? (group.find(p => p && typeof p.user_profile_pic === 'string' && p.user_profile_pic.trim().length > 0)?.user_profile_pic 
             || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80') : 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80';
 
-          const closeSponsor = displayedVenues.find(
-            v => v && v.is_sponsored && calculateDistance(firstPin.latitude, firstPin.longitude, v.latitude, v.longitude) < 10
+          const closeSponsor = (displayedVenues || []).find(
+            v => v && v.is_sponsored && v.latitude && v.longitude && calculateDistance(fLat, fLng, Number(v.latitude), Number(v.longitude)) < 10
           );
 
-          let displayLat = firstPin.latitude;
-          let displayLng = firstPin.longitude;
+          let displayLat = fLat;
+          let displayLng = fLng;
           if (closeSponsor) {
-            displayLat = firstPin.latitude - 0.00010;
-            displayLng = firstPin.longitude + 0.00010;
+            displayLat = fLat - 0.00010;
+            displayLng = fLng + 0.00010;
           }
 
           return (
@@ -1208,9 +1222,9 @@ export const MapScreen: React.FC<MapScreenProps> = ({
             </CustomMapMarker>
           );
         })}
-        {selectedMemoryPin && (
+        {selectedMemoryPin && typeof selectedMemoryPin.latitude === 'number' && typeof selectedMemoryPin.longitude === 'number' && !isNaN(selectedMemoryPin.latitude) && !isNaN(selectedMemoryPin.longitude) && (
           <Marker
-            coordinate={{ latitude: selectedMemoryPin.latitude, longitude: selectedMemoryPin.longitude }}
+            coordinate={{ latitude: Number(selectedMemoryPin.latitude), longitude: Number(selectedMemoryPin.longitude) }}
             tracksViewChanges={false}
             zIndex={9999}
           >
@@ -1222,11 +1236,11 @@ export const MapScreen: React.FC<MapScreenProps> = ({
         )}
 
         {(() => {
-          const sponsored = displayedVenues.filter(venue => venue.is_sponsored);
+          const sponsored = (displayedVenues || []).filter(venue => venue && typeof venue.latitude === 'number' && typeof venue.longitude === 'number' && (venue.is_sponsored || (venue.sponsor_tier && venue.sponsor_tier >= 1)));
           const coordsCount: Record<string, number> = {};
           return sponsored.map(venue => {
-            const latKey = venue.latitude.toFixed(4);
-            const lngKey = venue.longitude.toFixed(4);
+            const latKey = (venue.latitude || 0).toFixed(4);
+            const lngKey = (venue.longitude || 0).toFixed(4);
             const key = `${latKey},${lngKey}`;
             let lat = venue.latitude;
             let lng = venue.longitude;
