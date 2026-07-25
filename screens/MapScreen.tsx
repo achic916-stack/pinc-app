@@ -175,7 +175,7 @@ const CustomMapMarker: React.FC<CustomMapMarkerProps> = ({
     onPress,
     anchor,
     zIndex,
-    tracksViewChanges: tracksViewOverride !== undefined ? tracksViewOverride : tracksView,
+    tracksViewChanges: tracksViewOverride !== undefined ? tracksViewOverride : (Platform.OS === 'android' ? true : tracksView),
   };
   if (identifier) {
     markerProps.identifier = identifier;
@@ -1095,56 +1095,18 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                   borderRadius: getMarkerSize(zoomScale) / 2,
                   zIndex: 10
                 }}>
-                  {zoomScale > 0.6 && (firstPin.pinColor === 'rainbow' ? (
-                    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' }}>
-                      {[
-                        ...Array.from({ length: 9 }).map((_, i) => {
-                          const layerIndex = 9 - i;
-                          const spread = 9 + layerIndex;
-                          const progress = layerIndex / 9;
-                          return {
-                            spread: spread,
-                            color: '#9400D3',
-                            opacity: 0.25 * Math.pow(1 - progress, 2)
-                          };
-                        }),
-                        { spread: 9, color: '#9400D3', opacity: 1.00 },
-                        { spread: 7.5, color: '#0044FF', opacity: 1.00 },
-                        { spread: 6, color: '#00CC44', opacity: 1.00 },
-                        { spread: 4.5, color: '#FFEE00', opacity: 1.00 },
-                        { spread: 3, color: '#FF8C00', opacity: 1.00 },
-                        { spread: 1.5, color: '#FF0000', opacity: 1.00 },
-                      ].map((layer, i) => (
-                        <View key={`glow-${i}`} style={{
-                          position: 'absolute',
-                          top: -layer.spread,
-                          left: -layer.spread,
-                          width: getMarkerSize(zoomScale) + layer.spread * 2,
-                          height: getMarkerSize(zoomScale) + layer.spread * 2,
-                          borderRadius: (getMarkerSize(zoomScale) + layer.spread * 2) / 2,
-                          backgroundColor: layer.color,
-                          opacity: layer.opacity,
-                        }} />
-                      ))}
-                    </View>
-                  ) : (
-                    Array.from({ length: 9 }).map((_, i) => {
-                      const glowSpread = i + 1; // 1px to 9px spread
-                      const progress = glowSpread / 9;
-                      const opacity = (isLiveNews ? 0.20 : 0.15) * Math.pow(1 - progress, 2);
-                      return (
-                        <View key={`glow-${i}`} style={{
-                          position: 'absolute',
-                          top: -glowSpread, left: -glowSpread,
-                          width: getMarkerSize(zoomScale) + glowSpread * 2,
-                          height: getMarkerSize(zoomScale) + glowSpread * 2,
-                          borderRadius: (getMarkerSize(zoomScale) + glowSpread * 2) / 2,
-                          backgroundColor: isLiveNews ? PincTheme.colors.crowdRed : (firstPin.pinColor || '#FF69B4'),
-                          opacity: opacity,
-                        }} />
-                      );
-                    })
-                  ))}
+                  {zoomScale > 0.6 && (
+                    <View style={{
+                      position: 'absolute',
+                      top: -6,
+                      left: -6,
+                      width: getMarkerSize(zoomScale) + 12,
+                      height: getMarkerSize(zoomScale) + 12,
+                      borderRadius: (getMarkerSize(zoomScale) + 12) / 2,
+                      backgroundColor: isLiveNews ? PincTheme.colors.crowdRed : (firstPin.pinColor === 'rainbow' ? '#9400D3' : (firstPin.pinColor || '#FF69B4')),
+                      opacity: 0.35,
+                    }} />
+                  )}
                   {(followerStatsCache[firstPin.userId] || 0) >= 100000000 && (
                     <View style={{ 
                       position: 'absolute', top: -16, left: 0, right: 0, alignItems: 'center', zIndex: 100, elevation: 20
