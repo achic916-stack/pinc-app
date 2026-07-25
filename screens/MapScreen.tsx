@@ -221,18 +221,26 @@ export const MapScreen: React.FC<MapScreenProps> = ({
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [isSearchVisible, setIsSearchVisible] = useState(false);
   const [isFilterFriends, setIsFilterFriends] = useState(false);
-  const [reelsFeedPins, setReelsFeedPinsRaw] = useState<Pin[]>([]);
+  const modalClosedAtRef = useRef<number>(0);
   const mapMovingRef = useRef<boolean>(false);
   const lastMapMoveRef = useRef<number>(0);
-  const MAP_MOVE_SUPPRESS_MS = 600;
+  const MAP_MOVE_SUPPRESS_MS = 1000;
+  const MODAL_CLOSE_COOLDOWN_MS = 2000;
+
   const setReelsFeedPins = useCallback((pins: Pin[]) => {
-    // Block spurious Android onPress events that fire during/right after map movement
-    if (pins.length > 0 && (mapMovingRef.current || Date.now() - lastMapMoveRef.current < MAP_MOVE_SUPPRESS_MS)) {
-      return;
+    if (pins.length > 0) {
+      if (Date.now() - modalClosedAtRef.current < MODAL_CLOSE_COOLDOWN_MS) {
+        return; // Ignore spurious press events shortly after user explicitly closes modal
+      }
+      if (mapMovingRef.current || Date.now() - lastMapMoveRef.current < MAP_MOVE_SUPPRESS_MS) {
+        return; // Ignore spurious press events during/right after map movement
+      }
     }
     setReelsFeedPinsRaw(pins);
   }, []);
+
   const closeReelsFeed = useCallback(() => {
+    modalClosedAtRef.current = Date.now();
     setReelsFeedPinsRaw([]);
   }, []);
   const [deleteModePinId, setDeleteModePinId] = useState<string | null>(null);
@@ -1011,7 +1019,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                 {zoomScale > 0.6 ? (
                   <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                     {displayPins.map((pin, index) => {
-                      const picUrl = pin.user_profile_pic;
+                      const picUrl = pin.user_profile_pic || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80';
                       const pTierColor = getTierColor(followerStatsCache[pin.userId] || 0);
                       
                       return (
@@ -1020,26 +1028,18 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                           position: 'relative',
                           zIndex: index 
                         }}>
-                          {picUrl ? (
-                            <RNImage
-                              source={{ uri: picUrl }}
-                              style={{
-                                width: 44,
-                                height: 44,
-                                borderRadius: 22,
-                                borderWidth: 2,
-                                borderColor: pTierColor,
-                                backgroundColor: PincTheme.colors.card
-                              }}
-                              resizeMode="cover"
-                            />
-                          ) : (
-                            <View style={{
-                              width: 44, height: 44, borderRadius: 22,
-                              backgroundColor: pTierColor,
-                              borderWidth: 2, borderColor: PincTheme.colors.card
-                            }} />
-                          )}
+                          <RNImage
+                            source={{ uri: picUrl }}
+                            style={{
+                              width: 44,
+                              height: 44,
+                              borderRadius: 22,
+                              borderWidth: 2,
+                              borderColor: pTierColor,
+                              backgroundColor: PincTheme.colors.card
+                            }}
+                            resizeMode="cover"
+                          />
                           
                           {/* Show badge only on the very last (front-most) pin if points > 3 */}
                           {index === displayPins.length - 1 && points > 3 && (
@@ -1268,10 +1268,12 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                     backgroundColor: isLiveNews ? PincTheme.colors.crowdRed : (firstPin.pinColor === 'rainbow' ? (zoomScale > 0.6 ? 'transparent' : '#9400D3') : (firstPin.pinColor || '#FF69B4')),
                     overflow: 'hidden'
                   }}>
-                    {zoomScale > 0.6 ? (
-                      latestPin.user_profile_pic ? (
+                    {zoomScale > 0.6 ? (() => {
+                      const avatarUri = group.find(p => p.user_profile_pic && p.user_profile_pic.trim().length > 0)?.user_profile_pic 
+                        || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80';
+                      return (
                         <RNImage
-                          source={{ uri: latestPin.user_profile_pic }}
+                          source={{ uri: avatarUri }}
                           style={{ 
                             width: '100%', 
                             height: '100%', 
@@ -1281,10 +1283,8 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                           }}
                           resizeMode="cover"
                         />
-                      ) : (
-                        <View style={{ width: '100%', height: '100%', borderRadius: getMarkerSize(zoomScale) / 2, backgroundColor: PincTheme.colors.card, borderWidth: firstPin.pinColor === 'rainbow' ? 1 : 0.5, borderColor: '#000000' }} />
-                      )
-                    ) : null}
+                      );
+                    })() : null}
                   </View>
                   {zoomScale > 0.6 && pioneerPinIds.has(firstPin.pinId || "") && (
                     <View style={{
