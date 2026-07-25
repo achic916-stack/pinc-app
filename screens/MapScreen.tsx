@@ -460,19 +460,23 @@ export const MapScreen: React.FC<MapScreenProps> = ({
     if (cameraTarget && mapRef.current) {
       // Clear any open feed modal first to prevent stale modal popping up
       setReelsFeedPins([]);
+      const targetPinToOpen = targetPinId;
+
+      // Immediately clear target props in parent state so stale values do not persist during animation
+      if (onClearTargetPin) {
+        onClearTargetPin();
+      }
+      if (onClearCameraTarget) {
+        onClearCameraTarget();
+      }
+
       flyToTarget(cameraTarget.latitude, cameraTarget.longitude, () => {
         // After flying to target, if a specific pin was requested, open it
-        if (targetPinId) {
-          const pin = validPins.find(p => p.pinId === targetPinId) || allPins.find(p => p.pinId === targetPinId);
+        if (targetPinToOpen) {
+          const pin = validPins.find(p => p.pinId === targetPinToOpen) || allPins.find(p => p.pinId === targetPinToOpen);
           if (pin) {
             setReelsFeedPins([pin]);
           }
-          if (onClearTargetPin) {
-            onClearTargetPin();
-          }
-        }
-        if (onClearCameraTarget) {
-          onClearCameraTarget();
         }
       });
     }
@@ -1338,7 +1342,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
               zoomScale={zoomScale}
               cluster={false}
             >
-              <View style={{ 
+              <View pointerEvents="none" style={{ 
                 width: 140, 
                 height: 140, 
                 alignItems: 'center', 
