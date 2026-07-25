@@ -39,7 +39,7 @@ export default {
     },
     "android": {
       "package": "com.achic.pinc",
-      "versionCode": 164,
+      "versionCode": 165,
       "config": {
         "googleMaps": {
           "apiKey": process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || ""

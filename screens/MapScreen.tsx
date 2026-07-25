@@ -1136,7 +1136,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                 </View>
               )}
 
-              <View style={{ alignItems: 'center', paddingBottom: 28, paddingTop: isLiveNews ? 28 : 20, paddingHorizontal: 22, backgroundColor: 'transparent' }}>
+              <View pointerEvents="none" style={{ alignItems: 'center', paddingBottom: 28, paddingTop: isLiveNews ? 28 : 20, paddingHorizontal: 22, backgroundColor: 'transparent' }}>
                 {isLiveNews && zoomScale > 0.6 && (
                   <View style={{
                     position: 'absolute',
