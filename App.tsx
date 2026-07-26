@@ -709,7 +709,7 @@ export default function App() {
           {selectedVenue && (
             selectedVenue.is_sponsored || (selectedVenue.sponsor_tier && selectedVenue.sponsor_tier >= 1) ? (
               <View style={[StyleSheet.absoluteFillObject, { backgroundColor: PincTheme.colors.background, zIndex: 999, elevation: 100 }]}>
-                <SafeAreaView style={{ flex: 1, backgroundColor: PincTheme.colors.background }}>
+                <View style={{ flex: 1, paddingTop: Platform.OS === 'ios' ? 44 : 0, backgroundColor: PincTheme.colors.background }}>
                   <MapErrorBoundary>
                     <VenueDetailsSheet
                       venue={selectedVenue}
@@ -732,7 +732,7 @@ export default function App() {
                       isEditing={isEditingVenue}
                     />
                   </MapErrorBoundary>
-                </SafeAreaView>
+                </View>
               </View>
             ) : (
               <View style={styles.sheetOverlay}>
