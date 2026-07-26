@@ -1484,7 +1484,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
               // Fallback default curated images
               fallbackAestheticImages.map((uri, index) => (
                 <View key={index} style={styles.gridImageWrapper}>
-                  <Image source={{ uri }} style={styles.gridImage} resizeMode="cover" />
+                  <Image source={{ uri }} style={styles.gridImage} contentFit="cover" />
                 </View>
               ))
             )}
