@@ -912,7 +912,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
         customMapStyle={Platform.OS === 'ios' ? pincIOSDarkStyle : pincDarkStyle}
         style={styles.map}
         initialRegion={initialRegion}
-        googleMapId={undefined}
+        googleMapId={Platform.OS === 'web' ? undefined : "ffb88fa752b68c8b5ad8c208"}
         mapType="standard"
         showsBuildings={true}
         showsTraffic={false}
@@ -1394,12 +1394,12 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                         ) : (
                           <View style={{ width: innerWidth, height: innerHeight, borderRadius: 8, backgroundColor: PincTheme.colors.card, justifyContent: 'center', alignItems: 'center' }} />
                         )}
-                        <LinearGradient
-                          colors={['transparent', 'rgba(0,0,0,0.8)']}
+                        <View
                           style={{ 
                             position: 'absolute', 
                             bottom: 0, left: 0, right: 0, 
-                            paddingTop: 12, 
+                            backgroundColor: 'rgba(0,0,0,0.65)',
+                            paddingTop: 4, 
                             paddingBottom: 2, 
                             paddingHorizontal: 4,
                             alignItems: 'center',
@@ -1419,7 +1419,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                           }} numberOfLines={1} allowFontScaling={false}>
                             {venue.name}
                           </Text>
-                        </LinearGradient>
+                        </View>
                       </View>
                     )}
                     </View>
