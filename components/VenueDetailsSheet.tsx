@@ -634,16 +634,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
   const widget = getWidgetSummary();
 
   return (
-    <View style={[
-      styles.sheetContainer,
-      isFullScreen && {
-        flex: 1,
-        height: '100%',
-        borderTopLeftRadius: 0,
-        borderTopRightRadius: 0,
-        paddingTop: Platform.OS === 'ios' ? 44 : 12
-      }
-    ]}>
+    <View style={styles.sheetContainer}>
       {/* Drag Indicator / Header */}
       <View style={[styles.header, isFullScreen && { borderBottomWidth: 0, paddingVertical: 16 }]}>
         {!isFullScreen && <View style={styles.dragIndicator} />}

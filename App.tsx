@@ -707,10 +707,7 @@ export default function App() {
 
           {/* Reality Check Sliding Sheet (For All Venues / Packages) */}
           {selectedVenue && (
-            <View style={[
-              styles.sheetOverlay, 
-              Boolean(selectedVenue.is_sponsored || (selectedVenue.sponsor_tier && selectedVenue.sponsor_tier >= 1)) && { top: 0 }
-            ]}>
+            <View style={styles.sheetOverlay}>
               <MapErrorBoundary>
                 <VenueDetailsSheet
                   venue={selectedVenue}
@@ -729,7 +726,7 @@ export default function App() {
                     }, 300);
                   }}
                   currentUser={currentUser}
-                  isFullScreen={Boolean(selectedVenue.is_sponsored || (selectedVenue.sponsor_tier && selectedVenue.sponsor_tier >= 1))}
+                  isFullScreen={false}
                   isEditing={isEditingVenue}
                 />
               </MapErrorBoundary>
