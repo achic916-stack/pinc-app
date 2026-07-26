@@ -161,7 +161,7 @@ const CustomMapMarker: React.FC<CustomMapMarkerProps> = ({
     setTracksView(true);
     const timer = setTimeout(() => {
       setTracksView(false);
-    }, 200);
+    }, 800);
     return () => clearTimeout(timer);
   }, [zoomScale, coordinate.latitude, coordinate.longitude]);
 
@@ -183,10 +183,8 @@ const CustomMapMarker: React.FC<CustomMapMarkerProps> = ({
   }
 
   return (
-    <Marker {...markerProps}>
-      <View pointerEvents="none">
-        {children}
-      </View>
+    <Marker {...markerProps} stopPropagation={true}>
+      {children}
     </Marker>
   );
 };
