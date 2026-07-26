@@ -1349,7 +1349,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                   Android's map engine often fails to render an Image-only marker 
                   unless there is a Text component to force a layout pass. 
                 */}
-                <Text style={{ width: 0, height: 0, opacity: 0, fontSize: 0 }}>{venue.venueId}</Text>
+                <Text style={{ width: 0, height: 0, opacity: 0, fontSize: 1 }}>{venue.venueId}</Text>
 
                 {useCustomIcon && !isZoomedOut ? (
                   <View style={{ height: 100, justifyContent: 'center', alignItems: 'center' }}>
