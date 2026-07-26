@@ -161,9 +161,9 @@ const CustomMapMarker: React.FC<CustomMapMarkerProps> = ({
     setTracksView(true);
     const timer = setTimeout(() => {
       setTracksView(false);
-    }, zoomScale <= 0.6 ? 200 : 5000);
+    }, 200);
     return () => clearTimeout(timer);
-  }, [zoomScale]);
+  }, [zoomScale, coordinate.latitude, coordinate.longitude]);
 
   const markerProps: any = {
     coordinate,
@@ -184,7 +184,9 @@ const CustomMapMarker: React.FC<CustomMapMarkerProps> = ({
 
   return (
     <Marker {...markerProps}>
-      {children}
+      <View pointerEvents="none">
+        {children}
+      </View>
     </Marker>
   );
 };

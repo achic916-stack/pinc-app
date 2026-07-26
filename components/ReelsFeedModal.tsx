@@ -191,11 +191,11 @@ const FeedItem = ({
               {!!item.thumbnail_url ? (
                 <Image
                   source={{ uri: item.thumbnail_url }}
-                  style={[styles.media, { position: 'absolute' }]}
+                  style={[styles.media, { position: 'absolute', zIndex: 1 }]}
                   resizeMode="contain"
                 />
               ) : (
-                <View style={[StyleSheet.absoluteFill, { justifyContent: 'center', alignItems: 'center', backgroundColor: '#111' }]}>
+                <View style={[StyleSheet.absoluteFill, { justifyContent: 'center', alignItems: 'center', backgroundColor: '#111', zIndex: 1 }]}>
                   <ActivityIndicator size="large" color={PincTheme.colors.primary} />
                 </View>
               )}
@@ -203,7 +203,7 @@ const FeedItem = ({
                 <CachedVideo
                   source={{ uri: item.image_url }}
                   poster={item.thumbnail_url}
-                  style={[styles.media, { position: 'absolute' }]}
+                  style={[styles.media, { position: 'absolute', zIndex: 2 }]}
                   resizeMode="contain"
                   shouldPlay={isVisible}
                   isLooping

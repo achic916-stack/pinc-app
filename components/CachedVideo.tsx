@@ -74,11 +74,17 @@ export const CachedVideo: React.FC<CachedVideoProps> = ({ source, poster, ...pro
         preload="auto"
         playsinline 
         webkit-playsinline
+        muted
       ></video>
       <script>
         window.videoElement = document.getElementById('main-video');
+        window.videoElement.onplay = function() {
+          setTimeout(function() {
+            if (window.videoElement) window.videoElement.muted = false;
+          }, 50);
+        };
         // Prevent default tap highlight
-        document.addEventListener("touchstart", function() {},false);
+        document.addEventListener("touchstart", function() {}, false);
       </script>
     </body>
     </html>
