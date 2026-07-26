@@ -712,6 +712,33 @@ export default function App() {
                 onRequestClose={handleCloseBottomSheet}
               >
                 <SafeAreaView style={{ flex: 1, backgroundColor: PincTheme.colors.background }}>
+                  <MapErrorBoundary>
+                    <VenueDetailsSheet
+                      venue={selectedVenue}
+                      pins={activePins}
+                      isLoadingPins={isLoadingPins}
+                      onClose={handleCloseBottomSheet}
+                      locale={locale}
+                      followingIds={followingIds}
+                      onOpenUserProfile={(userId) => {
+                        setSelectedUserProfileId(userId);
+                      }}
+                      onNewPostPress={(venueId) => {
+                        handleCloseBottomSheet();
+                        setTimeout(() => {
+                          pincButtonRef.current?.openMediaSelector(venueId);
+                        }, 300);
+                      }}
+                      currentUser={currentUser}
+                      isFullScreen={true}
+                      isEditing={isEditingVenue}
+                    />
+                  </MapErrorBoundary>
+                </SafeAreaView>
+              </Modal>
+            ) : (
+              <View style={styles.sheetOverlay}>
+                <MapErrorBoundary>
                   <VenueDetailsSheet
                     venue={selectedVenue}
                     pins={activePins}
@@ -724,36 +751,13 @@ export default function App() {
                     }}
                     onNewPostPress={(venueId) => {
                       handleCloseBottomSheet();
-                      setTimeout(() => {
-                        pincButtonRef.current?.openMediaSelector(venueId);
-                      }, 300);
+                      pincButtonRef.current?.openMediaSelector(venueId);
                     }}
                     currentUser={currentUser}
-                    isFullScreen={true}
+                    isFullScreen={false}
                     isEditing={isEditingVenue}
                   />
-                </SafeAreaView>
-              </Modal>
-            ) : (
-              <View style={styles.sheetOverlay}>
-                <VenueDetailsSheet
-                  venue={selectedVenue}
-                  pins={activePins}
-                  isLoadingPins={isLoadingPins}
-                  onClose={handleCloseBottomSheet}
-                  locale={locale}
-                  followingIds={followingIds}
-                  onOpenUserProfile={(userId) => {
-                    setSelectedUserProfileId(userId);
-                  }}
-                  onNewPostPress={(venueId) => {
-                    handleCloseBottomSheet();
-                    pincButtonRef.current?.openMediaSelector(venueId);
-                  }}
-                  currentUser={currentUser}
-                  isFullScreen={false}
-                  isEditing={isEditingVenue}
-                />
+                </MapErrorBoundary>
               </View>
             )
           )} 

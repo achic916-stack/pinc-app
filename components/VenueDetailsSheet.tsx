@@ -857,7 +857,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
           /* General User Read-Only Panel */
           <>
             <View style={styles.titleRow}>
-              {currentUser?.userId === venue.ownerId ? (
+              {Boolean(currentUser?.userId && (currentUser.userId === venue.ownerId || currentUser.userId === venue.userId)) ? (
                 isEditingName ? (
                   <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, borderBottomWidth: 1, borderBottomColor: PincTheme.colors.border }}>
                     <TextInput
