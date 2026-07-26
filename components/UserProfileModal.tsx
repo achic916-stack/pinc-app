@@ -43,8 +43,24 @@ import { ChatModal } from "./ChatModal";
 import { WatermarkShare } from "./WatermarkShare";
 import { ChatInboxModal } from "./ChatInboxModal";
 import { AdminStatsModal } from "./AdminStatsModal";
+import { CachedVideo } from "./CachedVideo";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
+
+const isVideoPin = (pin: Pin): boolean => {
+  if (pin.media_type === "video") return true;
+  if (pin.thumbnail_url && pin.thumbnail_url.length > 0) return true;
+  if (!pin.image_url) return false;
+  const urlLower = pin.image_url.toLowerCase();
+  return (
+    urlLower.includes(".mp4") ||
+    urlLower.includes(".mov") ||
+    urlLower.includes(".m4v") ||
+    urlLower.includes("video") ||
+    urlLower.includes(".mp4?") ||
+    urlLower.includes(".mov?")
+  );
+};
 
 interface UserProfileModalProps {
   visible: boolean;
@@ -703,20 +719,46 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
                   {/* Grid Content */}
                   <View style={{ width: "100%", flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 8, paddingBottom: 16, marginTop: 12 }}>
-                    {activeTab === "posts" && pins.map((pin, index) => (
-                      <TouchableOpacity
-                        key={`post-${pin.pinId}`}
-                        style={{ width: "50%", padding: 8 }}
-                        onPress={() => {
-                          setViewingPins(pins);
-                          setViewingInitialIndex(index);
-                        }}
-                      >
-                        <View style={styles.memoryCard}>
-                          <Image source={{ uri: pin.image_url }} style={styles.memoryThumbnail} />
-                        </View>
-                      </TouchableOpacity>
-                    ))}
+                    {activeTab === "posts" && pins.map((pin, index) => {
+                      const isVideo = isVideoPin(pin);
+                      const displayImgUri = pin.thumbnail_url || (!isVideo ? pin.image_url : null);
+
+                      return (
+                        <TouchableOpacity
+                          key={`post-${pin.pinId}`}
+                          style={{ width: "50%", padding: 8 }}
+                          onPress={() => {
+                            setViewingPins(pins);
+                            setViewingInitialIndex(index);
+                          }}
+                        >
+                          <View style={styles.memoryCard}>
+                            {displayImgUri ? (
+                              <Image source={{ uri: displayImgUri }} style={styles.memoryThumbnail} contentFit="cover" />
+                            ) : (
+                              <CachedVideo source={{ uri: pin.image_url }} style={styles.memoryThumbnail} shouldPlay={false} />
+                            )}
+                            {isVideo && (
+                              <View style={{
+                                position: "absolute",
+                                top: 8,
+                                right: 8,
+                                backgroundColor: "rgba(0, 0, 0, 0.65)",
+                                borderRadius: 12,
+                                width: 26,
+                                height: 26,
+                                alignItems: "center",
+                                justifyContent: "center",
+                                borderWidth: 1,
+                                borderColor: "rgba(255, 255, 255, 0.3)"
+                              }}>
+                                <Ionicons name="play" size={14} color="#FFFFFF" style={{ marginLeft: 2 }} />
+                              </View>
+                            )}
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    })}
                     
                     {activeTab === "saved" && isLoadingSaved && (
                       <View style={{ width: "100%", padding: 40, alignItems: "center" }}>
@@ -724,20 +766,46 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                       </View>
                     )}
 
-                    {activeTab === "saved" && !isLoadingSaved && savedPinsData.map((pin, index) => (
-                      <TouchableOpacity
-                        key={`saved-${pin.pinId}`}
-                        style={{ width: "50%", padding: 8 }}
-                        onPress={() => {
-                          setViewingPins(savedPinsData);
-                          setViewingInitialIndex(index);
-                        }}
-                      >
-                        <View style={styles.memoryCard}>
-                          <Image source={{ uri: pin.image_url }} style={styles.memoryThumbnail} />
-                        </View>
-                      </TouchableOpacity>
-                    ))}
+                    {activeTab === "saved" && !isLoadingSaved && savedPinsData.map((pin, index) => {
+                      const isVideo = isVideoPin(pin);
+                      const displayImgUri = pin.thumbnail_url || (!isVideo ? pin.image_url : null);
+
+                      return (
+                        <TouchableOpacity
+                          key={`saved-${pin.pinId}`}
+                          style={{ width: "50%", padding: 8 }}
+                          onPress={() => {
+                            setViewingPins(savedPinsData);
+                            setViewingInitialIndex(index);
+                          }}
+                        >
+                          <View style={styles.memoryCard}>
+                            {displayImgUri ? (
+                              <Image source={{ uri: displayImgUri }} style={styles.memoryThumbnail} contentFit="cover" />
+                            ) : (
+                              <CachedVideo source={{ uri: pin.image_url }} style={styles.memoryThumbnail} shouldPlay={false} />
+                            )}
+                            {isVideo && (
+                              <View style={{
+                                position: "absolute",
+                                top: 8,
+                                right: 8,
+                                backgroundColor: "rgba(0, 0, 0, 0.65)",
+                                borderRadius: 12,
+                                width: 26,
+                                height: 26,
+                                alignItems: "center",
+                                justifyContent: "center",
+                                borderWidth: 1,
+                                borderColor: "rgba(255, 255, 255, 0.3)"
+                              }}>
+                                <Ionicons name="play" size={14} color="#FFFFFF" style={{ marginLeft: 2 }} />
+                              </View>
+                            )}
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    })}
                     
                     {activeTab === "posts" && pins.length === 0 && (
                       <View style={{ width: "100%", padding: 40, alignItems: "center" }}>
