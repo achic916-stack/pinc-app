@@ -1443,19 +1443,13 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                           justifyContent: 'center',
                           alignItems: 'center',
                           zIndex: 999,
-                          shadowColor: '#000',
-                          shadowOffset: { width: 0, height: 2 },
-                          shadowOpacity: 0.3,
-                          shadowRadius: 2,
-                          elevation: 5,
                         }}>
                           <Text style={{ 
                             color: '#FFFFFF', 
-                            fontSize: 7.5, 
+                            fontSize: 8, 
                             fontWeight: '600', 
                             textAlign: 'center',
                             letterSpacing: -0.3,
-                            transform: [{ scaleY: 1.1 }]
                           }} allowFontScaling={false}>
                             {displayCount}
                           </Text>
