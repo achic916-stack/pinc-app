@@ -49,41 +49,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // ==========================================
 // FIREBASE CLIENT CONFIGURATION
 // ==========================================
-// Helper for robustly extracting timestamp in milliseconds from any timestamp format
-export function getPinTimestampMs(timestamp: any): number {
-  if (!timestamp) return Date.now();
-  if (typeof timestamp.toDate === 'function') {
-    try { 
-      const t = timestamp.toDate().getTime();
-      if (!isNaN(t) && t > 0) return t;
-    } catch(e) {}
-  }
-  if (typeof timestamp.toMillis === 'function') {
-    try { 
-      const t = timestamp.toMillis();
-      if (!isNaN(t) && t > 0) return t;
-    } catch(e) {}
-  }
-  if (timestamp.seconds !== undefined && typeof timestamp.seconds === 'number') {
-    return timestamp.seconds * 1000;
-  }
-  if (timestamp._seconds !== undefined && typeof timestamp._seconds === 'number') {
-    return timestamp._seconds * 1000;
-  }
-  if (timestamp instanceof Date) {
-    const t = timestamp.getTime();
-    return isNaN(t) ? Date.now() : t;
-  }
-  if (typeof timestamp === 'number') {
-    return timestamp;
-  }
-  if (typeof timestamp === 'string') {
-    const parsed = new Date(timestamp).getTime();
-    if (!isNaN(parsed) && parsed > 0) return parsed;
-  }
-  return Date.now();
-}
-
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY || "",
   authDomain: "pinc-app-d2501.firebaseapp.com",
@@ -636,46 +601,36 @@ export function subscribeToVenues(onUpdate: (venues: Venue[]) => void, onError?:
  * Subscribes to pins for a specific venue, ordered by timestamp (newest first).
  */
 export function subscribeToVenuePins(venueId: string, onUpdate: (pins: Pin[]) => void, onError?: (error: any) => void) {
-  if (!venueId || typeof venueId !== 'string') {
-    onUpdate([]);
-    return () => {};
-  }
-  try {
-    const q = query(
-      collection(db, "pins"),
-      where("venueId", "==", venueId),
-      orderBy("timestamp", "desc")
-    );
-    return onSnapshot(q, (snapshot) => {
-      const pins: Pin[] = [];
-      snapshot.forEach((doc) => {
-        const data = doc.data();
-        const timestamp = (data.timestamp as Timestamp)?.toDate() || new Date();
+  const q = query(
+    collection(db, "pins"),
+    where("venueId", "==", venueId),
+    orderBy("timestamp", "desc")
+  );
+  return onSnapshot(q, (snapshot) => {
+    const pins: Pin[] = [];
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      const timestamp = (data.timestamp as Timestamp)?.toDate() || new Date();
 
-        // Filter out 24h posts that have expired
-        if (data.post_duration === "24h") {
-          const diffHours = (new Date().getTime() - timestamp.getTime()) / (1000 * 60 * 60);
-          if (diffHours > 24) return;
-        }
-
-        pins.push({
-          pinId: doc.id,
-          ...data,
-          timestamp
-        } as Pin);
-      });
-      onUpdate(pins);
-    }, (error) => {
-      console.warn("Firestore subscribeToVenuePins failed:", error);
-      if (onError) {
-        onError(error);
+      // Filter out 24h posts that have expired
+      if (data.post_duration === "24h") {
+        const diffHours = (new Date().getTime() - timestamp.getTime()) / (1000 * 60 * 60);
+        if (diffHours > 24) return;
       }
+
+      pins.push({
+        pinId: doc.id,
+        ...data,
+        timestamp
+      } as Pin);
     });
-  } catch (err) {
-    console.warn("Firestore subscribeToVenuePins catch exception:", err);
-    onUpdate([]);
-    return () => {};
-  }
+    onUpdate(pins);
+  }, (error) => {
+    console.warn("Firestore subscribeToVenuePins failed:", error);
+    if (onError) {
+      onError(error);
+    }
+  });
 }
 
 /**
@@ -1187,12 +1142,11 @@ export function subscribeToAllPins(onUpdate: (pins: Pin[]) => void, onError?: (e
     const pins: Pin[] = [];
     snapshot.forEach((doc) => {
       const data = doc.data();
-      const timestampMs = getPinTimestampMs(data.timestamp) || Date.now();
-      const timestamp = new Date(timestampMs);
+      const timestamp = (data.timestamp as Timestamp)?.toDate() || new Date();
 
       // Filter out 24h posts that have expired
       if (data.post_duration === "24h") {
-        const diffHours = (Date.now() - timestampMs) / (1000 * 60 * 60);
+        const diffHours = (new Date().getTime() - timestamp.getTime()) / (1000 * 60 * 60);
         if (diffHours > 24) return;
       }
 

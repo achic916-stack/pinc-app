@@ -52,26 +52,6 @@ const isActuallyVideo = (pin: Pin) => {
   return pin.media_type === "video" || isVideoUrl(pin.image_url);
 };
 
-const formatTimeString = (d: Date): string => {
-  if (!d || isNaN(d.getTime())) return "";
-  try {
-    const hours = d.getHours().toString().padStart(2, '0');
-    const minutes = d.getMinutes().toString().padStart(2, '0');
-    return `${hours}:${minutes}`;
-  } catch (e) {
-    return "";
-  }
-};
-
-const formatDateString = (d: Date): string => {
-  if (!d || isNaN(d.getTime())) return "";
-  try {
-    return `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`;
-  } catch (e) {
-    return "";
-  }
-};
-
 interface VenueDetailsSheetProps {
   venue: Venue | null;
   pins: Pin[];
@@ -114,7 +94,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
   const [localHiddenPins, setLocalHiddenPins] = useState<Record<string, boolean>>({});
 
   // Owner checking & sponsored checks
-  const isOwner = venue ? (venue.ownerId === currentUser?.userId || venue.userId === currentUser?.userId || currentUser?.role === "ADMIN") : false;
+  const isOwner = venue ? (venue.ownerId === currentUser?.userId || currentUser?.role === "ADMIN") : false;
   const isShopPackage = venue ? (venue.is_sponsored === true || (venue.sponsor_tier && venue.sponsor_tier >= 1)) : false;
   const showEditPanel = isEditing && isShopPackage && isOwner;
 
@@ -150,7 +130,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
 
   useEffect(() => {
     const checkFollowStatus = async () => {
-      if (!currentUser?.userId || !venue?.ownerId || currentUser?.userId === venue.ownerId) return;
+      if (!currentUser.userId || !venue?.ownerId || currentUser.userId === venue.ownerId) return;
       try {
         const status = await checkIsFollowing(currentUser.userId, venue.ownerId);
         setIsFollowingVenue(status);
@@ -159,10 +139,10 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
       }
     };
     checkFollowStatus();
-  }, [venue, currentUser?.userId]);
+  }, [venue, currentUser.userId]);
 
   const handleToggleFollowVenue = async () => {
-    if (!currentUser?.userId || !venue?.ownerId || currentUser?.userId === venue.ownerId || isTogglingFollowVenue) return;
+    if (!currentUser.userId || !venue?.ownerId || currentUser.userId === venue.ownerId || isTogglingFollowVenue) return;
     setIsTogglingFollowVenue(true);
     const prevStatus = isFollowingVenue;
     setIsFollowingVenue(!prevStatus);
@@ -272,7 +252,6 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
     setIsUploading(true);
     try {
       const compressedUri = await compressImage(localUri);
-      if (!currentUser?.userId) return;
       const downloadUrl = await uploadPinImage(compressedUri, currentUser.userId);
       const newImages = [...editedImages, downloadUrl];
       setEditedImages(newImages);
@@ -427,7 +406,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
       return localLikes[pinId];
     }
     const likesArray = pin.likes || [];
-    const liked = currentUser?.userId ? likesArray.includes(currentUser.userId) : false;
+    const liked = likesArray.includes(currentUser.userId);
     const count = likesArray.length;
     return { liked, count };
   };
@@ -447,9 +426,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
     }));
 
     try {
-      if (currentUser?.userId) {
-        await toggleLikePin(pinId, currentUser.userId);
-      }
+      await toggleLikePin(pinId, currentUser.userId);
     } catch (err) {
       console.warn("Failed to toggle like on Firestore:", err);
       // Revert on error
@@ -484,26 +461,13 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
     );
   };
 
-  const parseToDate = (dateInput: any): Date => {
-    if (!dateInput) return new Date();
-    if (dateInput instanceof Date) return isNaN(dateInput.getTime()) ? new Date() : dateInput;
-    if (typeof dateInput.toDate === 'function') {
-      try {
-        const d = dateInput.toDate();
-        return isNaN(d.getTime()) ? new Date() : d;
-      } catch (e) {
-        return new Date();
-      }
-    }
-    if (typeof dateInput === 'number') return new Date(dateInput);
-    if (dateInput.seconds) return new Date(dateInput.seconds * 1000);
-    const parsed = new Date(dateInput);
-    return isNaN(parsed.getTime()) ? new Date() : parsed;
-  };
+  if (!venue) return null;
+
+  const currentStatus = venue.crowd_status?.toLowerCase();
 
   // Helper to check if a post is from today (UTC timezone independent)
   const isToday = (dateInput: any) => {
-    const date = parseToDate(dateInput);
+    const date = dateInput instanceof Date ? dateInput : new Date(dateInput);
     const today = new Date();
     return (
       date.getUTCDate() === today.getUTCDate() &&
@@ -514,7 +478,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
 
   // Helper to check if a post is from yesterday (UTC timezone independent)
   const isYesterday = (dateInput: any) => {
-    const date = parseToDate(dateInput);
+    const date = dateInput instanceof Date ? dateInput : new Date(dateInput);
     const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
     return (
       date.getUTCDate() === yesterday.getUTCDate() &&
@@ -527,8 +491,8 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
   const pioneerPin = React.useMemo(() => {
     if (!pins || pins.length === 0) return null;
     return [...pins].reduce((oldest, current) => {
-      const oldestTime = getPinTimestampMs(oldest?.timestamp);
-      const currentTime = getPinTimestampMs(current?.timestamp);
+      const oldestTime = new Date(oldest.timestamp).getTime();
+      const currentTime = new Date(current.timestamp).getTime();
       return currentTime < oldestTime ? current : oldest;
     });
   }, [pins]);
@@ -546,13 +510,13 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
 
   // Default fallback aesthetic images if no user aesthetic pins are available
   const fallbackAestheticImages = [
-    venue?.cover_image,
+    venue.cover_image,
     "https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=600&q=80",
     "https://images.unsplash.com/photo-1498804103079-a6351b050096?auto=format&fit=crop&w=600&q=80",
     "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=600&q=80",
     "https://images.unsplash.com/photo-1559925393-8be0ec4767c8?auto=format&fit=crop&w=600&q=80",
     "https://images.unsplash.com/photo-1521017432531-fbd92d768814?auto=format&fit=crop&w=600&q=80"
-  ].filter(Boolean) as string[];
+  ];
 
   // Dynamic calculations for real-time status summary widget
   const getWidgetSummary = () => {
@@ -560,8 +524,8 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
 
     // Filter reports from verified users within the last 2 hours
     const verifiedRecent = realityPins.filter(pin => {
-      const pinTimeMs = getPinTimestampMs(pin.timestamp);
-      return pin.is_live_verified && pinTimeMs >= twoHoursAgo.getTime();
+      const pinTime = pin.timestamp instanceof Date ? pin.timestamp : new Date(pin.timestamp);
+      return pin.is_live_verified && pinTime.getTime() >= twoHoursAgo.getTime();
     });
 
     const targetList = verifiedRecent.length > 0 ? verifiedRecent : realityPins.filter(pin => pin.is_live_verified);
@@ -615,26 +579,25 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
     };
   };
 
-  if (!venue) {
-    return (
-      <View style={[styles.sheetContainer, { justifyContent: 'center', alignItems: 'center', padding: 20 }]}>
-        <ActivityIndicator size="large" color={PincTheme.colors.primary} />
-      </View>
-    );
-  }
-
   const shopImagesRaw = showEditPanel
     ? editedImages
-    : (Array.isArray(venue?.images) && venue.images.length > 0
+    : (venue.images && venue.images.length > 0
       ? venue.images
-      : (venue?.cover_image ? [venue.cover_image] : []));
-  const shopImagesFiltered = [...shopImagesRaw].filter((img): img is string => typeof img === 'string' && img.trim().length > 0).reverse();
-  const shopImages = shopImagesFiltered.length > 0 ? shopImagesFiltered : fallbackAestheticImages;
+      : [venue.cover_image].filter(Boolean));
+  const shopImages = [...shopImagesRaw].reverse();
 
   const widget = getWidgetSummary();
 
   return (
-    <View style={styles.sheetContainer}>
+    <View style={[
+      styles.sheetContainer,
+      isFullScreen && {
+        height: '100%',
+        borderTopLeftRadius: 0,
+        borderTopRightRadius: 0,
+        paddingTop: Platform.OS === 'ios' ? 0 : 12
+      }
+    ]}>
       {/* Drag Indicator / Header */}
       <View style={[styles.header, isFullScreen && { borderBottomWidth: 0, paddingVertical: 16 }]}>
         {!isFullScreen && <View style={styles.dragIndicator} />}
@@ -874,7 +837,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
           /* General User Read-Only Panel */
           <>
             <View style={styles.titleRow}>
-              {Boolean(currentUser?.userId && (currentUser.userId === venue.ownerId || currentUser.userId === venue.userId)) ? (
+              {currentUser?.userId === venue.ownerId ? (
                 isEditingName ? (
                   <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, borderBottomWidth: 1, borderBottomColor: PincTheme.colors.border }}>
                     <TextInput
@@ -911,7 +874,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                 <Text style={styles.venueName}>{venue.name}</Text>
               )}
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                {isShopPackage && currentUser?.userId !== venue.ownerId && venue.ownerId && (
+                {isShopPackage && currentUser.userId !== venue.ownerId && venue.ownerId && (
                   <TouchableOpacity
                     style={{
                       borderWidth: 1.5,
@@ -938,46 +901,39 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
             </View>
 
             <View style={styles.metaRow}>
-              {(() => {
-                const currentStatus = (venue?.crowd_status || "Green").toLowerCase();
-                return (
-                  <>
-                    <Text style={styles.categoryText}>{getCatLabel(venue?.category)}</Text>
-                    <View style={styles.bulletSeparator} />
+              <Text style={styles.categoryText}>{getCatLabel(venue.category)}</Text>
+              <View style={styles.bulletSeparator} />
 
-                    {/* Dynamic Crowd Status Badge */}
-                    <View
-                      style={[
-                        styles.crowdBadge,
-                        (currentStatus === "green" || currentStatus === "chill") && styles.badgeGreen,
-                        (currentStatus === "yellow" || currentStatus === "moderate") && styles.badgeYellow,
-                        (currentStatus === "red" || currentStatus === "packed") && styles.badgeRed
-                      ]}
-                    >
-                      <View
-                        style={[
-                          styles.crowdIndicatorDot,
-                          (currentStatus === "green" || currentStatus === "chill") && { backgroundColor: PincTheme.colors.crowdGreen },
-                          (currentStatus === "yellow" || currentStatus === "moderate") && { backgroundColor: PincTheme.colors.crowdYellow },
-                          (currentStatus === "red" || currentStatus === "packed") && { backgroundColor: PincTheme.colors.crowdRed }
-                        ]}
-                      />
-                      <Text
-                        style={[
-                          styles.crowdText,
-                          (currentStatus === "green" || currentStatus === "chill") && { color: PincTheme.colors.crowdGreen },
-                          (currentStatus === "yellow" || currentStatus === "moderate") && { color: PincTheme.colors.crowdYellow },
-                          (currentStatus === "red" || currentStatus === "packed") && { color: PincTheme.colors.crowdRed }
-                        ]}
-                      >
-                        {currentStatus === "green" || currentStatus === "chill" ? t(locale, "emptyChill") : ""}
-                        {currentStatus === "yellow" || currentStatus === "moderate" ? t(locale, "moderateQueue") : ""}
-                        {currentStatus === "red" || currentStatus === "packed" ? t(locale, "crowdedLongLine") : ""}
-                      </Text>
-                    </View>
-                  </>
-                );
-              })()}
+              {/* Dynamic Crowd Status Badge */}
+              <View
+                style={[
+                  styles.crowdBadge,
+                  (currentStatus === "green" || currentStatus === "chill") && styles.badgeGreen,
+                  (currentStatus === "yellow" || currentStatus === "moderate") && styles.badgeYellow,
+                  (currentStatus === "red" || currentStatus === "packed") && styles.badgeRed
+                ]}
+              >
+                <View
+                  style={[
+                    styles.crowdIndicatorDot,
+                    (currentStatus === "green" || currentStatus === "chill") && { backgroundColor: PincTheme.colors.crowdGreen },
+                    (currentStatus === "yellow" || currentStatus === "moderate") && { backgroundColor: PincTheme.colors.crowdYellow },
+                    (currentStatus === "red" || currentStatus === "packed") && { backgroundColor: PincTheme.colors.crowdRed }
+                  ]}
+                />
+                <Text
+                  style={[
+                    styles.crowdText,
+                    (currentStatus === "green" || currentStatus === "chill") && { color: PincTheme.colors.crowdGreen },
+                    (currentStatus === "yellow" || currentStatus === "moderate") && { color: PincTheme.colors.crowdYellow },
+                    (currentStatus === "red" || currentStatus === "packed") && { color: PincTheme.colors.crowdRed }
+                  ]}
+                >
+                  {currentStatus === "green" || currentStatus === "chill" ? t(locale, "emptyChill") : ""}
+                  {currentStatus === "yellow" || currentStatus === "moderate" ? t(locale, "moderateQueue") : ""}
+                  {currentStatus === "red" || currentStatus === "packed" ? t(locale, "crowdedLongLine") : ""}
+                </Text>
+              </View>
             </View>
 
             <TouchableOpacity
@@ -1046,7 +1002,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
               </View>
             )}
 
-            {isOwner && venue.sponsor_tier !== 3 && (
+            {isOwner && (
               <TouchableOpacity
                 style={{
                   backgroundColor: PincTheme.colors.primary,
@@ -1188,7 +1144,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
       <View style={styles.contentContainer}>
         {isShopPackage ? (
           /* Shop Atmosphere Images Grid + Customer Reviews combined in a single scroll view */
-          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
+          <ScrollView contentContainerStyle={{ paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
             {/* Grid of Shop Images */}
             <View style={styles.gridContainer}>
               {shopImages.map((uri, index) => (
@@ -1275,13 +1231,13 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
 
                 {/* Chronological Customer Review Cards */}
                 {realityPins.map((pin) => {
-                  const pinDate = parseToDate(pin.timestamp);
+                  const pinDate = pin.timestamp instanceof Date ? pin.timestamp : new Date(pin.timestamp);
                   const isPostToday = isToday(pinDate);
                   const isPostYesterday = isYesterday(pinDate);
                   const isFriend = followingIds.includes(pin.userId);
 
                   // Interaction activity cue checks
-                  const isOwnPost = Boolean(currentUser?.userId && pin.userId === currentUser.userId);
+                  const isOwnPost = pin.userId === currentUser.userId;
                   const likeState = getPinLikeState(pin);
                   const commentCount = commentsCounts[pin.pinId || ""] || 0;
                   const hasInteractions = likeState.count > 0 || commentCount > 0;
@@ -1303,7 +1259,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                           onPress={() => onOpenUserProfile && onOpenUserProfile(pin.userId)}
                           activeOpacity={0.7}
                         >
-                          <Image source={{ uri: pin.user_profile_pic || 'https://ui-avatars.com/api/?name=User' }} style={styles.avatar} />
+                          <Image source={{ uri: pin.user_profile_pic }} style={styles.avatar} />
                           <View style={styles.userMeta}>
                             <Text style={styles.username}>@{pin.username}</Text>
                             <Text style={styles.timestamp}>
@@ -1311,10 +1267,10 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                                 ? t(locale, "today")
                                 : isPostYesterday
                                   ? t(locale, "yesterday")
-                                  : formatDateString(pinDate)
+                                  : pinDate.toLocaleDateString()
                               } {" "}
                               {t(locale, "at")} {" "}
-                              {formatTimeString(pinDate)}
+                              {pinDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                             </Text>
                           </View>
                         </TouchableOpacity>
@@ -1360,16 +1316,14 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                                 onPress={() => setActiveVideoId(pin.pinId || null)}
                                 activeOpacity={0.9}
                               >
-                               <Image source={{ uri: pin.thumbnail_url || pin.image_url }} style={styles.feedImage} contentFit="cover" />
+                                <Image source={{ uri: getSafeVideoUrl(pin.image_url) }} style={styles.feedImage} contentFit="cover" />
                                 <View style={[StyleSheet.absoluteFill, { justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 12 }]}>
                                   <Ionicons name="play" size={44} color="#FFF" />
                                 </View>
                               </TouchableOpacity>
                             )
                           ) : (
-                            <TouchableOpacity activeOpacity={0.9} onPress={() => setFullScreenFeedImage(pin.image_url)}>
-                              <Image source={{ uri: pin.image_url }} style={styles.feedImage} contentFit="cover" />
-                            </TouchableOpacity>
+                            <Image source={{ uri: pin.image_url }} style={styles.feedImage} contentFit="cover" />
                           )}
                         </View>
                       )}
@@ -1415,7 +1369,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                           </TouchableOpacity>
 
                           {/* Delete Button */}
-                          {((currentUser?.userId && pin.userId === currentUser.userId) || isOwner) && (
+                          {(pin.userId === currentUser.userId || isOwner) && (
                             <TouchableOpacity
                               style={styles.deleteButton}
                               onPress={() => handleDeletePin(pin.pinId)}
@@ -1454,7 +1408,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                           onPress={() => setActiveVideoId(pin.pinId || null)}
                           activeOpacity={0.8}
                         >
-                          <Image source={{ uri: pin.thumbnail_url || pin.image_url }} style={styles.gridImage} contentFit="cover" />
+                          <Image source={{ uri: getSafeVideoUrl(pin.image_url) }} style={styles.gridImage} contentFit="cover" />
                           <View style={[StyleSheet.absoluteFill, { justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)' }]}>
                             <Text style={{ fontSize: 32 }}>▶️</Text>
                           </View>
@@ -1477,7 +1431,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
               // Fallback default curated images
               fallbackAestheticImages.map((uri, index) => (
                 <View key={index} style={styles.gridImageWrapper}>
-                  <Image source={{ uri }} style={styles.gridImage} contentFit="cover" />
+                  <Image source={{ uri }} style={styles.gridImage} resizeMode="cover" />
                 </View>
               ))
             )}
@@ -1518,13 +1472,13 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
           ) : (
             <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
               {realityPins.map((pin) => {
-                const pinDate = parseToDate(pin.timestamp);
+                const pinDate = pin.timestamp instanceof Date ? pin.timestamp : new Date(pin.timestamp);
                 const isPostToday = isToday(pinDate);
                 const isPostYesterday = isYesterday(pinDate);
                 const isFriend = followingIds.includes(pin.userId);
 
                 // Interaction activity cue checks
-                const isOwnPost = Boolean(currentUser?.userId && pin.userId === currentUser.userId);
+                const isOwnPost = pin.userId === currentUser.userId;
                 const likeState = getPinLikeState(pin);
                 const commentCount = commentsCounts[pin.pinId || ""] || 0;
                 const hasInteractions = likeState.count > 0 || commentCount > 0;
@@ -1545,7 +1499,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                         onPress={() => onOpenUserProfile && onOpenUserProfile(pin.userId)}
                         activeOpacity={0.7}
                       >
-                        <Image source={{ uri: pin.user_profile_pic || 'https://ui-avatars.com/api/?name=User' }} style={styles.avatar} />
+                        <Image source={{ uri: pin.user_profile_pic }} style={styles.avatar} />
                         <View style={styles.userMeta}>
                           <Text style={styles.username}>@{pin.username}</Text>
                           <Text style={styles.timestamp}>
@@ -1553,10 +1507,10 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                               ? t(locale, "today")
                               : isPostYesterday
                                 ? t(locale, "yesterday")
-                                : formatDateString(pinDate)
+                                : pinDate.toLocaleDateString()
                             } {" "}
                             {t(locale, "at")} {" "}
-                            {formatTimeString(pinDate)}
+                            {pinDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                           </Text>
                         </View>
                       </TouchableOpacity>
@@ -1602,7 +1556,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                               onPress={() => setActiveVideoId(pin.pinId || null)}
                               activeOpacity={0.8}
                             >
-                              <Image source={{ uri: pin.thumbnail_url || pin.image_url }} style={styles.feedImage} contentFit="cover" />
+                              <Image source={{ uri: getSafeVideoUrl(pin.image_url) }} style={styles.feedImage} contentFit="cover" />
                               <View style={[StyleSheet.absoluteFill, { justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)' }]}>
                                 <Text style={{ fontSize: 48 }}>▶️</Text>
                               </View>
@@ -1691,7 +1645,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                       <TouchableOpacity
                         style={[styles.actionButton, { marginLeft: "auto" }]}
                         onPress={() => {
-                          if (currentUser?.userId && pin.userId === currentUser.userId) {
+                          if (pin.userId === currentUser.userId) {
                             handleDeletePin(pin.pinId);
                           } else {
                             Alert.alert("Report Post", "Are you sure you want to report this post for objectionable content?", [
@@ -1703,7 +1657,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                                   if (pin.pinId) {
                                     try {
                                       setLocalHiddenPins(prev => ({ ...prev, [pin.pinId!]: true }));
-                                      if (currentUser?.userId) await reportPin(currentUser.userId, pin.pinId);
+                                      await reportPin(currentUser.userId, pin.pinId);
                                       Alert.alert("Reported", "This post has been reported and removed.");
                                     } catch (e) {
                                       setLocalHiddenPins(prev => {
@@ -1845,9 +1799,9 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
         venueName={venue.name}
         mode={interactionMode}
         currentUser={{
-          userId: currentUser?.userId || "",
-          username: currentUser?.username || "User",
-          profilePic: (currentUser as any)?.profile_pic || (currentUser as any)?.user_profile_pic || ""
+          userId: currentUser.userId,
+          username: currentUser.username || "User",
+          profilePic: (currentUser as any).profile_pic || ""
         }}
         isOwner={isOwner}
         locale={locale}
@@ -2055,9 +2009,7 @@ const styles = StyleSheet.create({
   },
   gridImage: {
     width: "100%",
-    height: "100%",
-    aspectRatio: 1,
-    backgroundColor: PincTheme.colors.card
+    height: "100%"
   },
   gridOverlay: {
     position: "absolute",

@@ -52,17 +52,6 @@ const isVideoUrl = (url: string | null | undefined): boolean => {
   );
 };
 
-const getPinTimestampMs = (timestamp: any): number => {
-  if (!timestamp) return 0;
-  if (typeof timestamp === 'number') return timestamp;
-  if (typeof timestamp.toDate === 'function') {
-    try { return timestamp.toDate().getTime(); } catch (e) { return 0; }
-  }
-  if (timestamp.seconds) return timestamp.seconds * 1000;
-  const parsed = new Date(timestamp).getTime();
-  return isNaN(parsed) ? 0 : parsed;
-};
-
 const getMarkerSize = (scale: number) => {
   if (scale <= 0.6) return 3; // Shrink to tiny dots when zoomed out
   return Math.floor(Math.max(40, Math.min(64, 54 * scale)));
@@ -141,7 +130,6 @@ interface CustomMapMarkerProps {
   zoomScale: number;
   children: React.ReactNode;
   cluster?: boolean;
-  identifier?: string;
 }
 
 const CustomMapMarker: React.FC<CustomMapMarkerProps> = ({
@@ -152,7 +140,7 @@ const CustomMapMarker: React.FC<CustomMapMarkerProps> = ({
   zIndex,
   zoomScale,
   children,
-  identifier
+  cluster
 }) => {
   const [tracksView, setTracksView] = useState(true);
 
@@ -160,32 +148,19 @@ const CustomMapMarker: React.FC<CustomMapMarkerProps> = ({
     setTracksView(true);
     const timer = setTimeout(() => {
       setTracksView(false);
-    }, 800);
+    }, zoomScale <= 0.6 ? 200 : 5000);
     return () => clearTimeout(timer);
-  }, [zoomScale, coordinate.latitude, coordinate.longitude]);
+  }, [zoomScale]);
 
   const markerProps: any = {
     coordinate,
-    onPress: (e: any) => {
-      if (e && typeof e.stopPropagation === 'function') {
-        try { e.stopPropagation(); } catch (_) {}
-      }
-      if (onPress) {
-        setTimeout(() => {
-          try {
-            onPress(e);
-          } catch (err) {
-            console.error("Error in marker onPress callback:", err);
-          }
-        }, 50);
-      }
-    },
+    onPress,
     anchor,
     zIndex,
     tracksViewChanges: tracksView,
   };
-  if (identifier) {
-    markerProps.identifier = identifier;
+  if (cluster !== undefined) {
+    markerProps.cluster = cluster;
   }
   if (onLongPress) {
     markerProps.onLongPress = onLongPress;
@@ -539,89 +514,49 @@ export const MapScreen: React.FC<MapScreenProps> = ({
     return pioneerIds;
   }, [allPins]);
 
-  // Group pins within 500 meters per user. The representative pin (group[0]) is the oldest (first posted) pin.
+  // Group pins within 500 meters. The representative pin (group[0]) is the oldest (first posted) pin.
   const groupedValidPins = useMemo(() => {
-    try {
-      // 1. Identify all sponsored venue IDs
-      const sponsoredVenueIds = new Set((displayedVenues || []).filter(v => v && (v.is_sponsored || (v.sponsor_tier && v.sponsor_tier >= 1))).map(v => v.venueId));
+    // 1. Identify all sponsored venue IDs
+    const sponsoredVenueIds = new Set(displayedVenues.filter(v => v.is_sponsored || (v.sponsor_tier && v.sponsor_tier >= 1)).map(v => v.venueId));
 
-      // 2. Filter out pins that belong to a sponsored venue so they don't render on the map directly
-      let mapRenderablePins = (validPins || []).filter(pin => pin && (!pin.venueId || !sponsoredVenueIds.has(pin.venueId)));
+    // 2. Filter out pins that belong to a sponsored venue so they don't render on the map directly
+    let mapRenderablePins = validPins.filter(pin => !pin.venueId || !sponsoredVenueIds.has(pin.venueId));
 
-      if (isFilterFriends) {
-        mapRenderablePins = mapRenderablePins.filter(pin => 
-          pin && (pin.userId === currentUserId || (Array.isArray(followingIds) && followingIds.includes(pin.userId)))
-        );
-      }
-
-      // Sort pins oldest first so that the seed pin for each cluster is the earliest posted pin
-      const sortedPins = [...mapRenderablePins].sort((a, b) => {
-        const timeA = a ? getPinTimestampMs(a.timestamp) : 0;
-        const timeB = b ? getPinTimestampMs(b.timestamp) : 0;
-        return timeA - timeB;
-      });
-
-      // Partition pins by userId for O(N) grouping speed instead of O(N^2)
-      const pinsByUserId = new Map<string, Pin[]>();
-      for (const pin of sortedPins) {
-        if (!pin) continue;
-        const uid = pin.userId || 'anonymous';
-        let userPins = pinsByUserId.get(uid);
-        if (!userPins) {
-          userPins = [];
-          pinsByUserId.set(uid, userPins);
-        }
-        userPins.push(pin);
-      }
-
-      const groups: Pin[][] = [];
-
-      // Group per-user pins within 500m
-      pinsByUserId.forEach((userPins) => {
-        if (!userPins || !Array.isArray(userPins)) return;
-        const processed = new Set<string>();
-
-        for (const pin of userPins) {
-          if (!pin) continue;
-          const pinKey = pin.pinId || `${pin.latitude}_${pin.longitude}_${getPinTimestampMs(pin.timestamp)}`;
-          if (processed.has(pinKey)) continue;
-          const currentGroup = [pin];
-          processed.add(pinKey);
-
-          for (const otherPin of userPins) {
-            if (!otherPin) continue;
-            const otherKey = otherPin.pinId || `${otherPin.latitude}_${otherPin.longitude}_${getPinTimestampMs(otherPin.timestamp)}`;
-            if (processed.has(otherKey)) continue;
-
-            // Quick bounding box check (~0.006 deg approx 600m) before Haversine
-            if (Math.abs((pin.latitude || 0) - (otherPin.latitude || 0)) > 0.006 || Math.abs((pin.longitude || 0) - (otherPin.longitude || 0)) > 0.006) {
-              continue;
-            }
-
-            const distance = calculateDistance(pin.latitude, pin.longitude, otherPin.latitude, otherPin.longitude);
-            
-            if (distance <= 500) {
-              currentGroup.push(otherPin);
-              processed.add(otherKey);
-            }
-          }
-          groups.push(currentGroup);
-        }
-      });
-
-      groups.sort((groupA, groupB) => {
-        const latestA = groupA[groupA.length - 1];
-        const latestB = groupB[groupB.length - 1];
-        const timeA = latestA ? getPinTimestampMs(latestA.timestamp) : 0;
-        const timeB = latestB ? getPinTimestampMs(latestB.timestamp) : 0;
-        return timeA - timeB;
-      });
-      return groups;
-    } catch (e) {
-      console.warn("Error in groupedValidPins:", e);
-      return [];
+    if (isFilterFriends) {
+      mapRenderablePins = mapRenderablePins.filter(pin => 
+        pin.userId === currentUserId || followingIds.includes(pin.userId)
+      );
     }
-  }, [validPins, displayedVenues, isFilterFriends, currentUserId, followingIds]);
+
+    // Sort pins oldest first so that the seed pin for each cluster is the earliest posted pin
+    const sortedPins = [...mapRenderablePins].sort((a, b) => {
+      const timeA = (a.timestamp as any)?.toDate ? (a.timestamp as any).toDate().getTime() : new Date(a.timestamp || 0).getTime();
+      const timeB = (b.timestamp as any)?.toDate ? (b.timestamp as any).toDate().getTime() : new Date(b.timestamp || 0).getTime();
+      return (timeA || 0) - (timeB || 0);
+    });
+    const groups: Pin[][] = [];
+    const processed = new Set<string>();
+
+    for (const pin of sortedPins) {
+      if (processed.has(pin.pinId!)) continue;
+      const currentGroup = [pin];
+      processed.add(pin.pinId!);
+
+      for (const otherPin of sortedPins) {
+        if (processed.has(otherPin.pinId!)) continue;
+        if (pin.userId !== otherPin.userId) continue;
+
+        const distance = calculateDistance(pin.latitude, pin.longitude, otherPin.latitude, otherPin.longitude);
+        
+        if (distance <= 500) {
+          currentGroup.push(otherPin);
+          processed.add(otherPin.pinId!);
+        }
+      }
+      groups.push(currentGroup);
+    }
+    return groups;
+  }, [validPins, displayedVenues]);
 
   // Fetch follower stats for validPins
   useEffect(() => {
@@ -921,12 +856,12 @@ export const MapScreen: React.FC<MapScreenProps> = ({
         customMapStyle={Platform.OS === 'ios' ? pincIOSDarkStyle : pincDarkStyle}
         style={styles.map}
         initialRegion={initialRegion}
-        googleMapId={undefined}
+        googleMapId={Platform.OS === 'ios' ? undefined : "ffb88fa752b68c8b5ad8c208"}
         mapType="standard"
         showsBuildings={true}
         showsTraffic={false}
         showsIndoors={true}
-        showsUserLocation={!!userLocation}
+        showsUserLocation
         showsMyLocationButton={false}
         spiralEnabled={false}
         preserveClusterPressBehavior={true}
@@ -1066,11 +1001,6 @@ export const MapScreen: React.FC<MapScreenProps> = ({
           });
 
           if (clusterPins.length > 0) {
-            clusterPins.sort((a, b) => {
-              const timeA = (a.timestamp as any)?.toDate ? (a.timestamp as any).toDate().getTime() : new Date(a.timestamp || 0).getTime();
-              const timeB = (b.timestamp as any)?.toDate ? (b.timestamp as any).toDate().getTime() : new Date(b.timestamp || 0).getTime();
-              return (timeB || 0) - (timeA || 0);
-            });
             setReelsFeedPins(clusterPins);
           }
         }}
@@ -1080,7 +1010,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
           const latestPin = group[group.length - 1];
           const isLiveNews = latestPin.post_type === "live_news";
           const isDeleteMode = deleteModePinId === firstPin.pinId;
-          const pinKey = `pin-${firstPin.pinId || `${firstPin.latitude}-${firstPin.longitude}-${firstPin.userId}`}`;
+          const pinKey = `pin-${firstPin.pinId || `${firstPin.latitude}-${firstPin.longitude}-${firstPin.timestamp}`}-${latestPin.user_profile_pic || ''}`;
 
           const closeSponsor = displayedVenues.find(
             v => v.is_sponsored && calculateDistance(firstPin.latitude, firstPin.longitude, v.latitude, v.longitude) < 10
@@ -1096,7 +1026,6 @@ export const MapScreen: React.FC<MapScreenProps> = ({
           return (
             <CustomMapMarker
               key={pinKey}
-              identifier={firstPin.pinId}
               coordinate={{ latitude: displayLat, longitude: displayLng }}
               onPress={() => {
                 if (isDeleteMode) return;
@@ -1305,22 +1234,14 @@ export const MapScreen: React.FC<MapScreenProps> = ({
         )}
 
         {(() => {
-          const sponsored = (displayedVenues || []).filter(venue => {
-            if (!venue) return false;
-            const isShop = venue.is_sponsored === true || (venue.sponsor_tier && venue.sponsor_tier >= 1);
-            const latNum = Number(venue.latitude);
-            const lngNum = Number(venue.longitude);
-            return isShop && !isNaN(latNum) && !isNaN(lngNum) && latNum !== 0 && lngNum !== 0;
-          });
+          const sponsored = displayedVenues.filter(venue => venue.is_sponsored);
           const coordsCount: Record<string, number> = {};
           return sponsored.map(venue => {
-            const latVal = Number(venue.latitude);
-            const lngVal = Number(venue.longitude);
-            const latKey = latVal.toFixed(4);
-            const lngKey = lngVal.toFixed(4);
+            const latKey = venue.latitude.toFixed(4);
+            const lngKey = venue.longitude.toFixed(4);
             const key = `${latKey},${lngKey}`;
-            let lat = latVal;
-            let lng = lngVal;
+            let lat = venue.latitude;
+            let lng = venue.longitude;
             if (coordsCount[key] !== undefined) {
               coordsCount[key]++;
               const count = coordsCount[key];
@@ -1334,7 +1255,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
             return { ...venue, _renderLat: lat, _renderLng: lng };
           });
         })().map(venue => {
-          const sponsorKey = `sponsor-${venue.venueId}`;
+          const sponsorKey = `sponsor-${venue.venueId}-${venue.custom_icon_url || venue.cover_image}-${venue.aesthetic_rating}-${venue.crowd_status}`;
           const isZoomedOut = zoomScale <= 0.6;
           const markerHeight = isZoomedOut ? 3 : Math.max(50, getMarkerSize(zoomScale) * 1.2);
           const markerWidth = markerHeight;
@@ -1342,23 +1263,13 @@ export const MapScreen: React.FC<MapScreenProps> = ({
           const innerHeight = markerHeight - 4;
           const isCommunity = venue.category?.toLowerCase() === 'community' || venue.category?.toLowerCase() === 'gang';
           const isPincClub = venue.sponsor_tier === 4;
-          const safeCustomIcon = typeof venue.custom_icon_url === 'string' && venue.custom_icon_url.trim() ? venue.custom_icon_url.trim() : null;
-          const safeCoverImage = typeof venue.cover_image === 'string' && venue.cover_image.trim() ? venue.cover_image.trim() : null;
-          const useCustomIcon = Boolean(safeCustomIcon && (isCommunity || isPincClub));
+          const useCustomIcon = venue.custom_icon_url && (isCommunity || isPincClub);
 
           return (
             <CustomMapMarker
               key={sponsorKey}
               coordinate={{ latitude: venue._renderLat, longitude: venue._renderLng }}
-              onPress={() => {
-                try {
-                  if (onSelectVenue) {
-                    onSelectVenue(venue);
-                  }
-                } catch (err) {
-                  console.error("Error selecting venue marker:", err);
-                }
-              }}
+              onPress={() => onSelectVenue(venue)}
               zIndex={998}
               anchor={{ x: 0.5, y: 0.5 }}
               zoomScale={zoomScale}
@@ -1371,12 +1282,17 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                 justifyContent: 'center', 
                 backgroundColor: 'transparent' 
               }}>
-                <Text style={{ width: 0, height: 0, opacity: 0, fontSize: 1 }}>{venue.venueId}</Text>
+                {/* 
+                  CRITICAL ANDROID BUG FIX: 
+                  Android's map engine often fails to render an Image-only marker 
+                  unless there is a Text component to force a layout pass. 
+                */}
+                <Text style={{ width: 0, height: 0, opacity: 0, fontSize: 0 }}>{venue.venueId}</Text>
 
-                {useCustomIcon && safeCustomIcon && !isZoomedOut ? (
+                {useCustomIcon && !isZoomedOut ? (
                   <View style={{ height: 100, justifyContent: 'center', alignItems: 'center' }}>
                     <RNImage
-                      source={{ uri: safeCustomIcon }}
+                      source={{ uri: venue.custom_icon_url }}
                       style={{ width: 100, height: 100 }}
                       resizeMode="contain"
                     />
@@ -1403,9 +1319,9 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                     }}>
                     {!isZoomedOut && (
                       <View style={{ width: innerWidth, height: innerHeight, justifyContent: 'center', alignItems: 'center' }}>
-                        {safeCoverImage ? (
+                        {venue.cover_image ? (
                           <RNImage
-                            source={{ uri: safeCoverImage }}
+                            source={{ uri: venue.cover_image }}
                             style={{
                               width: innerWidth,
                               height: innerHeight,
@@ -1416,12 +1332,12 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                         ) : (
                           <View style={{ width: innerWidth, height: innerHeight, borderRadius: 8, backgroundColor: PincTheme.colors.card, justifyContent: 'center', alignItems: 'center' }} />
                         )}
-                        <View
+                        <LinearGradient
+                          colors={['transparent', 'rgba(0,0,0,0.8)']}
                           style={{ 
                             position: 'absolute', 
                             bottom: 0, left: 0, right: 0, 
-                            backgroundColor: 'rgba(0,0,0,0.65)',
-                            paddingTop: 4, 
+                            paddingTop: 12, 
                             paddingBottom: 2, 
                             paddingHorizontal: 4,
                             alignItems: 'center',
@@ -1441,7 +1357,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                           }} numberOfLines={1} allowFontScaling={false}>
                             {venue.name}
                           </Text>
-                        </View>
+                        </LinearGradient>
                       </View>
                     )}
                     </View>
@@ -1465,13 +1381,19 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                           justifyContent: 'center',
                           alignItems: 'center',
                           zIndex: 999,
+                          shadowColor: '#000',
+                          shadowOffset: { width: 0, height: 2 },
+                          shadowOpacity: 0.3,
+                          shadowRadius: 2,
+                          elevation: 5,
                         }}>
                           <Text style={{ 
                             color: '#FFFFFF', 
-                            fontSize: 8, 
+                            fontSize: 7.5, 
                             fontWeight: '600', 
                             textAlign: 'center',
                             letterSpacing: -0.3,
+                            transform: [{ scaleY: 1.1 }]
                           }} allowFontScaling={false}>
                             {displayCount}
                           </Text>

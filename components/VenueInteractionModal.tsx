@@ -134,7 +134,7 @@ export const VenueInteractionModal: React.FC<Props> = ({
   const canType = mode === 'chat' || (mode === 'board' && isOwner);
 
   const renderMessage = ({ item }: { item: VenueMessage }) => {
-    const isMe = Boolean(currentUser?.userId && item.senderId === currentUser.userId);
+    const isMe = item.senderId === currentUser.userId;
 
     return (
       <TouchableOpacity 

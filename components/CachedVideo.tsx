@@ -6,7 +6,6 @@ import { PincTheme } from "../styles/theme";
 
 interface CachedVideoProps {
   source: { uri: string } | null;
-  poster?: string | null;
   style?: any;
   resizeMode?: "cover" | "contain" | "stretch";
   shouldPlay?: boolean;
@@ -14,7 +13,7 @@ interface CachedVideoProps {
   useNativeControls?: boolean;
 }
 
-export const CachedVideo: React.FC<CachedVideoProps> = ({ source, poster, ...props }) => {
+export const CachedVideo: React.FC<CachedVideoProps> = ({ source, ...props }) => {
   const videoUri = source?.uri || "";
   const webviewRef = useRef<WebView>(null);
 
@@ -49,7 +48,6 @@ export const CachedVideo: React.FC<CachedVideoProps> = ({ source, poster, ...pro
 
   // Generate HTML for the WebView
   const objectFit = (props.resizeMode === "cover") ? "cover" : "contain";
-  const posterAttr = poster ? `poster="${poster}"` : "";
   
   // Using WebView completely avoids the native ExoPlayer crashes by offloading video decoding
   // to the Chromium engine, which has much broader codec support and software fallbacks.
@@ -67,24 +65,17 @@ export const CachedVideo: React.FC<CachedVideoProps> = ({ source, poster, ...pro
       <video 
         id="main-video"
         src="${videoUri}" 
-        ${posterAttr}
         ${props.shouldPlay ? "autoplay" : ""} 
         ${props.isLooping ? "loop" : ""} 
         ${props.useNativeControls ? "controls" : ""} 
         preload="auto"
         playsinline 
         webkit-playsinline
-        muted
       ></video>
       <script>
         window.videoElement = document.getElementById('main-video');
-        window.videoElement.onplay = function() {
-          setTimeout(function() {
-            if (window.videoElement) window.videoElement.muted = false;
-          }, 50);
-        };
         // Prevent default tap highlight
-        document.addEventListener("touchstart", function() {}, false);
+        document.addEventListener("touchstart", function() {},false);
       </script>
     </body>
     </html>

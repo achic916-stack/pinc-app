@@ -397,12 +397,7 @@ export const PincButton = forwardRef<PincButtonRef, PincButtonProps>(({
       }
 
       setProcessingMessage("Uploading to Pinc...");
-      let loc = currentGPSLocation || userLocation || { latitude: 0, longitude: 0 };
-      
-      // If Pinc Club member posts from a specific pin, snap the location to the pin
-      if (forcedVenueId && currentUser.subscriptionTier === 4 && finalVenue) {
-        loc = { latitude: finalVenue.latitude, longitude: finalVenue.longitude };
-      }
+      const loc = currentGPSLocation || userLocation || { latitude: 0, longitude: 0 };
       
       // Save Pin to Firebase Firestore & Storage
       await createPin({
@@ -475,7 +470,7 @@ export const PincButton = forwardRef<PincButtonRef, PincButtonProps>(({
               <Text style={styles.mediaSelectorText}>PHOTO</Text>
             </TouchableOpacity>
 
-            {(activeTab !== 'map' || (currentUser.subscriptionTier === 4 && forcedVenueId != null)) && (
+            {(activeTab !== 'map' || currentUser.subscriptionTier === 4) && (
               <>
                 <View style={styles.mediaSelectorDivider} />
 

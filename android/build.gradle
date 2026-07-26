@@ -9,8 +9,6 @@ buildscript {
         kotlinVersion = findProperty('android.kotlinVersion') ?: '1.8.10'
 
         ndkVersion = "25.1.8937393"
-        playServicesVersion = "18.1.0"
-        googlePlayServicesVersion = "18.1.0"
     }
     repositories {
         google()

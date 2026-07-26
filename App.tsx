@@ -420,16 +420,14 @@ export default function App() {
 
   // 4. Subscribe to Venue Pins when a venue marker is tapped
   useEffect(() => {
-    const targetVenueId = selectedVenue?.venueId || (selectedVenue as any)?.id;
-    if (!selectedVenue || !targetVenueId) {
+    if (!selectedVenue) {
       setActivePins([]);
-      setIsLoadingPins(false);
       return;
     }
 
     setIsLoadingPins(true);
     const unsubscribe = subscribeToVenuePins(
-      targetVenueId,
+      selectedVenue.venueId,
       (updatedPins) => {
         setActivePins(updatedPins);
         setIsLoadingPins(false);
@@ -705,10 +703,39 @@ export default function App() {
             activeTab={activeTab}
           />
 
-          {/* Reality Check Sliding Sheet (For All Venues / Packages) */}
+          {/* Reality Check Sliding Sheet (For Advertiser/Business Packages) */}
           {selectedVenue && (
-            <View style={styles.sheetOverlay}>
-              <MapErrorBoundary>
+            selectedVenue.is_sponsored || (selectedVenue.sponsor_tier && selectedVenue.sponsor_tier >= 1) ? (
+              <Modal
+                visible={true}
+                animationType="slide"
+                onRequestClose={handleCloseBottomSheet}
+              >
+                <SafeAreaView style={{ flex: 1, backgroundColor: PincTheme.colors.background }}>
+                  <VenueDetailsSheet
+                    venue={selectedVenue}
+                    pins={activePins}
+                    isLoadingPins={isLoadingPins}
+                    onClose={handleCloseBottomSheet}
+                    locale={locale}
+                    followingIds={followingIds}
+                    onOpenUserProfile={(userId) => {
+                      setSelectedUserProfileId(userId);
+                    }}
+                    onNewPostPress={(venueId) => {
+                      handleCloseBottomSheet();
+                      setTimeout(() => {
+                        pincButtonRef.current?.openMediaSelector(venueId);
+                      }, 300);
+                    }}
+                    currentUser={currentUser}
+                    isFullScreen={true}
+                    isEditing={isEditingVenue}
+                  />
+                </SafeAreaView>
+              </Modal>
+            ) : (
+              <View style={styles.sheetOverlay}>
                 <VenueDetailsSheet
                   venue={selectedVenue}
                   pins={activePins}
@@ -721,16 +748,14 @@ export default function App() {
                   }}
                   onNewPostPress={(venueId) => {
                     handleCloseBottomSheet();
-                    setTimeout(() => {
-                      pincButtonRef.current?.openMediaSelector(venueId);
-                    }, 300);
+                    pincButtonRef.current?.openMediaSelector(venueId);
                   }}
                   currentUser={currentUser}
                   isFullScreen={false}
                   isEditing={isEditingVenue}
                 />
-              </MapErrorBoundary>
-            </View>
+              </View>
+            )
           )} 
 
           {/* User Profile Modal */}
@@ -1017,15 +1042,10 @@ const styles = StyleSheet.create({
   sheetOverlay: {
     position: "absolute",
     bottom: 0,
-    top: "22%",
     left: 0,
     right: 0,
     zIndex: 999,
-    elevation: 100,
-    backgroundColor: PincTheme.colors.background,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    overflow: "hidden"
+    elevation: 100
   },
   loaderContainer: {
     flex: 1,

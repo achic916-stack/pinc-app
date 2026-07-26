@@ -17,7 +17,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { Pin, UserProfile, toggleLikePin, calculateDistance, deletePin, toggleSavePin, cleanupMyExpiredStories, reportPin, getPinTimestampMs } from '../services/firebase';
+import { Pin, UserProfile, toggleLikePin, calculateDistance, deletePin, toggleSavePin, cleanupMyExpiredStories, reportPin } from '../services/firebase';
 import { PincTheme } from '../styles/theme';
 import { CachedVideo } from '../components/CachedVideo';
 import { WatermarkShare } from '../components/WatermarkShare';
@@ -37,7 +37,7 @@ interface HomeFeedScreenProps {
   onStartVideoPost?: () => void;
   onStartPhotoPost?: () => void;
   onStartGalleryPost?: () => void;
-  onGoToMap?: (latitude: number, longitude: number, pinId?: string) => void;
+  onGoToMap?: (latitude: number, longitude: number) => void;
   selectedPin?: Pin | null;
   isVisible: boolean;
 }
@@ -54,7 +54,7 @@ interface FeedPinItemProps {
   setCommentPinId: (pinId: string) => void;
   handleShare: (item: Pin) => void;
   handleToggleSave: (pinId: string) => void;
-  onGoToMap?: (latitude: number, longitude: number, pinId?: string) => void;
+  onGoToMap?: (latitude: number, longitude: number) => void;
   onOpenMedia: (url: string, type: 'video'|'image') => void;
 }
 
@@ -115,16 +115,11 @@ const FeedPinItem: React.FC<FeedPinItemProps> = React.memo(({
 
   const isVideo = item.media_type === "video" || (item.image_url && item.image_url.includes(".mp4"));
   const safeUsername = item.username || "Unknown";
-  const timestampMs = getPinTimestampMs(item.timestamp);
-  let timeFormatted = "";
-  try {
-    timeFormatted = new Intl.DateTimeFormat('en-GB', { 
-      day: 'numeric', month: 'short', 
-      hour: '2-digit', minute: '2-digit' 
-    }).format(new Date(timestampMs));
-  } catch (e) {
-    timeFormatted = "Just now";
-  }
+  const safeHandle = safeUsername.toLowerCase().replace(/\s+/g, '_');
+  const timeFormatted = new Intl.DateTimeFormat('en-GB', { 
+    day: 'numeric', month: 'short', 
+    hour: '2-digit', minute: '2-digit' 
+  }).format(new Date(item.timestamp));
 
   return (
       <View style={styles.card}>
@@ -324,7 +319,7 @@ const FeedPinItem: React.FC<FeedPinItemProps> = React.memo(({
               borderWidth: 1,
               borderColor: PincTheme.colors.primary,
             }}
-            onPress={() => onGoToMap?.(item.latitude, item.longitude, item.pinId)}
+            onPress={() => onGoToMap?.(item.latitude, item.longitude)}
           >
             <Ionicons name="map-outline" size={16} color={PincTheme.colors.primary} style={{ marginRight: 6 }} />
             <Text style={{ fontSize: 13, fontWeight: '700', color: PincTheme.colors.primary }}>Go To Map</Text>
@@ -412,7 +407,7 @@ export const HomeFeedScreen: React.FC<HomeFeedScreenProps> = ({
     });
 
     // Sort oldest first to form groups properly
-    validPins.sort((a, b) => getPinTimestampMs(a.timestamp) - getPinTimestampMs(b.timestamp));
+    validPins.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 
     const processed = new Set<string>();
     const clustered: Pin[] = [];
@@ -434,7 +429,7 @@ export const HomeFeedScreen: React.FC<HomeFeedScreenProps> = ({
         if (otherPin.latitude === undefined || otherPin.longitude === undefined || (otherPin.latitude === 0 && otherPin.longitude === 0)) continue;
 
         const distance = calculateDistance(pin.latitude, pin.longitude, otherPin.latitude, otherPin.longitude);
-        const timeDiffHours = Math.abs(getPinTimestampMs(pin.timestamp) - getPinTimestampMs(otherPin.timestamp)) / (1000 * 60 * 60);
+        const timeDiffHours = Math.abs(new Date(pin.timestamp).getTime() - new Date(otherPin.timestamp).getTime()) / (1000 * 60 * 60);
 
         if (distance <= 500 && timeDiffHours <= 4) {
           cluster.push(otherPin);
@@ -460,7 +455,7 @@ export const HomeFeedScreen: React.FC<HomeFeedScreenProps> = ({
     }
 
     // Sort newest first for the feed
-    let finalSorted = clustered.sort((a, b) => getPinTimestampMs(b.timestamp) - getPinTimestampMs(a.timestamp));
+    let finalSorted = clustered.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
     if (selectedPin) {
       const selectedIndex = finalSorted.findIndex(p => p.pinId === selectedPin.pinId);
