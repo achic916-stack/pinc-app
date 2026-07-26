@@ -625,10 +625,11 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
 
   const shopImagesRaw = showEditPanel
     ? editedImages
-    : (venue?.images && venue.images.length > 0
+    : (Array.isArray(venue?.images) && venue.images.length > 0
       ? venue.images
-      : [venue?.cover_image].filter(Boolean));
-  const shopImages = [...shopImagesRaw].filter((img): img is string => typeof img === 'string' && img.length > 0).reverse();
+      : (venue?.cover_image ? [venue.cover_image] : []));
+  const shopImagesFiltered = [...shopImagesRaw].filter((img): img is string => typeof img === 'string' && img.trim().length > 0).reverse();
+  const shopImages = shopImagesFiltered.length > 0 ? shopImagesFiltered : fallbackAestheticImages;
 
   const widget = getWidgetSummary();
 
