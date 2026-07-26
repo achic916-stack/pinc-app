@@ -168,10 +168,16 @@ const CustomMapMarker: React.FC<CustomMapMarkerProps> = ({
     coordinate,
     onPress: (e: any) => {
       if (e && typeof e.stopPropagation === 'function') {
-        e.stopPropagation();
+        try { e.stopPropagation(); } catch (_) {}
       }
       if (onPress) {
-        onPress(e);
+        setTimeout(() => {
+          try {
+            onPress(e);
+          } catch (err) {
+            console.error("Error in marker onPress callback:", err);
+          }
+        }, 50);
       }
     },
     anchor,
