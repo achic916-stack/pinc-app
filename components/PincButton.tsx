@@ -470,7 +470,7 @@ export const PincButton = forwardRef<PincButtonRef, PincButtonProps>(({
               <Text style={styles.mediaSelectorText}>PHOTO</Text>
             </TouchableOpacity>
 
-            {(activeTab !== 'map' || currentUser.subscriptionTier === 4) && (
+            {activeTab !== 'map' && (
               <>
                 <View style={styles.mediaSelectorDivider} />
 
