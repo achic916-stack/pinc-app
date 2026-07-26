@@ -130,7 +130,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
 
   useEffect(() => {
     const checkFollowStatus = async () => {
-      if (!currentUser.userId || !venue?.ownerId || currentUser.userId === venue.ownerId) return;
+      if (!currentUser?.userId || !venue?.ownerId || currentUser?.userId === venue.ownerId) return;
       try {
         const status = await checkIsFollowing(currentUser.userId, venue.ownerId);
         setIsFollowingVenue(status);
@@ -139,10 +139,10 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
       }
     };
     checkFollowStatus();
-  }, [venue, currentUser.userId]);
+  }, [venue, currentUser?.userId]);
 
   const handleToggleFollowVenue = async () => {
-    if (!currentUser.userId || !venue?.ownerId || currentUser.userId === venue.ownerId || isTogglingFollowVenue) return;
+    if (!currentUser?.userId || !venue?.ownerId || currentUser?.userId === venue.ownerId || isTogglingFollowVenue) return;
     setIsTogglingFollowVenue(true);
     const prevStatus = isFollowingVenue;
     setIsFollowingVenue(!prevStatus);
@@ -252,6 +252,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
     setIsUploading(true);
     try {
       const compressedUri = await compressImage(localUri);
+      if (!currentUser?.userId) return;
       const downloadUrl = await uploadPinImage(compressedUri, currentUser.userId);
       const newImages = [...editedImages, downloadUrl];
       setEditedImages(newImages);
@@ -406,7 +407,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
       return localLikes[pinId];
     }
     const likesArray = pin.likes || [];
-    const liked = likesArray.includes(currentUser.userId);
+    const liked = currentUser?.userId ? likesArray.includes(currentUser.userId) : false;
     const count = likesArray.length;
     return { liked, count };
   };
@@ -426,7 +427,9 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
     }));
 
     try {
-      await toggleLikePin(pinId, currentUser.userId);
+      if (currentUser?.userId) {
+        await toggleLikePin(pinId, currentUser.userId);
+      }
     } catch (err) {
       console.warn("Failed to toggle like on Firestore:", err);
       // Revert on error
@@ -891,7 +894,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                 <Text style={styles.venueName}>{venue.name}</Text>
               )}
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                {isShopPackage && currentUser.userId !== venue.ownerId && venue.ownerId && (
+                {isShopPackage && currentUser?.userId !== venue.ownerId && venue.ownerId && (
                   <TouchableOpacity
                     style={{
                       borderWidth: 1.5,
@@ -1254,7 +1257,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                   const isFriend = followingIds.includes(pin.userId);
 
                   // Interaction activity cue checks
-                  const isOwnPost = pin.userId === currentUser.userId;
+                  const isOwnPost = Boolean(currentUser?.userId && pin.userId === currentUser.userId);
                   const likeState = getPinLikeState(pin);
                   const commentCount = commentsCounts[pin.pinId || ""] || 0;
                   const hasInteractions = likeState.count > 0 || commentCount > 0;
@@ -1388,7 +1391,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                           </TouchableOpacity>
 
                           {/* Delete Button */}
-                          {(pin.userId === currentUser.userId || isOwner) && (
+                          {((currentUser?.userId && pin.userId === currentUser.userId) || isOwner) && (
                             <TouchableOpacity
                               style={styles.deleteButton}
                               onPress={() => handleDeletePin(pin.pinId)}
@@ -1497,7 +1500,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                 const isFriend = followingIds.includes(pin.userId);
 
                 // Interaction activity cue checks
-                const isOwnPost = pin.userId === currentUser.userId;
+                const isOwnPost = Boolean(currentUser?.userId && pin.userId === currentUser.userId);
                 const likeState = getPinLikeState(pin);
                 const commentCount = commentsCounts[pin.pinId || ""] || 0;
                 const hasInteractions = likeState.count > 0 || commentCount > 0;
@@ -1664,7 +1667,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                       <TouchableOpacity
                         style={[styles.actionButton, { marginLeft: "auto" }]}
                         onPress={() => {
-                          if (pin.userId === currentUser.userId) {
+                          if (currentUser?.userId && pin.userId === currentUser.userId) {
                             handleDeletePin(pin.pinId);
                           } else {
                             Alert.alert("Report Post", "Are you sure you want to report this post for objectionable content?", [
@@ -1676,7 +1679,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                                   if (pin.pinId) {
                                     try {
                                       setLocalHiddenPins(prev => ({ ...prev, [pin.pinId!]: true }));
-                                      await reportPin(currentUser.userId, pin.pinId);
+                                      if (currentUser?.userId) await reportPin(currentUser.userId, pin.pinId);
                                       Alert.alert("Reported", "This post has been reported and removed.");
                                     } catch (e) {
                                       setLocalHiddenPins(prev => {
@@ -1818,9 +1821,9 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
         venueName={venue.name}
         mode={interactionMode}
         currentUser={{
-          userId: currentUser.userId,
-          username: currentUser.username || "User",
-          profilePic: (currentUser as any).profile_pic || ""
+          userId: currentUser?.userId || "",
+          username: currentUser?.username || "User",
+          profilePic: (currentUser as any)?.profile_pic || (currentUser as any)?.user_profile_pic || ""
         }}
         isOwner={isOwner}
         locale={locale}
