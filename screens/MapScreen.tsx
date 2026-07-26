@@ -915,7 +915,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
         customMapStyle={Platform.OS === 'ios' ? pincIOSDarkStyle : pincDarkStyle}
         style={styles.map}
         initialRegion={initialRegion}
-        googleMapId={Platform.OS === 'web' ? undefined : "ffb88fa752b68c8b5ad8c208"}
+        googleMapId={Platform.OS === 'android' ? "ffb88fa752b68c8b5ad8c208" : undefined}
         mapType="standard"
         showsBuildings={true}
         showsTraffic={false}
