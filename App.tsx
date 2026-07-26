@@ -707,7 +707,10 @@ export default function App() {
 
           {/* Reality Check Sliding Sheet (For All Venues / Packages) */}
           {selectedVenue && (
-            <View style={styles.sheetOverlay}>
+            <View style={[
+              styles.sheetOverlay, 
+              Boolean(selectedVenue.is_sponsored || (selectedVenue.sponsor_tier && selectedVenue.sponsor_tier >= 1)) && { top: 0, height: '100%' }
+            ]}>
               <MapErrorBoundary>
                 <VenueDetailsSheet
                   venue={selectedVenue}
