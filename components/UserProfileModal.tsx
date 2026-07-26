@@ -38,6 +38,7 @@ import { t } from "../services/localization";
 import * as ImagePicker from "expo-image-picker";
 import { BusinessPackagesModal } from "./BusinessPackagesModal";
 import { UserListModal } from "./UserListModal";
+import { ReelsFeedModal } from "./ReelsFeedModal";
 import { ChatModal } from "./ChatModal";
 import { WatermarkShare } from "./WatermarkShare";
 import { ChatInboxModal } from "./ChatInboxModal";
@@ -107,6 +108,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const [isChatVisible, setIsChatVisible] = useState(false);
   const [sharePin, setSharePin] = useState<Pin | null>(null);
   const [showAdminStats, setShowAdminStats] = useState(false);
+  const [viewingPins, setViewingPins] = useState<Pin[]>([]);
+  const [viewingInitialIndex, setViewingInitialIndex] = useState<number>(0);
   
   // New States for Follower Lists and Chat
   const [userListType, setUserListType] = useState<"followers" | "following" | null>(null);
@@ -700,13 +703,13 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
                   {/* Grid Content */}
                   <View style={{ width: "100%", flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 8, paddingBottom: 16, marginTop: 12 }}>
-                    {activeTab === "posts" && pins.map((pin) => (
+                    {activeTab === "posts" && pins.map((pin, index) => (
                       <TouchableOpacity
                         key={`post-${pin.pinId}`}
                         style={{ width: "50%", padding: 8 }}
                         onPress={() => {
-                          onClose();
-                          if (onSelectMemory) onSelectMemory(pin);
+                          setViewingPins(pins);
+                          setViewingInitialIndex(index);
                         }}
                       >
                         <View style={styles.memoryCard}>
@@ -721,13 +724,13 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                       </View>
                     )}
 
-                    {activeTab === "saved" && !isLoadingSaved && savedPinsData.map((pin) => (
+                    {activeTab === "saved" && !isLoadingSaved && savedPinsData.map((pin, index) => (
                       <TouchableOpacity
                         key={`saved-${pin.pinId}`}
                         style={{ width: "50%", padding: 8 }}
                         onPress={() => {
-                          onClose();
-                          if (onSelectMemory) onSelectMemory(pin);
+                          setViewingPins(savedPinsData);
+                          setViewingInitialIndex(index);
                         }}
                       >
                         <View style={styles.memoryCard}>
@@ -1048,6 +1051,19 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       <AdminStatsModal
         visible={showAdminStats}
         onClose={() => setShowAdminStats(false)}
+      />
+
+      {/* Full Screen Reels Feed Modal directly inside Profile */}
+      <ReelsFeedModal
+        visible={viewingPins.length > 0}
+        pins={viewingPins}
+        initialIndex={viewingInitialIndex}
+        onClose={() => {
+          setViewingPins([]);
+          setViewingInitialIndex(0);
+        }}
+        currentUserId={currentUserId}
+        locale={locale}
       />
     </>
   );
