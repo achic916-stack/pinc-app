@@ -1336,13 +1336,23 @@ export const MapScreen: React.FC<MapScreenProps> = ({
           const innerHeight = markerHeight - 4;
           const isCommunity = venue.category?.toLowerCase() === 'community' || venue.category?.toLowerCase() === 'gang';
           const isPincClub = venue.sponsor_tier === 4;
-          const useCustomIcon = venue.custom_icon_url && (isCommunity || isPincClub);
+          const safeCustomIcon = typeof venue.custom_icon_url === 'string' && venue.custom_icon_url.trim() ? venue.custom_icon_url.trim() : null;
+          const safeCoverImage = typeof venue.cover_image === 'string' && venue.cover_image.trim() ? venue.cover_image.trim() : null;
+          const useCustomIcon = Boolean(safeCustomIcon && (isCommunity || isPincClub));
 
           return (
             <CustomMapMarker
               key={sponsorKey}
               coordinate={{ latitude: venue._renderLat, longitude: venue._renderLng }}
-              onPress={() => onSelectVenue(venue)}
+              onPress={() => {
+                try {
+                  if (onSelectVenue) {
+                    onSelectVenue(venue);
+                  }
+                } catch (err) {
+                  console.error("Error selecting venue marker:", err);
+                }
+              }}
               zIndex={998}
               anchor={{ x: 0.5, y: 0.5 }}
               zoomScale={zoomScale}
@@ -1355,17 +1365,12 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                 justifyContent: 'center', 
                 backgroundColor: 'transparent' 
               }}>
-                {/* 
-                  CRITICAL ANDROID BUG FIX: 
-                  Android's map engine often fails to render an Image-only marker 
-                  unless there is a Text component to force a layout pass. 
-                */}
                 <Text style={{ width: 0, height: 0, opacity: 0, fontSize: 1 }}>{venue.venueId}</Text>
 
-                {useCustomIcon && !isZoomedOut ? (
+                {useCustomIcon && safeCustomIcon && !isZoomedOut ? (
                   <View style={{ height: 100, justifyContent: 'center', alignItems: 'center' }}>
                     <RNImage
-                      source={{ uri: venue.custom_icon_url }}
+                      source={{ uri: safeCustomIcon }}
                       style={{ width: 100, height: 100 }}
                       resizeMode="contain"
                     />
@@ -1392,9 +1397,9 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                     }}>
                     {!isZoomedOut && (
                       <View style={{ width: innerWidth, height: innerHeight, justifyContent: 'center', alignItems: 'center' }}>
-                        {venue.cover_image ? (
+                        {safeCoverImage ? (
                           <RNImage
-                            source={{ uri: venue.cover_image }}
+                            source={{ uri: safeCoverImage }}
                             style={{
                               width: innerWidth,
                               height: innerHeight,
