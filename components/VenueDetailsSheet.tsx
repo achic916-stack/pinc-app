@@ -526,13 +526,13 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
 
   // Default fallback aesthetic images if no user aesthetic pins are available
   const fallbackAestheticImages = [
-    venue.cover_image,
+    venue?.cover_image,
     "https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=600&q=80",
     "https://images.unsplash.com/photo-1498804103079-a6351b050096?auto=format&fit=crop&w=600&q=80",
     "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=600&q=80",
     "https://images.unsplash.com/photo-1559925393-8be0ec4767c8?auto=format&fit=crop&w=600&q=80",
     "https://images.unsplash.com/photo-1521017432531-fbd92d768814?auto=format&fit=crop&w=600&q=80"
-  ];
+  ].filter(Boolean) as string[];
 
   // Dynamic calculations for real-time status summary widget
   const getWidgetSummary = () => {
@@ -1283,7 +1283,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                           onPress={() => onOpenUserProfile && onOpenUserProfile(pin.userId)}
                           activeOpacity={0.7}
                         >
-                          <Image source={{ uri: pin.user_profile_pic }} style={styles.avatar} />
+                          <Image source={{ uri: pin.user_profile_pic || 'https://ui-avatars.com/api/?name=User' }} style={styles.avatar} />
                           <View style={styles.userMeta}>
                             <Text style={styles.username}>@{pin.username}</Text>
                             <Text style={styles.timestamp}>
@@ -1525,7 +1525,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                         onPress={() => onOpenUserProfile && onOpenUserProfile(pin.userId)}
                         activeOpacity={0.7}
                       >
-                        <Image source={{ uri: pin.user_profile_pic }} style={styles.avatar} />
+                        <Image source={{ uri: pin.user_profile_pic || 'https://ui-avatars.com/api/?name=User' }} style={styles.avatar} />
                         <View style={styles.userMeta}>
                           <Text style={styles.username}>@{pin.username}</Text>
                           <Text style={styles.timestamp}>
