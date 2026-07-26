@@ -52,6 +52,26 @@ const isActuallyVideo = (pin: Pin) => {
   return pin.media_type === "video" || isVideoUrl(pin.image_url);
 };
 
+const formatTimeString = (d: Date): string => {
+  if (!d || isNaN(d.getTime())) return "";
+  try {
+    const hours = d.getHours().toString().padStart(2, '0');
+    const minutes = d.getMinutes().toString().padStart(2, '0');
+    return `${hours}:${minutes}`;
+  } catch (e) {
+    return "";
+  }
+};
+
+const formatDateString = (d: Date): string => {
+  if (!d || isNaN(d.getTime())) return "";
+  try {
+    return `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`;
+  } catch (e) {
+    return "";
+  }
+};
+
 interface VenueDetailsSheetProps {
   venue: Venue | null;
   pins: Pin[];
@@ -1291,10 +1311,10 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                                 ? t(locale, "today")
                                 : isPostYesterday
                                   ? t(locale, "yesterday")
-                                  : pinDate.toLocaleDateString()
+                                  : formatDateString(pinDate)
                               } {" "}
                               {t(locale, "at")} {" "}
-                              {pinDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                              {formatTimeString(pinDate)}
                             </Text>
                           </View>
                         </TouchableOpacity>
@@ -1533,10 +1553,10 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                               ? t(locale, "today")
                               : isPostYesterday
                                 ? t(locale, "yesterday")
-                                : pinDate.toLocaleDateString()
+                                : formatDateString(pinDate)
                             } {" "}
                             {t(locale, "at")} {" "}
-                            {pinDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                            {formatTimeString(pinDate)}
                           </Text>
                         </View>
                       </TouchableOpacity>

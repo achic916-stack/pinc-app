@@ -184,7 +184,7 @@ export const CommentsDrawer: React.FC<CommentsDrawerProps> = ({
                           )}
                           <Text style={styles.bulletSeparator}>•</Text>
                           <Text style={styles.commentTime}>
-                            {commentDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                            {`${commentDate.getHours().toString().padStart(2, '0')}:${commentDate.getMinutes().toString().padStart(2, '0')}`}
                           </Text>
                         </View>
                         <Text style={styles.commentText}>{comment.text}</Text>
