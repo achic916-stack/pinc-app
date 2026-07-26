@@ -464,10 +464,6 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
     );
   };
 
-  if (!venue) return null;
-
-  const currentStatus = venue.crowd_status?.toLowerCase();
-
   const parseToDate = (dateInput: any): Date => {
     if (!dateInput) return new Date();
     if (dateInput instanceof Date) return isNaN(dateInput.getTime()) ? new Date() : dateInput;
@@ -599,12 +595,20 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
     };
   };
 
+  if (!venue) {
+    return (
+      <View style={[styles.sheetContainer, { justifyContent: 'center', alignItems: 'center', padding: 20 }]}>
+        <ActivityIndicator size="large" color={PincTheme.colors.primary} />
+      </View>
+    );
+  }
+
   const shopImagesRaw = showEditPanel
     ? editedImages
-    : (venue.images && venue.images.length > 0
+    : (venue?.images && venue.images.length > 0
       ? venue.images
-      : [venue.cover_image].filter(Boolean));
-  const shopImages = [...shopImagesRaw].reverse();
+      : [venue?.cover_image].filter(Boolean));
+  const shopImages = [...shopImagesRaw].filter((img): img is string => typeof img === 'string' && img.length > 0).reverse();
 
   const widget = getWidgetSummary();
 
