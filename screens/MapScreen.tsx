@@ -152,7 +152,6 @@ const CustomMapMarker: React.FC<CustomMapMarkerProps> = ({
   zIndex,
   zoomScale,
   children,
-  cluster,
   identifier
 }) => {
   const [tracksView, setTracksView] = useState(true);
@@ -167,7 +166,14 @@ const CustomMapMarker: React.FC<CustomMapMarkerProps> = ({
 
   const markerProps: any = {
     coordinate,
-    onPress,
+    onPress: (e: any) => {
+      if (e && typeof e.stopPropagation === 'function') {
+        e.stopPropagation();
+      }
+      if (onPress) {
+        onPress(e);
+      }
+    },
     anchor,
     zIndex,
     tracksViewChanges: tracksView,
@@ -175,15 +181,12 @@ const CustomMapMarker: React.FC<CustomMapMarkerProps> = ({
   if (identifier) {
     markerProps.identifier = identifier;
   }
-  if (cluster !== undefined) {
-    markerProps.cluster = cluster;
-  }
   if (onLongPress) {
     markerProps.onLongPress = onLongPress;
   }
 
   return (
-    <Marker {...markerProps} stopPropagation={true}>
+    <Marker {...markerProps}>
       {children}
     </Marker>
   );
@@ -1296,14 +1299,22 @@ export const MapScreen: React.FC<MapScreenProps> = ({
         )}
 
         {(() => {
-          const sponsored = displayedVenues.filter(venue => venue.is_sponsored);
+          const sponsored = (displayedVenues || []).filter(venue => {
+            if (!venue) return false;
+            const isShop = venue.is_sponsored === true || (venue.sponsor_tier && venue.sponsor_tier >= 1);
+            const latNum = Number(venue.latitude);
+            const lngNum = Number(venue.longitude);
+            return isShop && !isNaN(latNum) && !isNaN(lngNum) && latNum !== 0 && lngNum !== 0;
+          });
           const coordsCount: Record<string, number> = {};
           return sponsored.map(venue => {
-            const latKey = venue.latitude.toFixed(4);
-            const lngKey = venue.longitude.toFixed(4);
+            const latVal = Number(venue.latitude);
+            const lngVal = Number(venue.longitude);
+            const latKey = latVal.toFixed(4);
+            const lngKey = lngVal.toFixed(4);
             const key = `${latKey},${lngKey}`;
-            let lat = venue.latitude;
-            let lng = venue.longitude;
+            let lat = latVal;
+            let lng = lngVal;
             if (coordsCount[key] !== undefined) {
               coordsCount[key]++;
               const count = coordsCount[key];
