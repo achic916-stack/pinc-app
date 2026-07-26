@@ -22,6 +22,16 @@ import {
 import { Image } from "expo-image";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as RNMaps from "react-native-maps";
+import { enableLatestRenderer } from "react-native-maps";
+
+if (Platform.OS === 'android') {
+  try {
+    enableLatestRenderer();
+  } catch (e) {
+    console.log("Enable latest renderer status:", e);
+  }
+}
+
 import RNMapClustering from "react-native-map-clustering";
 import * as Location from "expo-location";
 import { LinearGradient } from "expo-linear-gradient";

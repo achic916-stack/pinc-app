@@ -22,7 +22,7 @@ import com.facebook.soloader.SoLoader
 import expo.modules.ApplicationLifecycleDispatcher
 import expo.modules.ReactNativeHostWrapper
 
-import com.google.android.gms.maps.MapsInitializer
+import androidx.appcompat.app.AppCompatDelegate
 
 class MainApplication : Application(), ReactApplication {
 
@@ -69,7 +69,6 @@ class MainApplication : Application(), ReactApplication {
   override fun onCreate() {
     super.onCreate()
     AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO)
-    MapsInitializer.initialize(applicationContext, MapsInitializer.Renderer.LATEST, null)
     SoLoader.init(this, false)
     if (!BuildConfig.REACT_NATIVE_UNSTABLE_USE_RUNTIME_SCHEDULER_ALWAYS) {
       ReactFeatureFlags.unstable_useRuntimeSchedulerAlways = false
