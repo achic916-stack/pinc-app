@@ -1188,7 +1188,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
       <View style={styles.contentContainer}>
         {isShopPackage ? (
           /* Shop Atmosphere Images Grid + Customer Reviews combined in a single scroll view */
-          <ScrollView contentContainerStyle={{ paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
             {/* Grid of Shop Images */}
             <View style={styles.gridContainer}>
               {shopImages.map((uri, index) => (
