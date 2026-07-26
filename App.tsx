@@ -420,14 +420,16 @@ export default function App() {
 
   // 4. Subscribe to Venue Pins when a venue marker is tapped
   useEffect(() => {
-    if (!selectedVenue) {
+    const targetVenueId = selectedVenue?.venueId || (selectedVenue as any)?.id;
+    if (!selectedVenue || !targetVenueId) {
       setActivePins([]);
+      setIsLoadingPins(false);
       return;
     }
 
     setIsLoadingPins(true);
     const unsubscribe = subscribeToVenuePins(
-      selectedVenue.venueId,
+      targetVenueId,
       (updatedPins) => {
         setActivePins(updatedPins);
         setIsLoadingPins(false);

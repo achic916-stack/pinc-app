@@ -636,36 +636,46 @@ export function subscribeToVenues(onUpdate: (venues: Venue[]) => void, onError?:
  * Subscribes to pins for a specific venue, ordered by timestamp (newest first).
  */
 export function subscribeToVenuePins(venueId: string, onUpdate: (pins: Pin[]) => void, onError?: (error: any) => void) {
-  const q = query(
-    collection(db, "pins"),
-    where("venueId", "==", venueId),
-    orderBy("timestamp", "desc")
-  );
-  return onSnapshot(q, (snapshot) => {
-    const pins: Pin[] = [];
-    snapshot.forEach((doc) => {
-      const data = doc.data();
-      const timestamp = (data.timestamp as Timestamp)?.toDate() || new Date();
+  if (!venueId || typeof venueId !== 'string') {
+    onUpdate([]);
+    return () => {};
+  }
+  try {
+    const q = query(
+      collection(db, "pins"),
+      where("venueId", "==", venueId),
+      orderBy("timestamp", "desc")
+    );
+    return onSnapshot(q, (snapshot) => {
+      const pins: Pin[] = [];
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        const timestamp = (data.timestamp as Timestamp)?.toDate() || new Date();
 
-      // Filter out 24h posts that have expired
-      if (data.post_duration === "24h") {
-        const diffHours = (new Date().getTime() - timestamp.getTime()) / (1000 * 60 * 60);
-        if (diffHours > 24) return;
+        // Filter out 24h posts that have expired
+        if (data.post_duration === "24h") {
+          const diffHours = (new Date().getTime() - timestamp.getTime()) / (1000 * 60 * 60);
+          if (diffHours > 24) return;
+        }
+
+        pins.push({
+          pinId: doc.id,
+          ...data,
+          timestamp
+        } as Pin);
+      });
+      onUpdate(pins);
+    }, (error) => {
+      console.warn("Firestore subscribeToVenuePins failed:", error);
+      if (onError) {
+        onError(error);
       }
-
-      pins.push({
-        pinId: doc.id,
-        ...data,
-        timestamp
-      } as Pin);
     });
-    onUpdate(pins);
-  }, (error) => {
-    console.warn("Firestore subscribeToVenuePins failed:", error);
-    if (onError) {
-      onError(error);
-    }
-  });
+  } catch (err) {
+    console.warn("Firestore subscribeToVenuePins catch exception:", err);
+    onUpdate([]);
+    return () => {};
+  }
 }
 
 /**
