@@ -1017,10 +1017,15 @@ const styles = StyleSheet.create({
   sheetOverlay: {
     position: "absolute",
     bottom: 0,
+    top: "22%",
     left: 0,
     right: 0,
     zIndex: 999,
-    elevation: 100
+    elevation: 100,
+    backgroundColor: PincTheme.colors.background,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    overflow: "hidden"
   },
   loaderContainer: {
     flex: 1,
