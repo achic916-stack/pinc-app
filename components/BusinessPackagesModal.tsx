@@ -619,14 +619,7 @@ export const BusinessPackagesModalComponent: React.FC<BusinessPackagesModalProps
     };
 
     return (
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={showEssentialUpload}
-        onRequestClose={handleCloseEssentialUpload}
-      >
-        <View style={styles.modalOverlay}>
-          <SafeAreaView style={styles.modalContent}>
+      <View style={{ flex: 1 }}>
             {/* Header */}
             <View style={styles.header}>
               <View style={styles.headerLeft}>
@@ -873,9 +866,7 @@ export const BusinessPackagesModalComponent: React.FC<BusinessPackagesModalProps
 
               <View style={styles.bottomSpacer} />
             </ScrollView>
-          </SafeAreaView>
-        </View>
-      </Modal>
+      </View>
     );
   };
 
@@ -885,11 +876,15 @@ export const BusinessPackagesModalComponent: React.FC<BusinessPackagesModalProps
       animationType="slide"
       transparent={true}
       visible={visible}
-      onRequestClose={onClose}
+      onRequestClose={showEssentialUpload ? handleCloseEssentialUpload : onClose}
     >
       <View style={styles.modalOverlay}>
         <SafeAreaView style={styles.modalContent}>
-          {/* Header */}
+          {showEssentialUpload ? (
+            renderEssentialUpload()
+          ) : (
+            <>
+              {/* Header */}
           <View style={styles.header}>
             <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
               <Ionicons name="storefront-outline" size={24} color="#FF4B72" style={{ marginRight: 12 }} />
@@ -1139,8 +1134,10 @@ export const BusinessPackagesModalComponent: React.FC<BusinessPackagesModalProps
         </SafeAreaView>
       </View>
 
-      {/* Essential Upload Sub-Modal */}
-      {renderEssentialUpload()}
+            </>
+          )}
+        </SafeAreaView>
+      </View>
     </Modal>
   );
 };
