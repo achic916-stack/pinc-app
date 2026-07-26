@@ -706,11 +706,7 @@ export default function App() {
           {/* Reality Check Sliding Sheet (For Advertiser/Business Packages) */}
           {selectedVenue && (
             selectedVenue.is_sponsored || (selectedVenue.sponsor_tier && selectedVenue.sponsor_tier >= 1) ? (
-              <Modal
-                visible={true}
-                animationType="slide"
-                onRequestClose={handleCloseBottomSheet}
-              >
+              <View style={[StyleSheet.absoluteFillObject, { backgroundColor: PincTheme.colors.background, zIndex: 9999, elevation: 9999 }]}>
                 <SafeAreaView style={{ flex: 1, backgroundColor: PincTheme.colors.background }}>
                   <MapErrorBoundary>
                     <VenueDetailsSheet
@@ -735,7 +731,7 @@ export default function App() {
                     />
                   </MapErrorBoundary>
                 </SafeAreaView>
-              </Modal>
+              </View>
             ) : (
               <View style={styles.sheetOverlay}>
                 <MapErrorBoundary>
