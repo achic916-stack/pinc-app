@@ -945,39 +945,46 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
             </View>
 
             <View style={styles.metaRow}>
-              <Text style={styles.categoryText}>{getCatLabel(venue.category)}</Text>
-              <View style={styles.bulletSeparator} />
+              {(() => {
+                const currentStatus = (venue?.crowd_status || "Green").toLowerCase();
+                return (
+                  <>
+                    <Text style={styles.categoryText}>{getCatLabel(venue?.category)}</Text>
+                    <View style={styles.bulletSeparator} />
 
-              {/* Dynamic Crowd Status Badge */}
-              <View
-                style={[
-                  styles.crowdBadge,
-                  (currentStatus === "green" || currentStatus === "chill") && styles.badgeGreen,
-                  (currentStatus === "yellow" || currentStatus === "moderate") && styles.badgeYellow,
-                  (currentStatus === "red" || currentStatus === "packed") && styles.badgeRed
-                ]}
-              >
-                <View
-                  style={[
-                    styles.crowdIndicatorDot,
-                    (currentStatus === "green" || currentStatus === "chill") && { backgroundColor: PincTheme.colors.crowdGreen },
-                    (currentStatus === "yellow" || currentStatus === "moderate") && { backgroundColor: PincTheme.colors.crowdYellow },
-                    (currentStatus === "red" || currentStatus === "packed") && { backgroundColor: PincTheme.colors.crowdRed }
-                  ]}
-                />
-                <Text
-                  style={[
-                    styles.crowdText,
-                    (currentStatus === "green" || currentStatus === "chill") && { color: PincTheme.colors.crowdGreen },
-                    (currentStatus === "yellow" || currentStatus === "moderate") && { color: PincTheme.colors.crowdYellow },
-                    (currentStatus === "red" || currentStatus === "packed") && { color: PincTheme.colors.crowdRed }
-                  ]}
-                >
-                  {currentStatus === "green" || currentStatus === "chill" ? t(locale, "emptyChill") : ""}
-                  {currentStatus === "yellow" || currentStatus === "moderate" ? t(locale, "moderateQueue") : ""}
-                  {currentStatus === "red" || currentStatus === "packed" ? t(locale, "crowdedLongLine") : ""}
-                </Text>
-              </View>
+                    {/* Dynamic Crowd Status Badge */}
+                    <View
+                      style={[
+                        styles.crowdBadge,
+                        (currentStatus === "green" || currentStatus === "chill") && styles.badgeGreen,
+                        (currentStatus === "yellow" || currentStatus === "moderate") && styles.badgeYellow,
+                        (currentStatus === "red" || currentStatus === "packed") && styles.badgeRed
+                      ]}
+                    >
+                      <View
+                        style={[
+                          styles.crowdIndicatorDot,
+                          (currentStatus === "green" || currentStatus === "chill") && { backgroundColor: PincTheme.colors.crowdGreen },
+                          (currentStatus === "yellow" || currentStatus === "moderate") && { backgroundColor: PincTheme.colors.crowdYellow },
+                          (currentStatus === "red" || currentStatus === "packed") && { backgroundColor: PincTheme.colors.crowdRed }
+                        ]}
+                      />
+                      <Text
+                        style={[
+                          styles.crowdText,
+                          (currentStatus === "green" || currentStatus === "chill") && { color: PincTheme.colors.crowdGreen },
+                          (currentStatus === "yellow" || currentStatus === "moderate") && { color: PincTheme.colors.crowdYellow },
+                          (currentStatus === "red" || currentStatus === "packed") && { color: PincTheme.colors.crowdRed }
+                        ]}
+                      >
+                        {currentStatus === "green" || currentStatus === "chill" ? t(locale, "emptyChill") : ""}
+                        {currentStatus === "yellow" || currentStatus === "moderate" ? t(locale, "moderateQueue") : ""}
+                        {currentStatus === "red" || currentStatus === "packed" ? t(locale, "crowdedLongLine") : ""}
+                      </Text>
+                    </View>
+                  </>
+                );
+              })()}
             </View>
 
             <TouchableOpacity
