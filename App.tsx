@@ -709,7 +709,7 @@ export default function App() {
           {selectedVenue && (
             <View style={[
               styles.sheetOverlay, 
-              Boolean(selectedVenue.is_sponsored || (selectedVenue.sponsor_tier && selectedVenue.sponsor_tier >= 1)) && { top: 0, height: '100%' }
+              Boolean(selectedVenue.is_sponsored || (selectedVenue.sponsor_tier && selectedVenue.sponsor_tier >= 1)) && { top: 0 }
             ]}>
               <MapErrorBoundary>
                 <VenueDetailsSheet

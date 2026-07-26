@@ -636,10 +636,11 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
     <View style={[
       styles.sheetContainer,
       isFullScreen && {
+        flex: 1,
         height: '100%',
         borderTopLeftRadius: 0,
         borderTopRightRadius: 0,
-        paddingTop: Platform.OS === 'ios' ? 0 : 12
+        paddingTop: Platform.OS === 'ios' ? 44 : 12
       }
     ]}>
       {/* Drag Indicator / Header */}
