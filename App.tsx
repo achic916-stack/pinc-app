@@ -705,59 +705,32 @@ export default function App() {
             activeTab={activeTab}
           />
 
-          {/* Reality Check Sliding Sheet (For Advertiser/Business Packages) */}
+          {/* Reality Check Sliding Sheet (For All Venues / Packages) */}
           {selectedVenue && (
-            selectedVenue.is_sponsored || (selectedVenue.sponsor_tier && selectedVenue.sponsor_tier >= 1) ? (
-              <View style={[StyleSheet.absoluteFillObject, { backgroundColor: PincTheme.colors.background, zIndex: 999, elevation: 100 }]}>
-                <View style={{ flex: 1, paddingTop: Platform.OS === 'ios' ? 44 : 0, backgroundColor: PincTheme.colors.background }}>
-                  <MapErrorBoundary>
-                    <VenueDetailsSheet
-                      venue={selectedVenue}
-                      pins={activePins}
-                      isLoadingPins={isLoadingPins}
-                      onClose={handleCloseBottomSheet}
-                      locale={locale}
-                      followingIds={followingIds}
-                      onOpenUserProfile={(userId) => {
-                        setSelectedUserProfileId(userId);
-                      }}
-                      onNewPostPress={(venueId) => {
-                        handleCloseBottomSheet();
-                        setTimeout(() => {
-                          pincButtonRef.current?.openMediaSelector(venueId);
-                        }, 300);
-                      }}
-                      currentUser={currentUser}
-                      isFullScreen={true}
-                      isEditing={isEditingVenue}
-                    />
-                  </MapErrorBoundary>
-                </View>
-              </View>
-            ) : (
-              <View style={styles.sheetOverlay}>
-                <MapErrorBoundary>
-                  <VenueDetailsSheet
-                    venue={selectedVenue}
-                    pins={activePins}
-                    isLoadingPins={isLoadingPins}
-                    onClose={handleCloseBottomSheet}
-                    locale={locale}
-                    followingIds={followingIds}
-                    onOpenUserProfile={(userId) => {
-                      setSelectedUserProfileId(userId);
-                    }}
-                    onNewPostPress={(venueId) => {
-                      handleCloseBottomSheet();
+            <View style={styles.sheetOverlay}>
+              <MapErrorBoundary>
+                <VenueDetailsSheet
+                  venue={selectedVenue}
+                  pins={activePins}
+                  isLoadingPins={isLoadingPins}
+                  onClose={handleCloseBottomSheet}
+                  locale={locale}
+                  followingIds={followingIds}
+                  onOpenUserProfile={(userId) => {
+                    setSelectedUserProfileId(userId);
+                  }}
+                  onNewPostPress={(venueId) => {
+                    handleCloseBottomSheet();
+                    setTimeout(() => {
                       pincButtonRef.current?.openMediaSelector(venueId);
-                    }}
-                    currentUser={currentUser}
-                    isFullScreen={false}
-                    isEditing={isEditingVenue}
-                  />
-                </MapErrorBoundary>
-              </View>
-            )
+                    }, 300);
+                  }}
+                  currentUser={currentUser}
+                  isFullScreen={Boolean(selectedVenue.is_sponsored || (selectedVenue.sponsor_tier && selectedVenue.sponsor_tier >= 1))}
+                  isEditing={isEditingVenue}
+                />
+              </MapErrorBoundary>
+            </View>
           )} 
 
           {/* User Profile Modal */}
