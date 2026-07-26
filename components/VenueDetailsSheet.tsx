@@ -2055,7 +2055,9 @@ const styles = StyleSheet.create({
   },
   gridImage: {
     width: "100%",
-    height: "100%"
+    height: "100%",
+    aspectRatio: 1,
+    backgroundColor: PincTheme.colors.card
   },
   gridOverlay: {
     position: "absolute",
