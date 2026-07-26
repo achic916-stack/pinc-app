@@ -1131,11 +1131,8 @@ export const BusinessPackagesModalComponent: React.FC<BusinessPackagesModalProps
               </View>
             </View>
           </View>
-        </SafeAreaView>
-      </View>
-
-            </>
-          )}
+        </>
+      )}
         </SafeAreaView>
       </View>
     </Modal>
