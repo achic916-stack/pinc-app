@@ -27,6 +27,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onAuthSuccess }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [username, setUsername] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [bio, setBio] = useState("");
   
   const [isLoading, setIsLoading] = useState(false);
@@ -125,6 +126,11 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onAuthSuccess }) => {
 
     if (isSignUp && !username) {
       Alert.alert("Missing Fields", "Please choose a username.");
+      return;
+    }
+
+    if (isSignUp && password !== confirmPassword) {
+      Alert.alert("Password Mismatch", "Passwords do not match. Please re-enter your password.");
       return;
     }
 
@@ -229,15 +235,16 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onAuthSuccess }) => {
 
           {isSignUp && (
             <View style={styles.inputWrapper}>
-              <Text style={styles.inputLabel}>SHORT BIO</Text>
+              <Text style={styles.inputLabel}>CONFIRM PASSWORD</Text>
               <TextInput
-                style={[styles.input, styles.textArea]}
-                placeholder="What's your café aesthetic?"
+                style={styles.input}
+                placeholder="••••••••"
                 placeholderTextColor={PincTheme.colors.textTertiary}
-                multiline
-                numberOfLines={3}
-                value={bio}
-                onChangeText={setBio}
+                secureTextEntry
+                autoCapitalize="none"
+                autoCorrect={false}
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
                 editable={!isLoading}
               />
             </View>
