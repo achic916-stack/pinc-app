@@ -420,8 +420,9 @@ export const PincButton = forwardRef<PincButtonRef, PincButtonProps>(({
               }
             );
             console.log('[Cloudinary] Watermarked video URL:', cloudinaryWatermarkedUrl);
-          } catch (cloudErr) {
+          } catch (cloudErr: any) {
             console.warn('[Cloudinary] Upload failed, video will be shared without watermark:', cloudErr);
+            Alert.alert("Cloudinary Error", cloudErr.message || String(cloudErr));
           }
         }
       }
