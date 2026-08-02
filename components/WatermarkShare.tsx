@@ -45,31 +45,23 @@ export const WatermarkShare: React.FC<WatermarkShareProps> = ({
 
       let finalShareUri = photoUri;
 
-      if (!isVideo) {
-        // --- PHOTO WATERMARKING ---
-        if (viewShotRef.current?.capture) {
-          try {
-            const capturedUri = await viewShotRef.current.capture();
-            if (capturedUri) {
-              finalShareUri = capturedUri;
-            }
-          } catch (captureErr) {
-            console.warn("ViewShot photo capture warning:", captureErr);
+      // Capture watermarked ViewShot snapshot (ensures pinc_watermark_btn + @username badge is ALWAYS present on shared output for both photos and video cards)
+      if (viewShotRef.current?.capture) {
+        try {
+          const capturedUri = await viewShotRef.current.capture();
+          if (capturedUri) {
+            finalShareUri = capturedUri;
           }
+        } catch (captureErr) {
+          console.warn("ViewShot capture warning:", captureErr);
         }
+      }
 
-        if (finalShareUri.startsWith('http://') || finalShareUri.startsWith('https://')) {
-          const localPath = `${FileSystem.cacheDirectory}pinc_share_${Date.now()}.jpg`;
-          const downloadRes = await FileSystem.downloadAsync(finalShareUri, localPath);
-          finalShareUri = downloadRes.uri;
-        }
-      } else {
-        // --- VIDEO SHARING (.mp4 PLAYABLE VIDEO) ---
-        if (finalShareUri.startsWith('http://') || finalShareUri.startsWith('https://')) {
-          const downloadPath = `${FileSystem.cacheDirectory}pinc_share_video_${Date.now()}.mp4`;
-          const downloadRes = await FileSystem.downloadAsync(finalShareUri, downloadPath);
-          finalShareUri = downloadRes.uri;
-        }
+      if (finalShareUri.startsWith('http://') || finalShareUri.startsWith('https://')) {
+        const ext = isVideo ? '.mp4' : '.jpg';
+        const localPath = `${FileSystem.cacheDirectory}pinc_share_${Date.now()}${ext}`;
+        const downloadRes = await FileSystem.downloadAsync(finalShareUri, localPath);
+        finalShareUri = downloadRes.uri;
       }
 
       const isAvailable = await Sharing.isAvailableAsync();
@@ -78,14 +70,11 @@ export const WatermarkShare: React.FC<WatermarkShareProps> = ({
         return;
       }
 
-      const shareMimeType = isVideo ? 'video/mp4' : 'image/jpeg';
-      const shareUTI = isVideo ? 'com.apple.quicktime-movie' : 'public.jpeg';
-
       // Open Native System Share Sheet
       await Sharing.shareAsync(finalShareUri, {
-        mimeType: shareMimeType,
+        mimeType: 'image/jpeg',
         dialogTitle: 'Share Pinc Memory',
-        UTI: shareUTI,
+        UTI: 'public.jpeg',
       });
     } catch (error) {
       console.error('Error sharing media:', error);
@@ -137,7 +126,7 @@ export const WatermarkShare: React.FC<WatermarkShareProps> = ({
         </ViewShot>
       </View>
 
-      {/* Control Action Buttons (Blue Rocket Share + Circular X Close) */}
+      {/* Control Action Buttons (Blue Paper Plane Share + Circular X Close) */}
       <View style={styles.actionsContainer}>
         {isSharing && (
           <View style={styles.loadingRow}>
@@ -147,14 +136,14 @@ export const WatermarkShare: React.FC<WatermarkShareProps> = ({
         )}
 
         <View style={styles.controlButtonsRow}>
-          {/* Blue Rocket Share Button */}
+          {/* Blue Paper Plane Share Button */}
           <TouchableOpacity
-            style={styles.blueRocketButton}
+            style={styles.blueShareButton}
             onPress={handleShareMedia}
             disabled={isSharing}
             activeOpacity={0.85}
           >
-            <Ionicons name="rocket" size={24} color="#FFFFFF" />
+            <Ionicons name="paper-plane" size={24} color="#FFFFFF" style={{ marginLeft: -2 }} />
           </TouchableOpacity>
 
           {/* Circular Close X Button */}
@@ -249,7 +238,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 20,
   },
-  blueRocketButton: {
+  blueShareButton: {
     width: 54,
     height: 54,
     borderRadius: 27,
