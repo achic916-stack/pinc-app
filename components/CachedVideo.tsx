@@ -1,8 +1,8 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { StyleSheet, View, ActivityIndicator } from 'react-native';
+import { Video, ResizeMode } from 'expo-av';
 import { WebView } from 'react-native-webview';
 import { PincTheme } from "../styles/theme";
-
 
 interface CachedVideoProps {
   source: { uri: string } | null;
@@ -15,28 +15,24 @@ interface CachedVideoProps {
 
 export const CachedVideo: React.FC<CachedVideoProps> = ({ source, ...props }) => {
   const videoUri = source?.uri || "";
+  const [hasError, setHasError] = useState(false);
+  const videoRef = useRef<Video>(null);
   const webviewRef = useRef<WebView>(null);
 
-  // Sync shouldPlay dynamically
   useEffect(() => {
-    if (webviewRef.current) {
-      if (props.shouldPlay) {
-        webviewRef.current.injectJavaScript(`
-          if (window.videoElement) {
-            window.videoElement.play().catch(e => console.log(e));
-          }
-          true;
-        `);
+    setHasError(false);
+  }, [videoUri]);
+
+  // Sync shouldPlay for native Video ref
+  useEffect(() => {
+    if (videoRef.current && !hasError) {
+      if (props.shouldPlay !== false) {
+        videoRef.current.playAsync().catch(() => {});
       } else {
-        webviewRef.current.injectJavaScript(`
-          if (window.videoElement) {
-            window.videoElement.pause();
-          }
-          true;
-        `);
+        videoRef.current.pauseAsync().catch(() => {});
       }
     }
-  }, [props.shouldPlay]);
+  }, [props.shouldPlay, hasError]);
 
   if (!videoUri) {
     return (
@@ -46,11 +42,29 @@ export const CachedVideo: React.FC<CachedVideoProps> = ({ source, ...props }) =>
     );
   }
 
-  // Generate HTML for the WebView
+  // Primary Player: Native expo-av Video (ExoPlayer on Android / AVPlayer on iOS)
+  if (!hasError) {
+    return (
+      <View style={[styles.container, props.style]}>
+        <Video
+          ref={videoRef}
+          source={{ uri: videoUri }}
+          style={StyleSheet.absoluteFillObject}
+          resizeMode={props.resizeMode === 'cover' ? ResizeMode.COVER : ResizeMode.CONTAIN}
+          shouldPlay={props.shouldPlay !== false}
+          isLooping={props.isLooping !== false}
+          useNativeControls={props.useNativeControls}
+          onError={(err) => {
+            console.warn("Native Video error, falling back to WebView:", err);
+            setHasError(true);
+          }}
+        />
+      </View>
+    );
+  }
+
+  // Fallback Player: HTML5 WebView with autoplay retry
   const objectFit = (props.resizeMode === "cover") ? "cover" : "contain";
-  
-  // Using WebView completely avoids the native ExoPlayer crashes by offloading video decoding
-  // to the Chromium engine, which has much broader codec support and software fallbacks.
   const htmlContent = `
     <!DOCTYPE html>
     <html>
@@ -65,17 +79,26 @@ export const CachedVideo: React.FC<CachedVideoProps> = ({ source, ...props }) =>
       <video 
         id="main-video"
         src="${videoUri}" 
-        ${props.shouldPlay ? "autoplay" : ""} 
-        ${props.isLooping ? "loop" : ""} 
+        ${props.shouldPlay !== false ? "autoplay" : ""} 
+        ${props.isLooping !== false ? "loop" : ""} 
         ${props.useNativeControls ? "controls" : ""} 
         preload="auto"
         playsinline 
         webkit-playsinline
       ></video>
       <script>
-        window.videoElement = document.getElementById('main-video');
-        // Prevent default tap highlight
-        document.addEventListener("touchstart", function() {},false);
+        const v = document.getElementById('main-video');
+        window.videoElement = v;
+        function tryPlay() {
+          if (v) {
+            v.play().catch(function(e) {
+              v.muted = true;
+              v.play();
+            });
+          }
+        }
+        document.addEventListener('DOMContentLoaded', tryPlay);
+        setTimeout(tryPlay, 300);
       </script>
     </body>
     </html>
@@ -93,6 +116,8 @@ export const CachedVideo: React.FC<CachedVideoProps> = ({ source, ...props }) =>
         showsVerticalScrollIndicator={false}
         showsHorizontalScrollIndicator={false}
         bounces={false}
+        originWhitelist={['*']}
+        mixedContentMode="always"
       />
     </View>
   );
@@ -101,13 +126,13 @@ export const CachedVideo: React.FC<CachedVideoProps> = ({ source, ...props }) =>
 const styles = StyleSheet.create({
   container: {
     overflow: 'hidden',
-    backgroundColor: PincTheme.colors.textPrimary,
+    backgroundColor: '#000000',
   },
   webview: {
     width: '100%',
     height: '100%',
-    backgroundColor: PincTheme.colors.textPrimary,
-    opacity: 0.99, // Fix for some Android rendering glitches
+    backgroundColor: '#000000',
+    opacity: 0.99,
   },
   loadingContainer: {
     backgroundColor: '#2C2C2E',
