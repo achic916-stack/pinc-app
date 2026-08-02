@@ -6,13 +6,12 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   Dimensions,
-  Alert,
-  Linking
+  Alert
 } from 'react-native';
 import { Image } from 'expo-image';
 import * as Sharing from 'expo-sharing';
 import ViewShot from 'react-native-view-shot';
-import { Ionicons, FontAwesome5 } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { PincTheme } from "../styles/theme";
 import { CachedVideo } from './CachedVideo';
 import * as FileSystem from 'expo-file-system';
@@ -37,14 +36,12 @@ export const WatermarkShare: React.FC<WatermarkShareProps> = ({
 }) => {
   const viewShotRef = useRef<ViewShot>(null);
   const [isSharing, setIsSharing] = useState(false);
-  const [shareTarget, setShareTarget] = useState<string | null>(null);
 
-  const handleShareMedia = async (targetApp: 'instagram' | 'tiktok' | 'facebook' | 'general') => {
+  const handleShareMedia = async () => {
     if (isSharing) return;
 
     try {
       setIsSharing(true);
-      setShareTarget(targetApp);
 
       let finalShareUri = photoUri;
 
@@ -77,76 +74,7 @@ export const WatermarkShare: React.FC<WatermarkShareProps> = ({
       const shareMimeType = isVideo ? 'video/mp4' : 'image/jpeg';
       const shareUTI = isVideo ? 'com.apple.quicktime-movie' : 'public.jpeg';
 
-      // Direct Deep Link Redirection to Instagram
-      if (targetApp === 'instagram') {
-        const igSchemes = ['instagram-stories://share', 'instagram://app', 'instagram://'];
-        for (const scheme of igSchemes) {
-          try {
-            const canOpen = await Linking.canOpenURL(scheme);
-            if (canOpen) {
-              await Sharing.shareAsync(finalShareUri, {
-                mimeType: shareMimeType,
-                dialogTitle: 'Share to Instagram',
-                UTI: shareUTI,
-              });
-              setTimeout(() => {
-                Linking.openURL(scheme).catch(() => {});
-              }, 500);
-              return;
-            }
-          } catch (e) {
-            console.warn("Instagram scheme check:", e);
-          }
-        }
-      }
-
-      // Direct Deep Link Redirection to TikTok
-      if (targetApp === 'tiktok') {
-        const tiktokSchemes = ['snssdk1128://', 'tiktok://', 'tiktoksharesdk://'];
-        for (const scheme of tiktokSchemes) {
-          try {
-            const canOpen = await Linking.canOpenURL(scheme);
-            if (canOpen) {
-              await Sharing.shareAsync(finalShareUri, {
-                mimeType: shareMimeType,
-                dialogTitle: 'Share to TikTok',
-                UTI: shareUTI,
-              });
-              setTimeout(() => {
-                Linking.openURL(scheme).catch(() => {});
-              }, 500);
-              return;
-            }
-          } catch (e) {
-            console.warn("TikTok scheme check:", e);
-          }
-        }
-      }
-
-      // Direct Deep Link Redirection to Facebook
-      if (targetApp === 'facebook') {
-        const fbSchemes = ['fb://composer', 'fb://'];
-        for (const scheme of fbSchemes) {
-          try {
-            const canOpen = await Linking.canOpenURL(scheme);
-            if (canOpen) {
-              await Sharing.shareAsync(finalShareUri, {
-                mimeType: shareMimeType,
-                dialogTitle: 'Share to Facebook',
-                UTI: shareUTI,
-              });
-              setTimeout(() => {
-                Linking.openURL(scheme).catch(() => {});
-              }, 500);
-              return;
-            }
-          } catch (e) {
-            console.warn("Facebook scheme check:", e);
-          }
-        }
-      }
-
-      // Fallback / General: Native System Share Sheet
+      // Open Native System Share Sheet (User picks IG, TikTok, FB, LINE, etc.)
       await Sharing.shareAsync(finalShareUri, {
         mimeType: shareMimeType,
         dialogTitle: 'Share Pinc Memory',
@@ -157,7 +85,6 @@ export const WatermarkShare: React.FC<WatermarkShareProps> = ({
       Alert.alert('Share Error', 'Could not complete sharing. Please try again.');
     } finally {
       setIsSharing(false);
-      setShareTarget(null);
     }
   };
 
@@ -191,7 +118,7 @@ export const WatermarkShare: React.FC<WatermarkShareProps> = ({
             />
           )}
 
-          {/* MIDDLE-LEFT WATERMARK (pinc_watermark_btn + @username) */}
+          {/* MIDDLE-LEFT WATERMARK (pinc_watermark_btn + translucent @username) */}
           <View style={styles.watermarkOverlayContainer} pointerEvents="none">
             <Image
               source={require("../assets/pinc_watermark_btn.png")}
@@ -203,67 +130,38 @@ export const WatermarkShare: React.FC<WatermarkShareProps> = ({
         </ViewShot>
       </View>
 
-      {/* Social Media Sharing Buttons Bar (No header text) */}
+      {/* Control Action Buttons (Blue Rocket Share + Circular X Close) */}
       <View style={styles.actionsContainer}>
-        <View style={styles.socialButtonsRow}>
-          {/* Instagram Button */}
-          <TouchableOpacity
-            style={[styles.socialButton, { backgroundColor: '#E1306C' }]}
-            onPress={() => handleShareMedia('instagram')}
-            disabled={isSharing}
-          >
-            <Ionicons name="logo-instagram" size={20} color="#FFF" />
-            <Text style={styles.socialButtonText}>Instagram</Text>
-          </TouchableOpacity>
-
-          {/* TikTok Button */}
-          <TouchableOpacity
-            style={[styles.socialButton, { backgroundColor: '#000000', borderWidth: 1, borderColor: '#333' }]}
-            onPress={() => handleShareMedia('tiktok')}
-            disabled={isSharing}
-          >
-            <FontAwesome5 name="tiktok" size={16} color="#FFF" />
-            <Text style={styles.socialButtonText}>TikTok</Text>
-          </TouchableOpacity>
-
-          {/* Facebook Button */}
-          <TouchableOpacity
-            style={[styles.socialButton, { backgroundColor: '#1877F2' }]}
-            onPress={() => handleShareMedia('facebook')}
-            disabled={isSharing}
-          >
-            <Ionicons name="logo-facebook" size={20} color="#FFF" />
-            <Text style={styles.socialButtonText}>Facebook</Text>
-          </TouchableOpacity>
-
-          {/* General / Other Apps Button */}
-          <TouchableOpacity
-            style={[styles.socialButton, { backgroundColor: PincTheme.colors.primary }]}
-            onPress={() => handleShareMedia('general')}
-            disabled={isSharing}
-          >
-            <Ionicons name="share-social" size={18} color="#FFF" />
-            <Text style={styles.socialButtonText}>แชร์แอปอื่น</Text>
-          </TouchableOpacity>
-        </View>
-
         {isSharing && (
           <View style={styles.loadingRow}>
-            <ActivityIndicator color="#E4007F" size="small" style={{ marginRight: 8 }} />
+            <ActivityIndicator color="#0084FF" size="small" style={{ marginRight: 8 }} />
             <Text style={styles.loadingText}>กำลังเตรียมไฟล์สำหรับแชร์...</Text>
           </View>
         )}
 
-        {onClose && (
+        <View style={styles.controlButtonsRow}>
+          {/* Blue Rocket Share Button */}
           <TouchableOpacity
-            style={styles.circleCloseButton}
-            onPress={onClose}
+            style={styles.blueRocketButton}
+            onPress={handleShareMedia}
             disabled={isSharing}
-            activeOpacity={0.8}
+            activeOpacity={0.85}
           >
-            <Ionicons name="close" size={24} color="#FFFFFF" />
+            <Ionicons name="rocket" size={24} color="#FFFFFF" />
           </TouchableOpacity>
-        )}
+
+          {/* Circular Close X Button */}
+          {onClose && (
+            <TouchableOpacity
+              style={styles.circleCloseButton}
+              onPress={onClose}
+              disabled={isSharing}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="close" size={24} color="#FFFFFF" />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
     </View>
   );
@@ -324,51 +222,46 @@ const styles = StyleSheet.create({
     fontFamily: PincTheme.fonts.body,
   },
   actionsContainer: {
-    marginTop: 20,
+    marginTop: 24,
     width: PREVIEW_SIZE,
     alignItems: 'center',
-  },
-  socialButtonsRow: {
-    flexDirection: 'row',
-    gap: 6,
-    width: '100%',
-    justifyContent: 'space-between',
-    marginBottom: 14,
-  },
-  socialButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    borderRadius: 14,
-    gap: 4,
-    ...PincTheme.shadows.md,
-  },
-  socialButtonText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '800',
-    fontFamily: PincTheme.fonts.heading,
   },
   loadingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 12,
   },
   loadingText: {
-    color: '#E4007F',
-    fontSize: 12,
+    color: '#0084FF',
+    fontSize: 13,
     fontWeight: '700',
   },
+  controlButtonsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 20,
+  },
+  blueRocketButton: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    backgroundColor: '#0084FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#0084FF',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+    elevation: 8,
+  },
   circleCloseButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 54,
+    height: 54,
+    borderRadius: 27,
     backgroundColor: 'rgba(255, 255, 255, 0.15)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 10,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.25)',
     ...PincTheme.shadows.md,
