@@ -52,7 +52,7 @@ interface FeedPinItemProps {
   handleOptionsPress: (item: Pin) => void;
   handleLike: (pinId: string) => void;
   setCommentPinId: (pinId: string) => void;
-  handleShare: (item: Pin) => void;
+  handleShare: (item: Pin, mediaIndex?: number) => void;
   handleToggleSave: (pinId: string) => void;
   onGoToMap?: (latitude: number, longitude: number) => void;
   onOpenMedia: (url: string, type: 'video'|'image') => void;
@@ -316,7 +316,7 @@ const FeedPinItem: React.FC<FeedPinItemProps> = React.memo(({
             </TouchableOpacity>
             <TouchableOpacity 
               style={styles.actionButton}
-              onPress={() => handleShare(item)}
+              onPress={() => handleShare(item, activeMediaIndex)}
             >
               <Ionicons name="share-social-outline" size={22} color={PincTheme.colors.textPrimary} />
             </TouchableOpacity>
@@ -572,8 +572,18 @@ export const HomeFeedScreen: React.FC<HomeFeedScreenProps> = ({
     }
   }, [currentUser.userId]);
 
-  const handleShare = useCallback(async (pin: Pin) => {
-    setShareItem(pin);
+  const handleShare = useCallback(async (pin: Pin, mediaIndex: number = 0) => {
+    let targetPin = pin;
+    if (pin.media_urls && pin.media_urls.length > 0 && pin.media_urls[mediaIndex]) {
+      const selectedUrl = pin.media_urls[mediaIndex];
+      const isVid = selectedUrl.toLowerCase().includes('.mp4') || selectedUrl.toLowerCase().includes('.mov') || pin.media_type === 'video';
+      targetPin = {
+        ...pin,
+        image_url: selectedUrl,
+        media_type: isVid ? 'video' : 'image'
+      };
+    }
+    setShareItem(targetPin);
   }, []);
 
   const handleToggleSave = useCallback(async (pinId: string) => {
