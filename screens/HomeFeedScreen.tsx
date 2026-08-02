@@ -637,7 +637,8 @@ export const HomeFeedScreen: React.FC<HomeFeedScreenProps> = ({
         >
           <WatermarkShare 
             photoUri={shareItem.image_url} 
-            locationName={shareItem.username || "Pinc Memory"} 
+            locationName={shareItem.text_content ? shareItem.text_content.slice(0, 25) : "Pinc Memory"} 
+            username={shareItem.username || "user"}
             onClose={() => setShareItem(null)} 
             isVideo={shareItem.media_type === 'video'}
           />

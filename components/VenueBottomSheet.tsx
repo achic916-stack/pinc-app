@@ -18,6 +18,7 @@ interface VenueBottomSheetProps {
   pins: Pin[];
   isLoadingPins: boolean;
   onClose: () => void;
+  onGetDirections?: (venue: Venue) => void;
 }
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -26,7 +27,8 @@ export const VenueBottomSheet: React.FC<VenueBottomSheetProps> = ({
   venue,
   pins,
   isLoadingPins,
-  onClose
+  onClose,
+  onGetDirections
 }) => {
   const [activeTab, setActiveTab] = useState<"aesthetic" | "reality">("aesthetic");
 
@@ -120,8 +122,12 @@ export const VenueBottomSheet: React.FC<VenueBottomSheetProps> = ({
         <TouchableOpacity 
           style={styles.directionsButton}
           onPress={() => {
-            const url = `https://www.google.com/maps/dir/?api=1&destination=${venue.latitude},${venue.longitude}`;
-            Linking.openURL(url);
+            if (onGetDirections && venue) {
+              onGetDirections(venue);
+            } else if (venue) {
+              const url = `https://www.google.com/maps/dir/?api=1&destination=${venue.latitude},${venue.longitude}`;
+              Linking.openURL(url);
+            }
           }}
         >
           <Text style={styles.directionsButtonText}>🗺️ ขอเส้นทาง (Get Directions)</Text>

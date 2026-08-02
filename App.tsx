@@ -29,6 +29,7 @@ import { PincTheme } from "./styles/theme";
 import { ReelsFeedModal } from "./components/ReelsFeedModal";
 import { CachedVideo } from "./components/CachedVideo";
 import { HomeFeedScreen } from "./screens/HomeFeedScreen";
+import { useShareIntent } from 'expo-share-intent';
 
 
 const getSafeVideoUrl = (url: string | null | undefined) => {
@@ -114,10 +115,32 @@ export default function App() {
   const [activePins, setActivePins] = useState<Pin[]>([]);
   const [allPins, setAllPins] = useState<Pin[]>([]);
   const [settingCrewBaseVenue, setSettingCrewBaseVenue] = useState<Venue | null>(null);
+  const [directionTarget, setDirectionTarget] = useState<{ latitude: number; longitude: number; name?: string; timestamp: number } | null>(null);
   
   const [isLoadingVenues, setIsLoadingVenues] = useState(true);
   const [isLoadingPins, setIsLoadingPins] = useState(false);
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+
+  // Receive Shared Media Intent (CapCut, TikTok, Gallery)
+  const { hasShareIntent, shareIntent, resetShareIntent } = useShareIntent();
+
+  useEffect(() => {
+    if (hasShareIntent && shareIntent) {
+      const intentObj = shareIntent as any;
+      const fileObj = intentObj?.files?.[0];
+      const mediaUri = fileObj?.path || intentObj?.value;
+      const mimeType = (fileObj?.mimeType || fileObj?.type || intentObj?.type || '').toLowerCase();
+      const isVideo = mimeType.includes('video') || (typeof mediaUri === 'string' && (mediaUri.toLowerCase().includes('.mp4') || mediaUri.toLowerCase().includes('.mov')));
+
+      if (mediaUri) {
+        setActiveTab("home");
+        setTimeout(() => {
+          pincButtonRef.current?.startExternalShareFeedPost(mediaUri, isVideo ? 'video' : 'image');
+          resetShareIntent();
+        }, 500);
+      }
+    }
+  }, [hasShareIntent, shareIntent]);
 
   // Thumbnail click handler to pan map and close details
   const handleSelectShelfPin = (pin: Pin) => {
@@ -662,6 +685,8 @@ export default function App() {
               currentUserId={currentUser?.userId}
               settingCrewBaseVenue={settingCrewBaseVenue}
               onClearCrewBaseMode={() => setSettingCrewBaseVenue(null)}
+              directionTarget={directionTarget}
+              onClearDirectionTarget={() => setDirectionTarget(null)}
               onDeletePin={handleDeletePin}
               onOpenUserProfile={(userId) => {
                 setSelectedUserProfileId(userId);
@@ -684,6 +709,7 @@ export default function App() {
                 onStartGalleryPost={() => pincButtonRef.current?.startGalleryPost()}
                 onGoToMap={(lat, lng) => {
                   setCameraTarget({ latitude: lat, longitude: lng, timestamp: Date.now() });
+                  setDirectionTarget({ latitude: lat, longitude: lng, timestamp: Date.now() });
                   setSelectedVenue(null);
                   setActiveTab('map');
                 }}
@@ -731,6 +757,16 @@ export default function App() {
                     currentUser={currentUser}
                     isFullScreen={true}
                     isEditing={isEditingVenue}
+                    onGetDirections={(venue) => {
+                      handleCloseBottomSheet();
+                      setActiveTab('map');
+                      setDirectionTarget({
+                        latitude: venue.latitude,
+                        longitude: venue.longitude,
+                        name: venue.name,
+                        timestamp: Date.now()
+                      });
+                    }}
                   />
                 </SafeAreaView>
               </Modal>
@@ -753,6 +789,16 @@ export default function App() {
                   currentUser={currentUser}
                   isFullScreen={false}
                   isEditing={isEditingVenue}
+                  onGetDirections={(venue) => {
+                    handleCloseBottomSheet();
+                    setActiveTab('map');
+                    setDirectionTarget({
+                      latitude: venue.latitude,
+                      longitude: venue.longitude,
+                      name: venue.name,
+                      timestamp: Date.now()
+                    });
+                  }}
                 />
               </View>
             )
@@ -788,6 +834,16 @@ export default function App() {
             setLocationTrackingEnabled={setLocationTrackingEnabled}
             onSignOut={handleSignOut}
             onDeleteAccount={handleDeleteAccount}
+            onGetDirections={(pin) => {
+              setSelectedUserProfileId(null);
+              setActiveTab('map');
+              setDirectionTarget({
+                latitude: pin.latitude,
+                longitude: pin.longitude,
+                name: pin.username ? `${pin.username}'s Pin` : undefined,
+                timestamp: Date.now()
+              });
+            }}
           />
 
           {/* Reality Check Sliding Shelf (User Pins Photo Drawer) */}
@@ -1025,6 +1081,17 @@ export default function App() {
               setAppReelsPins([]);
             }}
             locale={locale}
+            onGetDirections={(pin) => {
+              setAppReelsPins([]);
+              setAppReelsInitialIndex(0);
+              setActiveTab('map');
+              setDirectionTarget({
+                latitude: pin.latitude,
+                longitude: pin.longitude,
+                name: pin.username ? `${pin.username}'s Pin` : undefined,
+                timestamp: Date.now()
+              });
+            }}
           />
 
           {/* Redundant settings modal removed in favor of UserProfileModal settings integration */}

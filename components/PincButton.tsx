@@ -97,6 +97,7 @@ export interface PincButtonRef {
   startVideoPost: (venueId?: string) => void;
   startPhotoPost: (venueId?: string) => void;
   startGalleryPost: (venueId?: string) => void;
+  startExternalShareFeedPost: (mediaUri: string, mediaType?: 'video' | 'image') => void;
 }
 
 export const PincButton = forwardRef<PincButtonRef, PincButtonProps>(({
@@ -146,6 +147,15 @@ export const PincButton = forwardRef<PincButtonRef, PincButtonProps>(({
       setForcedVenueId(venueId || null);
       setIsMediaSelectorVisible(false);
       triggerGalleryAndGPS();
+    },
+    startExternalShareFeedPost: (mediaUri: string, mediaType: 'video' | 'image' = 'video') => {
+      setIsMediaSelectorVisible(false);
+      setCapturedPhotos([mediaUri]);
+      setCapturedMediaType(mediaType);
+      setCapturedBase64(null);
+      setIsFromGallery(true);
+      setCurrentGPSLocation(null);
+      setModalVisible(true);
     }
   }));
 
@@ -219,6 +229,13 @@ export const PincButton = forwardRef<PincButtonRef, PincButtonProps>(({
   };
 
   const triggerGalleryAndGPS = async () => {
+    if (activeTab === 'map') {
+      Alert.alert(
+        i18n.language === 'th' ? "ไม่อนุญาต" : "Camera Only",
+        i18n.language === 'th' ? "หน้าแผนที่ต้องใช้รูปภาพและวิดีโอจากกล้องถ่ายสดเท่านั้น" : "Map posts must be captured live with camera."
+      );
+      return;
+    }
     setIsSensorsLoading(true);
     try {
       const { status: locationStatus } = await Location.requestForegroundPermissionsAsync();
@@ -320,8 +337,9 @@ export const PincButton = forwardRef<PincButtonRef, PincButtonProps>(({
     let finalVenue = (nearestVenue && distanceToVenue <= 10) ? nearestVenue : null;
     const loc = currentGPSLocation || userLocation || { latitude: 13.736717, longitude: 100.560481 };
     
-    // Pinc Club (tier 4) can post from gallery to map
-    let isUnmapped = (isFromGallery && currentUser.subscriptionTier !== 4) || activeTab === 'home';
+    // Posting from Map tab always pins to map (isUnmapped = false).
+    // Posting from Feed / other tabs does NOT pin to map (isUnmapped = true).
+    let isUnmapped = activeTab !== 'map';
 
     if (forcedVenueId) {
       finalVenue = venues.find(v => v.venueId === forcedVenueId) || finalVenue;
@@ -418,7 +436,7 @@ export const PincButton = forwardRef<PincButtonRef, PincButtonProps>(({
         musicUrl: "",
         thumbnailUri: thumbnailUri,
         postDelayMins: postDelay,
-        isPinned: activeTab === 'map' && !isUnmapped,
+        isPinned: !isUnmapped,
         is_gallery: isUnmapped
       });
 

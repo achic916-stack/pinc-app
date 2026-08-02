@@ -37,6 +37,7 @@ interface ReelsFeedModalProps {
   initialIndex?: number;
   onOpenUserProfile?: (userId: string) => void;
   locale?: "en" | "th";
+  onGetDirections?: (pin: Pin) => void;
 }
 
 const FeedItem = ({ 
@@ -49,7 +50,8 @@ const FeedItem = ({
   onOpenUserProfile,
   locale = "en",
   onReport,
-  onOpenMedia
+  onOpenMedia,
+  onGetDirections
 }: { 
   item: Pin; 
   isVisible: boolean;
@@ -61,6 +63,7 @@ const FeedItem = ({
   locale?: "en" | "th";
   onReport?: (pinId: string) => void;
   onOpenMedia: (url: string, type: 'video' | 'image') => void;
+  onGetDirections?: (pin: Pin) => void;
 }) => {
   const [liked, setLiked] = useState(item.likes?.includes(currentUserId) || false);
   const [likesCount, setLikesCount] = useState(item.likes?.length || item.likesCount || 0);
@@ -288,6 +291,21 @@ const FeedItem = ({
           <Text style={styles.actionText}>Share</Text>
         </TouchableOpacity>
 
+        {!!(item.latitude && item.longitude) && (
+          <TouchableOpacity 
+            hitSlop={{ top: 15, bottom: 15, left: 20, right: 20 }} 
+            style={styles.actionButton}
+            onPress={() => {
+              if (onGetDirections) {
+                onGetDirections(item);
+              }
+            }}
+          >
+            <Ionicons name="navigate-circle" size={34} color="#E4007F" />
+            <Text style={styles.actionText}>{locale === "th" ? "ขอเส้นทาง" : "Route"}</Text>
+          </TouchableOpacity>
+        )}
+
         <TouchableOpacity 
           hitSlop={{ top: 15, bottom: 15, left: 20, right: 20 }} 
           style={styles.actionButton}
@@ -333,7 +351,8 @@ export const ReelsFeedModal: React.FC<ReelsFeedModalProps> = ({
   currentUserId,
   initialIndex = 0,
   onOpenUserProfile,
-  locale = "en"
+  locale = "en",
+  onGetDirections
 }) => {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [activeCommentPinId, setActiveCommentPinId] = useState<string | null>(null);
@@ -444,6 +463,10 @@ export const ReelsFeedModal: React.FC<ReelsFeedModalProps> = ({
                 locale={locale}
                 onReport={(pinId) => setLocalHiddenPins(prev => ({ ...prev, [pinId]: true }))}
                 onOpenMedia={onOpenMedia}
+                onGetDirections={(pin) => {
+                  onClose();
+                  if (onGetDirections) onGetDirections(pin);
+                }}
               />
             )}
             onViewableItemsChanged={handleViewableItemsChanged}
@@ -484,7 +507,8 @@ export const ReelsFeedModal: React.FC<ReelsFeedModalProps> = ({
           >
             <WatermarkShare 
               photoUri={sharePin.image_url} 
-              locationName={sharePin.username || "Pinc Memory"} 
+              locationName={sharePin.text_content ? sharePin.text_content.slice(0, 25) : "Pinc Memory"} 
+              username={sharePin.username || "user"}
               onClose={() => setSharePin(null)} 
               isVideo={sharePin.media_type === 'video'}
             />

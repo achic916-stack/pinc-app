@@ -64,6 +64,7 @@ interface VenueDetailsSheetProps {
   currentUser: UserProfile;
   isFullScreen?: boolean;
   isEditing?: boolean;
+  onGetDirections?: (venue: Venue) => void;
 }
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -79,7 +80,8 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
   onNewPostPress,
   currentUser,
   isFullScreen = false,
-  isEditing = false
+  isEditing = false,
+  onGetDirections
 }) => {
   const [activeTab, setActiveTab] = useState<"aesthetic" | "reality">("reality");
   const [showInteractionModal, setShowInteractionModal] = useState(false);
@@ -939,8 +941,12 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
             <TouchableOpacity
               style={styles.directionsButton}
               onPress={() => {
-                const url = `https://www.google.com/maps/dir/?api=1&destination=${venue.latitude},${venue.longitude}`;
-                Linking.openURL(url);
+                if (onGetDirections && venue) {
+                  onGetDirections(venue);
+                } else if (venue) {
+                  const url = `https://www.google.com/maps/dir/?api=1&destination=${venue.latitude},${venue.longitude}`;
+                  Linking.openURL(url);
+                }
               }}
             >
               <Ionicons name="navigate" size={16} color="#FFF" />

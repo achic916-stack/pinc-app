@@ -82,6 +82,7 @@ interface UserProfileModalProps {
   onSignOut?: () => void;
   onDeleteAccount?: () => void;
   isModal?: boolean;
+  onGetDirections?: (pin: Pin) => void;
 }
 
 export const UserProfileModal: React.FC<UserProfileModalProps> = ({
@@ -103,7 +104,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   setLocationTrackingEnabled,
   onSignOut,
   onDeleteAccount,
-  isModal = true
+  isModal = true,
+  onGetDirections
 }) => {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [pins, setPins] = useState<Pin[]>([]);
@@ -1132,6 +1134,12 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         }}
         currentUserId={currentUserId}
         locale={locale}
+        onGetDirections={(pin) => {
+          setViewingPins([]);
+          setViewingInitialIndex(0);
+          onClose();
+          if (onGetDirections) onGetDirections(pin);
+        }}
       />
     </>
   );

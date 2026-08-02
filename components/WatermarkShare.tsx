@@ -6,118 +6,186 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   Dimensions,
+  Platform,
+  Alert,
+  Linking
 } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Sharing from 'expo-sharing';
 import ViewShot from 'react-native-view-shot';
+import { Ionicons, FontAwesome5 } from '@expo/vector-icons';
 import { PincTheme } from "../styles/theme";
-
+import { CachedVideo } from './CachedVideo';
 
 const { width } = Dimensions.get('window');
 const PREVIEW_SIZE = width - 40;
 
 interface WatermarkShareProps {
   photoUri: string;
-  locationName: string;
+  locationName?: string;
+  username?: string;
   onClose?: () => void;
   isVideo?: boolean;
 }
 
 export const WatermarkShare: React.FC<WatermarkShareProps> = ({
   photoUri,
-  locationName,
+  locationName = "Pinc Location",
+  username,
   onClose,
-  isVideo,
+  isVideo = false,
 }) => {
   const viewShotRef = useRef<ViewShot>(null);
   const [isSharing, setIsSharing] = useState(false);
+  const [shareTarget, setShareTarget] = useState<string | null>(null);
 
-  const handleShare = async () => {
+  const handleShareMedia = async (targetApp?: 'instagram' | 'tiktok' | 'general') => {
     if (isSharing) return;
 
     try {
       setIsSharing(true);
+      setShareTarget(targetApp || 'general');
 
-      // 1. Capture the view as an image URI
-      const uri = await viewShotRef.current?.capture?.();
+      let finalShareUri = photoUri;
 
-      if (!uri) {
-        throw new Error('Failed to generate snapshot');
+      // If photo, capture watermarked ViewShot snapshot
+      if (!isVideo && viewShotRef.current?.capture) {
+        const capturedUri = await viewShotRef.current.capture();
+        if (capturedUri) {
+          finalShareUri = capturedUri;
+        }
       }
 
-      // 2. Check if sharing is available on the device
       const isAvailable = await Sharing.isAvailableAsync();
       if (!isAvailable) {
-        alert('Sharing is not available on your platform');
+        Alert.alert('Not Supported', 'Sharing is not available on this device.');
         return;
       }
 
-      // 3. Share the image using the native share sheet
-      await Sharing.shareAsync(uri, {
-        mimeType: 'image/jpeg',
-        dialogTitle: 'Share your memory',
-        UTI: 'public.jpeg', // for iOS
+      // Handle App Specific Deep Links if target specified
+      if (targetApp === 'instagram') {
+        const instagramUrl = 'instagram://app';
+        const canOpen = await Linking.canOpenURL(instagramUrl);
+        if (canOpen) {
+          await Sharing.shareAsync(finalShareUri, {
+            mimeType: isVideo ? 'video/mp4' : 'image/jpeg',
+            dialogTitle: 'Share to Instagram',
+            UTI: isVideo ? 'com.apple.quicktime-movie' : 'public.jpeg',
+          });
+          return;
+        }
+      }
+
+      if (targetApp === 'tiktok') {
+        const tiktokUrl = 'snssdk1128://'; // TikTok URL scheme
+        const canOpen = await Linking.canOpenURL(tiktokUrl);
+        if (canOpen) {
+          await Sharing.shareAsync(finalShareUri, {
+            mimeType: isVideo ? 'video/mp4' : 'image/jpeg',
+            dialogTitle: 'Share to TikTok',
+            UTI: isVideo ? 'com.apple.quicktime-movie' : 'public.jpeg',
+          });
+          return;
+        }
+      }
+
+      // Fallback: Native System Share Sheet (Supports IG, TikTok, FB, LINE, etc.)
+      await Sharing.shareAsync(finalShareUri, {
+        mimeType: isVideo ? 'video/mp4' : 'image/jpeg',
+        dialogTitle: 'Share Pinc Memory',
+        UTI: isVideo ? 'com.apple.quicktime-movie' : 'public.jpeg',
       });
     } catch (error) {
-      console.error('Error sharing image:', error);
-      alert('Could not share the image. Please try again.');
+      console.error('Error sharing media:', error);
+      Alert.alert('Share Error', 'Could not complete sharing. Please try again.');
     } finally {
       setIsSharing(false);
+      setShareTarget(null);
     }
   };
 
   return (
     <View style={styles.container}>
-      {/* Hidden view for capturing full resolution (Rendered off-screen or scaled) */}
+      {/* Media Card Preview with Top-Left Watermark Badge */}
       <View style={styles.captureContainer}>
         <ViewShot
           ref={viewShotRef}
           options={{ format: 'jpg', quality: 1.0 }}
           style={styles.viewShotContainer}
         >
-          <Image
-            source={{ uri: photoUri }}
-            style={styles.photo}
-            contentFit="cover"
-            cachePolicy="memory-disk"
-          />
+          {isVideo ? (
+            <CachedVideo
+              source={{ uri: photoUri }}
+              style={styles.mediaItem}
+              resizeMode="cover"
+              shouldPlay={true}
+              isLooping={true}
+            />
+          ) : (
+            <Image
+              source={{ uri: photoUri }}
+              style={styles.mediaItem}
+              contentFit="cover"
+              cachePolicy="memory-disk"
+            />
+          )}
 
-          {/* Aesthetic Gradient Overlay at the bottom */}
-          <LinearGradient
-            colors={['transparent', 'rgba(0,0,0,0.7)', 'rgba(0,0,0,0.9)']}
-            style={styles.gradientOverlay}
-          >
-            <View style={styles.watermarkContent}>
-              <Text style={styles.locationText}>{locationName}</Text>
-              <Text style={styles.brandText}>Shared via Pinc.</Text>
-            </View>
-          </LinearGradient>
+          {/* TOP-CENTER SINGLE LOGO WATERMARK (pinc_story_btn) */}
+          <View style={styles.topCenterWatermarkContainer} pointerEvents="none">
+            <Image
+              source={require("../assets/pinc_story_btn.png")}
+              style={styles.pincLogoImage}
+              contentFit="contain"
+            />
+          </View>
         </ViewShot>
       </View>
 
-      {/* Action Buttons */}
+      {/* Social Media Sharing Buttons */}
       <View style={styles.actionsContainer}>
-        {isVideo && (
-          <Text style={styles.videoWarningText}>
-            ระบบรองรับการแชร์เป็นรูปภาพเท่านั้น
-          </Text>
+        <Text style={styles.shareTitleText}>
+          {isVideo ? '🎬 แชร์วิดีโอนี้ไปยังโซเชียล' : '📸 แชร์รูปภาพนี้ไปยังโซเชียล'}
+        </Text>
+
+        <View style={styles.socialButtonsRow}>
+          {/* Instagram Button */}
+          <TouchableOpacity
+            style={[styles.socialButton, { backgroundColor: '#E1306C' }]}
+            onPress={() => handleShareMedia('instagram')}
+            disabled={isSharing}
+          >
+            <Ionicons name="logo-instagram" size={22} color="#FFF" />
+            <Text style={styles.socialButtonText}>Instagram</Text>
+          </TouchableOpacity>
+
+          {/* TikTok Button */}
+          <TouchableOpacity
+            style={[styles.socialButton, { backgroundColor: '#000000', borderWidth: 1, borderColor: '#333' }]}
+            onPress={() => handleShareMedia('tiktok')}
+            disabled={isSharing}
+          >
+            <FontAwesome5 name="tiktok" size={18} color="#FFF" />
+            <Text style={styles.socialButtonText}>TikTok</Text>
+          </TouchableOpacity>
+
+          {/* General / Facebook Share Button */}
+          <TouchableOpacity
+            style={[styles.socialButton, { backgroundColor: PincTheme.colors.primary }]}
+            onPress={() => handleShareMedia('general')}
+            disabled={isSharing}
+          >
+            <Ionicons name="share-social" size={20} color="#FFF" />
+            <Text style={styles.socialButtonText}>แชร์แอปอื่น</Text>
+          </TouchableOpacity>
+        </View>
+
+        {isSharing && (
+          <View style={styles.loadingRow}>
+            <ActivityIndicator color="#E4007F" size="small" style={{ marginRight: 8 }} />
+            <Text style={styles.loadingText}>กำลังเตรียมไฟล์สำหรับแชร์...</Text>
+          </View>
         )}
-        <TouchableOpacity
-          style={styles.shareButton}
-          onPress={handleShare}
-          disabled={isSharing}
-          activeOpacity={0.8}
-        >
-          {isSharing ? (
-            <>
-              <ActivityIndicator color="#fff" size="small" style={styles.loader} />
-              <Text style={styles.shareText}>Preparing to share...</Text>
-            </>
-          ) : (
-            <Text style={styles.shareText}>Share to Social</Text>
-          )}
-        </TouchableOpacity>
 
         {onClose && (
           <TouchableOpacity
@@ -125,7 +193,7 @@ export const WatermarkShare: React.FC<WatermarkShareProps> = ({
             onPress={onClose}
             disabled={isSharing}
           >
-            <Text style={styles.cancelText}>Cancel</Text>
+            <Text style={styles.cancelText}>ปิดหน้าต่าง (Close)</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -136,98 +204,99 @@ export const WatermarkShare: React.FC<WatermarkShareProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: PincTheme.colors.textPrimary,
+    backgroundColor: '#0F0F14',
     alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: 20,
   },
   captureContainer: {
     width: PREVIEW_SIZE,
-    height: PREVIEW_SIZE * 1.5, // 2:3 aspect ratio like standard stories
+    height: PREVIEW_SIZE * 1.45, // 9:13 aspect ratio
     borderRadius: 20,
     overflow: 'hidden',
-    backgroundColor: '#222',
+    backgroundColor: '#1E1E28',
+    ...PincTheme.shadows.lg,
   },
   viewShotContainer: {
     flex: 1,
     width: '100%',
     height: '100%',
-    backgroundColor: PincTheme.colors.textPrimary, // ensure background is solid when capturing
+    backgroundColor: '#1E1E28',
   },
-  photo: {
+  mediaItem: {
     ...StyleSheet.absoluteFillObject,
     width: '100%',
     height: '100%',
   },
-  gradientOverlay: {
+  topCenterWatermarkContainer: {
     position: 'absolute',
-    bottom: 0,
+    top: 14,
     left: 0,
     right: 0,
-    height: 180,
-    justifyContent: 'flex-end',
-    padding: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 100,
   },
-  watermarkContent: {
-    alignItems: 'flex-start',
-  },
-  locationText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '700',
-    marginBottom: 2,
-    textShadowColor: 'rgba(0, 0, 0, 0.75)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
-  },
-  brandText: {
-    color: '#FF4B72', // Using Pinc's brand color
-    fontSize: 12,
-    fontWeight: '600',
-    textShadowColor: 'rgba(0, 0, 0, 0.75)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
+  pincLogoImage: {
+    width: 90,
+    height: 42,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.6,
+    shadowRadius: 4,
+    elevation: 6,
   },
   actionsContainer: {
-    marginTop: 30,
+    marginTop: 20,
     width: PREVIEW_SIZE,
     alignItems: 'center',
   },
-  videoWarningText: {
-    color: '#FFB8C6',
-    fontSize: 12,
+  shareTitleText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
     marginBottom: 12,
-    textAlign: 'center',
-    fontWeight: '600',
+    fontFamily: PincTheme.fonts.heading,
   },
-  shareButton: {
-    backgroundColor: '#FF4B72',
+  socialButtonsRow: {
+    flexDirection: 'row',
+    gap: 8,
     width: '100%',
-    paddingVertical: 16,
-    borderRadius: 30,
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
+  socialButton: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
-    shadowColor: '#FF4B72',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
+    paddingVertical: 12,
+    borderRadius: 16,
+    gap: 6,
+    ...PincTheme.shadows.md,
   },
-  loader: {
-    marginRight: 10,
+  socialButtonText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
+    fontFamily: PincTheme.fonts.heading,
   },
-  shareText: {
-    color: '#fff',
-    fontSize: 18,
+  loadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  loadingText: {
+    color: '#E4007F',
+    fontSize: 12,
     fontWeight: '700',
   },
   cancelButton: {
-    paddingVertical: 12,
+    paddingVertical: 8,
   },
   cancelText: {
-    color: '#aaa',
-    fontSize: 16,
+    color: '#888899',
+    fontSize: 14,
     fontWeight: '600',
   },
 });

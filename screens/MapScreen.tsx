@@ -17,7 +17,8 @@ import {
   PanResponder,
   Platform,
   Image as RNImage,
-  Alert
+  Alert,
+  Linking
 } from "react-native";
 import { Image } from "expo-image";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -47,6 +48,9 @@ import { Venue, Pin, auth, getUserStats, calculateDistance, db } from "../servic
 import { doc, updateDoc } from "firebase/firestore";
 import { useTranslation } from 'react-i18next';
 import { ReelsFeedModal } from "../components/ReelsFeedModal";
+import { fetchInAppRoute, RouteCoordinate } from "../services/routing";
+
+const Polyline = Platform.OS === 'web' ? View : RNMaps.Polyline;
 
 const isVideoUrl = (url: string | null | undefined): boolean => {
   if (!url) return false;
@@ -85,6 +89,8 @@ interface MapScreenProps {
   onOpenUserProfile?: (userId: string) => void;
   settingCrewBaseVenue?: Venue | null;
   onClearCrewBaseMode?: () => void;
+  directionTarget?: { latitude: number; longitude: number; name?: string; timestamp: number } | null;
+  onClearDirectionTarget?: () => void;
 }
 
 // Detailed Light Lifestyle Map Styling for Google Maps
@@ -208,7 +214,9 @@ export const MapScreen: React.FC<MapScreenProps> = ({
   onDeletePin,
   onOpenUserProfile,
   settingCrewBaseVenue,
-  onClearCrewBaseMode
+  onClearCrewBaseMode,
+  directionTarget = null,
+  onClearDirectionTarget
 }) => {
   const { t } = useTranslation();
   const mapRef = useRef<any | null>(null);
@@ -223,6 +231,66 @@ export const MapScreen: React.FC<MapScreenProps> = ({
   const [isUpdatingBase, setIsUpdatingBase] = useState(false);
   const [followerStatsCache, setFollowerStatsCache] = useState<Record<string, number>>({});
   const hasAnimatedToUserLocation = useRef(false);
+
+  // In-App Route Navigation States
+  const [activeRouteCoords, setActiveRouteCoords] = useState<RouteCoordinate[]>([]);
+  const [activeRouteInfo, setActiveRouteInfo] = useState<{
+    destName: string;
+    distanceKm: number;
+    durationMins: number;
+    targetLat: number;
+    targetLng: number;
+  } | null>(null);
+  const [isFetchingRoute, setIsFetchingRoute] = useState(false);
+
+  const handleStartInAppRoute = async (destLat: number, destLng: number, destName?: string) => {
+    const origin = userLocation || { latitude: 13.736717, longitude: 100.560481 };
+    const destination = { latitude: destLat, longitude: destLng };
+    setIsFetchingRoute(true);
+
+    try {
+      const result = await fetchInAppRoute(origin, destination);
+      setActiveRouteCoords(result.coordinates);
+      setActiveRouteInfo({
+        destName: destName || (locale === "th" ? "จุดหมายปลายทาง" : "Destination"),
+        distanceKm: result.distanceKm,
+        durationMins: result.durationMins,
+        targetLat: destLat,
+        targetLng: destLng,
+      });
+
+      // Auto-fit map camera to display the full pink route
+      if (mapRef.current && result.coordinates.length > 0) {
+        setTimeout(() => {
+          try {
+            mapRef.current.fitToCoordinates(result.coordinates, {
+              edgePadding: { top: 120, right: 60, bottom: 220, left: 60 },
+              animated: true,
+            });
+          } catch (e) {
+            console.warn("Could not fit map to route coordinates:", e);
+          }
+        }, 300);
+      }
+    } catch (err) {
+      console.warn("Error starting in-app route:", err);
+      Alert.alert(locale === "th" ? "เกิดข้อผิดพลาด" : "Error", locale === "th" ? "ไม่สามารถคำนวณเส้นทางได้" : "Could not calculate route.");
+    } finally {
+      setIsFetchingRoute(false);
+    }
+  };
+
+  const handleClearInAppRoute = () => {
+    setActiveRouteCoords([]);
+    setActiveRouteInfo(null);
+    if (onClearDirectionTarget) onClearDirectionTarget();
+  };
+
+  useEffect(() => {
+    if (directionTarget && directionTarget.latitude && directionTarget.longitude) {
+      handleStartInAppRoute(directionTarget.latitude, directionTarget.longitude, directionTarget.name);
+    }
+  }, [directionTarget]);
 
   useEffect(() => {
     if (userLocation && mapRef.current && !hasAnimatedToUserLocation.current) {
@@ -477,6 +545,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
     const now = Date.now();
     const filtered = allPins.filter(pin => {
       if (pin.is_pinned === false) return false;
+      if (pin.is_gallery) return false;
       if (!pin.latitude || !pin.longitude) return false; // MUST have valid coordinates
       const pinTime = new Date(pin.timestamp).getTime();
       const ageHours = (now - pinTime) / (1000 * 60 * 60);
@@ -1455,6 +1524,16 @@ export const MapScreen: React.FC<MapScreenProps> = ({
           );
         })}
 
+        {activeRouteCoords.length > 0 && (
+          <Polyline
+            coordinates={activeRouteCoords}
+            strokeWidth={5}
+            strokeColor="#E4007F"
+            zIndex={9999}
+            lineCap="round"
+            lineJoin="round"
+          />
+        )}
       </MapView>
 
       {settingCrewBaseVenue && (
@@ -1535,10 +1614,54 @@ export const MapScreen: React.FC<MapScreenProps> = ({
           setIsMemorySheetVisible(false);
           if (onClearMemory) onClearMemory();
         }}
-        currentUserId={currentUserId || auth.currentUser?.uid || ""} // Pass appropriately if needed
+        currentUserId={currentUserId || auth.currentUser?.uid || ""}
         onOpenUserProfile={onOpenUserProfile}
         locale={locale}
+        onGetDirections={(pin) => {
+          setIsMemorySheetVisible(false);
+          if (onClearMemory) onClearMemory();
+          handleStartInAppRoute(pin.latitude, pin.longitude, pin.username ? `${pin.username}'s Pin` : undefined);
+        }}
       />
+
+      {/* Floating In-App Navigation Card */}
+      {activeRouteInfo && (
+        <SafeAreaView style={styles.navOverlaySafeArea} pointerEvents="box-none">
+          <View style={styles.navCardContainer}>
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
+                <Ionicons name="navigate-circle" size={22} color="#E4007F" style={{ marginRight: 6 }} />
+                <Text style={styles.navDestTitle} numberOfLines={1}>
+                  {activeRouteInfo.destName}
+                </Text>
+              </View>
+              <Text style={styles.navMetricsText}>
+                🚗 {activeRouteInfo.distanceKm} {locale === "th" ? "กม." : "km"} • {activeRouteInfo.durationMins} {locale === "th" ? "นาที" : "mins"}
+              </Text>
+            </View>
+
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <TouchableOpacity
+                style={styles.navExternalButton}
+                onPress={() => {
+                  const url = `https://www.google.com/maps/dir/?api=1&destination=${activeRouteInfo.targetLat},${activeRouteInfo.targetLng}`;
+                  Linking.openURL(url);
+                }}
+              >
+                <Ionicons name="navigate" size={24} color="#FFF" />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.navClearButton}
+                onPress={handleClearInAppRoute}
+              >
+                <Ionicons name="close" size={16} color="#FFF" />
+                <Text style={styles.navClearText}>{locale === "th" ? "ยกเลิก" : "Clear"}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </SafeAreaView>
+      )}
 
       {/* Main Bottom Dashboard Tab Bar Overlay */}
       <TouchableOpacity
@@ -1602,6 +1725,10 @@ export const MapScreen: React.FC<MapScreenProps> = ({
         currentUserId={currentUserId || auth.currentUser?.uid || ""}
         onOpenUserProfile={onOpenUserProfile}
         locale={locale}
+        onGetDirections={(pin) => {
+          setReelsFeedPins([]);
+          handleStartInAppRoute(pin.latitude, pin.longitude, pin.username ? `${pin.username}'s Pin` : undefined);
+        }}
       />
     </SafeAreaView>
   );
@@ -2146,5 +2273,59 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: PincTheme.colors.textPrimary,
     maxWidth: 100,
+  },
+  navOverlaySafeArea: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 50 : 20,
+    left: 16,
+    right: 16,
+    zIndex: 9999,
+  },
+  navCardContainer: {
+    backgroundColor: 'rgba(20, 20, 30, 0.94)',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: 'rgba(228, 0, 127, 0.6)',
+    ...PincTheme.shadows.lg,
+  },
+  navDestTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    fontFamily: PincTheme.fonts.heading,
+  },
+  navMetricsText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#E4007F',
+    marginTop: 2,
+  },
+  navExternalButton: {
+    backgroundColor: '#4285F4', // Google Maps Blue
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 6,
+    ...PincTheme.shadows.md,
+  },
+  navClearButton: {
+    backgroundColor: '#FF3B30',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  navClearText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+    marginLeft: 2,
   }
 });
