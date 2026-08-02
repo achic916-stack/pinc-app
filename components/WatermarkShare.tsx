@@ -48,8 +48,8 @@ export const WatermarkShare: React.FC<WatermarkShareProps> = ({
 
       let finalShareUri = photoUri;
 
-      // Capture watermarked ViewShot snapshot (works for both photo and video frame with watermark overlay)
-      if (viewShotRef.current?.capture) {
+      // Only capture ViewShot snapshot for STILL PHOTOS (so video stays as playable .mp4 video)
+      if (!isVideo && viewShotRef.current?.capture) {
         try {
           const capturedUri = await viewShotRef.current.capture();
           if (capturedUri) {
@@ -74,6 +74,9 @@ export const WatermarkShare: React.FC<WatermarkShareProps> = ({
         return;
       }
 
+      const shareMimeType = isVideo ? 'video/mp4' : 'image/jpeg';
+      const shareUTI = isVideo ? 'com.apple.quicktime-movie' : 'public.jpeg';
+
       // Direct Deep Link Redirection to Instagram
       if (targetApp === 'instagram') {
         const igSchemes = ['instagram-stories://share', 'instagram://app', 'instagram://'];
@@ -82,9 +85,9 @@ export const WatermarkShare: React.FC<WatermarkShareProps> = ({
             const canOpen = await Linking.canOpenURL(scheme);
             if (canOpen) {
               await Sharing.shareAsync(finalShareUri, {
-                mimeType: 'image/jpeg',
+                mimeType: shareMimeType,
                 dialogTitle: 'Share to Instagram',
-                UTI: 'com.instagram.photo',
+                UTI: shareUTI,
               });
               setTimeout(() => {
                 Linking.openURL(scheme).catch(() => {});
@@ -105,9 +108,9 @@ export const WatermarkShare: React.FC<WatermarkShareProps> = ({
             const canOpen = await Linking.canOpenURL(scheme);
             if (canOpen) {
               await Sharing.shareAsync(finalShareUri, {
-                mimeType: 'image/jpeg',
+                mimeType: shareMimeType,
                 dialogTitle: 'Share to TikTok',
-                UTI: 'public.jpeg',
+                UTI: shareUTI,
               });
               setTimeout(() => {
                 Linking.openURL(scheme).catch(() => {});
@@ -128,9 +131,9 @@ export const WatermarkShare: React.FC<WatermarkShareProps> = ({
             const canOpen = await Linking.canOpenURL(scheme);
             if (canOpen) {
               await Sharing.shareAsync(finalShareUri, {
-                mimeType: 'image/jpeg',
+                mimeType: shareMimeType,
                 dialogTitle: 'Share to Facebook',
-                UTI: 'public.jpeg',
+                UTI: shareUTI,
               });
               setTimeout(() => {
                 Linking.openURL(scheme).catch(() => {});
@@ -145,9 +148,9 @@ export const WatermarkShare: React.FC<WatermarkShareProps> = ({
 
       // Fallback / General: Native System Share Sheet
       await Sharing.shareAsync(finalShareUri, {
-        mimeType: 'image/jpeg',
+        mimeType: shareMimeType,
         dialogTitle: 'Share Pinc Memory',
-        UTI: 'public.jpeg',
+        UTI: shareUTI,
       });
     } catch (error) {
       console.error('Error sharing media:', error);
@@ -175,7 +178,7 @@ export const WatermarkShare: React.FC<WatermarkShareProps> = ({
             <CachedVideo
               source={{ uri: photoUri }}
               style={styles.mediaItem}
-              resizeMode="cover"
+              resizeMode="contain"
               shouldPlay={true}
               isLooping={true}
             />
@@ -183,7 +186,7 @@ export const WatermarkShare: React.FC<WatermarkShareProps> = ({
             <Image
               source={{ uri: photoUri }}
               style={styles.mediaItem}
-              contentFit="cover"
+              contentFit="contain"
               cachePolicy="memory-disk"
             />
           )}
@@ -276,17 +279,17 @@ const styles = StyleSheet.create({
   },
   captureContainer: {
     width: PREVIEW_SIZE,
-    height: PREVIEW_SIZE * 1.45, // 9:13 aspect ratio
+    height: PREVIEW_SIZE * 1.35, // Preserves natural aspect ratio without squishing
     borderRadius: 20,
     overflow: 'hidden',
-    backgroundColor: '#1E1E28',
+    backgroundColor: '#000000',
     ...PincTheme.shadows.lg,
   },
   viewShotContainer: {
     flex: 1,
     width: '100%',
     height: '100%',
-    backgroundColor: '#1E1E28',
+    backgroundColor: '#000000',
   },
   mediaItem: {
     ...StyleSheet.absoluteFillObject,
@@ -295,14 +298,14 @@ const styles = StyleSheet.create({
   },
   watermarkOverlayContainer: {
     position: 'absolute',
-    top: '42%',
+    top: '40%',
     left: 16,
     zIndex: 100,
     alignItems: 'flex-start',
   },
   watermarkLogoImage: {
-    width: 110,
-    height: 48,
+    width: 100,
+    height: 42,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.6,
@@ -310,14 +313,14 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   watermarkUsernameText: {
-    color: 'rgba(255, 255, 255, 0.85)',
-    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.65)',
+    fontSize: 10,
     fontWeight: '600',
-    marginTop: 2,
+    marginTop: -8,
     marginLeft: 4,
-    textShadowColor: 'rgba(0, 0, 0, 0.85)',
-    textShadowOffset: { width: 0, height: 1.5 },
-    textShadowRadius: 4,
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
     fontFamily: PincTheme.fonts.body,
   },
   actionsContainer: {
