@@ -128,16 +128,23 @@ export default function App() {
     if (hasShareIntent && shareIntent) {
       const intentObj = shareIntent as any;
       const fileObj = intentObj?.files?.[0];
-      const mediaUri = fileObj?.path || intentObj?.value;
-      const mimeType = (fileObj?.mimeType || fileObj?.type || intentObj?.type || '').toLowerCase();
-      const isVideo = mimeType.includes('video') || (typeof mediaUri === 'string' && (mediaUri.toLowerCase().includes('.mp4') || mediaUri.toLowerCase().includes('.mov')));
+      let rawUri = fileObj?.path || fileObj?.contentUri || intentObj?.value || intentObj?.webUrl;
+      
+      if (typeof rawUri === 'string') {
+        try {
+          rawUri = decodeURIComponent(rawUri);
+        } catch (e) {}
+      }
 
-      if (mediaUri) {
+      const mimeType = (fileObj?.mimeType || fileObj?.type || intentObj?.type || '').toLowerCase();
+      const isVideo = mimeType.includes('video') || (typeof rawUri === 'string' && (rawUri.toLowerCase().includes('.mp4') || rawUri.toLowerCase().includes('.mov') || rawUri.toLowerCase().includes('.m4v')));
+
+      if (rawUri) {
         setActiveTab("home");
         setTimeout(() => {
-          pincButtonRef.current?.startExternalShareFeedPost(mediaUri, isVideo ? 'video' : 'image');
+          pincButtonRef.current?.startExternalShareFeedPost(rawUri, isVideo ? 'video' : 'image');
           resetShareIntent();
-        }, 500);
+        }, 300);
       }
     }
   }, [hasShareIntent, shareIntent]);
@@ -1094,7 +1101,17 @@ export default function App() {
             }}
           />
 
-          {/* Redundant settings modal removed in favor of UserProfileModal settings integration */}
+          {/* PincButton Post Composer Modal Manager */}
+          <PincButton 
+            ref={pincButtonRef}
+            venues={venues}
+            userLocation={userLocation}
+            currentUser={currentUser}
+            onPinCreated={() => {}}
+            locationTrackingEnabled={locationTrackingEnabled}
+            hideButton={true}
+            activeTab={activeTab}
+          />
         </>
       )}
     </View>

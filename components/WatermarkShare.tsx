@@ -18,6 +18,8 @@ import { Ionicons, FontAwesome5 } from '@expo/vector-icons';
 import { PincTheme } from "../styles/theme";
 import { CachedVideo } from './CachedVideo';
 
+import * as FileSystem from 'expo-file-system';
+
 const { width } = Dimensions.get('window');
 const PREVIEW_SIZE = width - 40;
 
@@ -57,36 +59,52 @@ export const WatermarkShare: React.FC<WatermarkShareProps> = ({
         }
       }
 
+      // Download remote http/https file to local cache for iOS Share Sheet compatibility
+      if (finalShareUri.startsWith('http://') || finalShareUri.startsWith('https://')) {
+        const ext = isVideo ? '.mp4' : '.jpg';
+        const localPath = `${FileSystem.cacheDirectory}pinc_share_${Date.now()}${ext}`;
+        const downloadRes = await FileSystem.downloadAsync(finalShareUri, localPath);
+        finalShareUri = downloadRes.uri;
+      }
+
       const isAvailable = await Sharing.isAvailableAsync();
       if (!isAvailable) {
         Alert.alert('Not Supported', 'Sharing is not available on this device.');
         return;
       }
 
-      // Handle App Specific Deep Links if target specified
+      // Handle App Specific Deep Links safely
       if (targetApp === 'instagram') {
-        const instagramUrl = 'instagram://app';
-        const canOpen = await Linking.canOpenURL(instagramUrl);
-        if (canOpen) {
-          await Sharing.shareAsync(finalShareUri, {
-            mimeType: isVideo ? 'video/mp4' : 'image/jpeg',
-            dialogTitle: 'Share to Instagram',
-            UTI: isVideo ? 'com.apple.quicktime-movie' : 'public.jpeg',
-          });
-          return;
+        try {
+          const instagramUrl = 'instagram://app';
+          const canOpen = await Linking.canOpenURL(instagramUrl);
+          if (canOpen) {
+            await Sharing.shareAsync(finalShareUri, {
+              mimeType: isVideo ? 'video/mp4' : 'image/jpeg',
+              dialogTitle: 'Share to Instagram',
+              UTI: isVideo ? 'com.apple.quicktime-movie' : 'public.jpeg',
+            });
+            return;
+          }
+        } catch (e) {
+          console.warn("Instagram deep link check warning:", e);
         }
       }
 
       if (targetApp === 'tiktok') {
-        const tiktokUrl = 'snssdk1128://'; // TikTok URL scheme
-        const canOpen = await Linking.canOpenURL(tiktokUrl);
-        if (canOpen) {
-          await Sharing.shareAsync(finalShareUri, {
-            mimeType: isVideo ? 'video/mp4' : 'image/jpeg',
-            dialogTitle: 'Share to TikTok',
-            UTI: isVideo ? 'com.apple.quicktime-movie' : 'public.jpeg',
-          });
-          return;
+        try {
+          const tiktokUrl = 'snssdk1128://';
+          const canOpen = await Linking.canOpenURL(tiktokUrl);
+          if (canOpen) {
+            await Sharing.shareAsync(finalShareUri, {
+              mimeType: isVideo ? 'video/mp4' : 'image/jpeg',
+              dialogTitle: 'Share to TikTok',
+              UTI: isVideo ? 'com.apple.quicktime-movie' : 'public.jpeg',
+            });
+            return;
+          }
+        } catch (e) {
+          console.warn("TikTok deep link check warning:", e);
         }
       }
 
