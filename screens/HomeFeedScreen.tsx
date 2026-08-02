@@ -208,14 +208,22 @@ const FeedPinItem: React.FC<FeedPinItemProps> = React.memo(({
                     <TouchableWithoutFeedback onPress={(e) => handleMediaTap(e, url, isVid ? 'video' : 'image')}>
                       <View style={{ flex: 1 }}>
                         {isVid ? (
-                          <CachedVideo
-                            source={{ uri: url }}
-                            style={styles.media}
-                            resizeMode="contain"
-                            useNativeControls
-                            isLooping
-                            shouldPlay={isActiveVideo && activeMediaIndex === index}
-                          />
+                          (isActiveVideo && activeMediaIndex === index) ? (
+                            <CachedVideo
+                              source={{ uri: url }}
+                              style={styles.media}
+                              resizeMode="contain"
+                              useNativeControls
+                              isLooping
+                              shouldPlay={true}
+                            />
+                          ) : (
+                            <Image 
+                              source={{ uri: item.thumbnail_url || url }} 
+                              style={styles.media} 
+                              contentFit="contain" 
+                            />
+                          )
                         ) : (
                           <Image 
                             source={{ uri: url }} 
@@ -251,14 +259,22 @@ const FeedPinItem: React.FC<FeedPinItemProps> = React.memo(({
             <TouchableWithoutFeedback onPress={(e) => handleMediaTap(e, item.image_url!, isVideo ? 'video' : 'image')}>
               <View style={{ flex: 1 }}>
                 {isVideo ? (
-                  <CachedVideo
-                    source={{ uri: item.image_url }}
-                    style={styles.media}
-                    resizeMode="contain"
-                    useNativeControls
-                    isLooping
-                    shouldPlay={isActiveVideo}
-                  />
+                  isActiveVideo ? (
+                    <CachedVideo
+                      source={{ uri: item.image_url }}
+                      style={styles.media}
+                      resizeMode="contain"
+                      useNativeControls
+                      isLooping
+                      shouldPlay={true}
+                    />
+                  ) : (
+                    <Image 
+                      source={{ uri: item.thumbnail_url || item.image_url }} 
+                      style={styles.media} 
+                      contentFit="contain" 
+                    />
+                  )
                 ) : (
                   <Image 
                     source={{ uri: item.image_url }} 

@@ -23,6 +23,15 @@ export const CachedVideo: React.FC<CachedVideoProps> = ({ source, ...props }) =>
     setHasError(false);
   }, [videoUri]);
 
+  // Cleanup native decoder resources on unmount
+  useEffect(() => {
+    return () => {
+      if (videoRef.current) {
+        videoRef.current.unloadAsync().catch(() => {});
+      }
+    };
+  }, []);
+
   // Sync shouldPlay for native Video ref
   useEffect(() => {
     if (videoRef.current && !hasError) {
