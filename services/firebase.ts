@@ -825,6 +825,7 @@ export async function createPin(params: {
   postDelayMins?: number;
   isPinned?: boolean;
   is_gallery?: boolean;
+  cloudinary_video_url?: string; // Cloudinary watermarked video URL for sharing
 }): Promise<string> {
   const { 
     userId, 
@@ -844,8 +845,9 @@ export async function createPin(params: {
     musicTitle = "",
     musicUrl = "",
     postDuration = "permanent",
-    thumbnailUri
+    thumbnailUri,
   } = params;
+  const cloudinaryVideoUrl = params.cloudinary_video_url;
 
     // 1. Upload media to Firebase Storage
     const urisToUpload = imageUris || (imageUri ? [imageUri] : []);
@@ -940,7 +942,8 @@ export async function createPin(params: {
     thumbnail_url: thumbnailUrl || null,
     expiresAt: computedExpiresAt,
     pinColor: userPinColor,
-    is_gallery: params.is_gallery || false
+    is_gallery: params.is_gallery || false,
+    cloudinary_video_url: cloudinaryVideoUrl || null,
   };
 
   if (typeof aestheticRating === "number") {

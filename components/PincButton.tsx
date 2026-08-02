@@ -27,6 +27,7 @@ import { collection, addDoc } from "firebase/firestore";
 import { useTranslation } from 'react-i18next';
 import { compressImage } from "../services/imageCompressor";
 import { compressVideo, generateThumbnail } from "../services/videoCompressor";
+import { uploadVideoWithWatermark } from "../services/cloudinaryUploader";
 
 
 
@@ -381,6 +382,7 @@ export const PincButton = forwardRef<PincButtonRef, PincButtonProps>(({
     try {
       let mediaUrisToUpload: string[] = [];
       let thumbnailUri = null;
+      let cloudinaryWatermarkedUrl: string | undefined = undefined;
 
       if (capturedPhotos.length > 0) {
         if (capturedMediaType === "image") {
@@ -404,6 +406,22 @@ export const PincButton = forwardRef<PincButtonRef, PincButtonProps>(({
             thumbnailUri = await generateThumbnail(mediaUrisToUpload[0]);
           } catch (e) {
             console.warn("Could not generate video thumbnail", e);
+          }
+
+          // Upload video to Cloudinary to get watermarked URL for sharing
+          try {
+            setProcessingMessage("Uploading video to Pinc... 0%");
+            cloudinaryWatermarkedUrl = await uploadVideoWithWatermark(
+              compressed,
+              currentUser.username || 'pinc_user',
+              (progress) => {
+                const pct = Math.round(progress * 100);
+                setProcessingMessage(`Uploading video to Pinc... ${pct}%`);
+              }
+            );
+            console.log('[Cloudinary] Watermarked video URL:', cloudinaryWatermarkedUrl);
+          } catch (cloudErr) {
+            console.warn('[Cloudinary] Upload failed, video will be shared without watermark:', cloudErr);
           }
         }
       }
@@ -438,7 +456,8 @@ export const PincButton = forwardRef<PincButtonRef, PincButtonProps>(({
         thumbnailUri: thumbnailUri,
         postDelayMins: postDelay,
         isPinned: !isUnmapped,
-        is_gallery: isUnmapped
+        is_gallery: isUnmapped,
+        cloudinary_video_url: cloudinaryWatermarkedUrl,
       });
 
       Alert.alert("Success", t("successPost"));

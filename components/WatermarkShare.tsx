@@ -25,6 +25,7 @@ interface WatermarkShareProps {
   username?: string;
   onClose?: () => void;
   isVideo?: boolean;
+  watermarkedVideoUrl?: string; // Cloudinary URL with watermark baked into the .mp4
 }
 
 export const WatermarkShare: React.FC<WatermarkShareProps> = ({
@@ -33,6 +34,7 @@ export const WatermarkShare: React.FC<WatermarkShareProps> = ({
   username,
   onClose,
   isVideo = false,
+  watermarkedVideoUrl,
 }) => {
   const viewShotRef = useRef<ViewShot>(null);
   const [isSharing, setIsSharing] = useState(false);
@@ -64,11 +66,14 @@ export const WatermarkShare: React.FC<WatermarkShareProps> = ({
           finalShareUri = downloadRes.uri;
         }
       } else {
-        // --- VIDEO: Share original .mp4 playable file (no watermark embedded in video) ---
-        if (finalShareUri.startsWith('http://') || finalShareUri.startsWith('https://')) {
+        // --- VIDEO: Use Cloudinary watermarked URL if available, otherwise plain .mp4 ---
+        const videoSourceUri = watermarkedVideoUrl || finalShareUri;
+        if (videoSourceUri.startsWith('http://') || videoSourceUri.startsWith('https://')) {
           const downloadPath = `${FileSystem.cacheDirectory}pinc_share_video_${Date.now()}.mp4`;
-          const downloadRes = await FileSystem.downloadAsync(finalShareUri, downloadPath);
+          const downloadRes = await FileSystem.downloadAsync(videoSourceUri, downloadPath);
           finalShareUri = downloadRes.uri;
+        } else {
+          finalShareUri = videoSourceUri;
         }
       }
 

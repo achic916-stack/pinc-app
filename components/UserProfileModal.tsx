@@ -1106,7 +1106,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             username={sharePin.username || profile?.username || "user"}
             onClose={() => setSharePin(null)} 
             isVideo={sharePin.media_type === 'video'}
-
+            watermarkedVideoUrl={(sharePin as any).cloudinary_video_url}
           />
         </Modal>
       )}
