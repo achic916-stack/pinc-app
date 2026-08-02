@@ -253,11 +253,12 @@ export const WatermarkShare: React.FC<WatermarkShareProps> = ({
 
         {onClose && (
           <TouchableOpacity
-            style={styles.cancelButton}
+            style={styles.circleCloseButton}
             onPress={onClose}
             disabled={isSharing}
+            activeOpacity={0.8}
           >
-            <Text style={styles.cancelText}>ปิดหน้าต่าง (Close)</Text>
+            <Ionicons name="close" size={24} color="#FFFFFF" />
           </TouchableOpacity>
         )}
       </View>
@@ -357,12 +358,16 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
-  cancelButton: {
-    paddingVertical: 8,
-  },
-  cancelText: {
-    color: '#888899',
-    fontSize: 14,
-    fontWeight: '600',
+  circleCloseButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+    ...PincTheme.shadows.md,
   },
 });

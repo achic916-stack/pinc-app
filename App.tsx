@@ -14,7 +14,8 @@ import {
   SafeAreaView,
   ScrollView,
   BackHandler,
-  Platform
+  Platform,
+  Linking
 } from "react-native";
 import { Image } from "expo-image";
 import * as Location from "expo-location";
@@ -121,6 +122,35 @@ export default function App() {
   const [isLoadingPins, setIsLoadingPins] = useState(false);
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
 
+  // Helper function to extract and open media from incoming URL/Intent (CapCut, iOS Share, etc.)
+  const handleIncomingMediaUrl = (url: string) => {
+    if (!url) return;
+    try {
+      let cleanUrl = decodeURIComponent(url);
+      if (cleanUrl.includes('path=')) {
+        const match = cleanUrl.match(/path=([^&]+)/);
+        if (match && match[1]) cleanUrl = match[1];
+      } else if (cleanUrl.includes('url=')) {
+        const match = cleanUrl.match(/url=([^&]+)/);
+        if (match && match[1]) cleanUrl = match[1];
+      } else if (cleanUrl.startsWith('pinc://')) {
+        cleanUrl = cleanUrl.replace('pinc://', '');
+      }
+
+      if (cleanUrl.startsWith('file://') || cleanUrl.startsWith('content://') || cleanUrl.startsWith('/') || cleanUrl.startsWith('ph://') || cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://')) {
+        const lower = cleanUrl.toLowerCase();
+        const isVid = lower.includes('video') || lower.includes('.mp4') || lower.includes('.mov') || lower.includes('.m4v') || lower.includes('.3gp');
+        
+        setActiveTab("home");
+        setTimeout(() => {
+          pincButtonRef.current?.startExternalShareFeedPost(cleanUrl, isVid ? 'video' : 'image');
+        }, 400);
+      }
+    } catch (err) {
+      console.warn("handleIncomingMediaUrl error:", err);
+    }
+  };
+
   // Receive Shared Media Intent (CapCut, TikTok, Gallery)
   const { hasShareIntent, shareIntent, resetShareIntent } = useShareIntent();
 
@@ -136,18 +166,27 @@ export default function App() {
         } catch (e) {}
       }
 
-      const mimeType = (fileObj?.mimeType || fileObj?.type || intentObj?.type || '').toLowerCase();
-      const isVideo = mimeType.includes('video') || (typeof rawUri === 'string' && (rawUri.toLowerCase().includes('.mp4') || rawUri.toLowerCase().includes('.mov') || rawUri.toLowerCase().includes('.m4v')));
-
       if (rawUri) {
-        setActiveTab("home");
-        setTimeout(() => {
-          pincButtonRef.current?.startExternalShareFeedPost(rawUri, isVideo ? 'video' : 'image');
-          resetShareIntent();
-        }, 300);
+        handleIncomingMediaUrl(rawUri);
+        resetShareIntent();
       }
     }
   }, [hasShareIntent, shareIntent]);
+
+  // Handle incoming iOS & Android deep link URLs (CapCut, Safari, external share)
+  useEffect(() => {
+    Linking.getInitialURL().then((url) => {
+      if (url) handleIncomingMediaUrl(url);
+    }).catch(() => {});
+
+    const subscription = Linking.addEventListener('url', (event) => {
+      if (event.url) handleIncomingMediaUrl(event.url);
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
 
   // Thumbnail click handler to pan map and close details
   const handleSelectShelfPin = (pin: Pin) => {
