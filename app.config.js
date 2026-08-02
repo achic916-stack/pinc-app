@@ -2,7 +2,7 @@ export default {
   "expo": {
     "name": "pinc",
     "slug": "pinc",
-    "version": "1.0.9",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -19,7 +19,7 @@ export default {
       "supportsTablet": false,
       "usesAppleSignIn": true,
       "bundleIdentifier": "com.achic.pinc",
-      "buildNumber": "179",
+      "buildNumber": "180",
       "googleServicesFile": "./GoogleService-Info.plist",
       "config": {
         "googleMapsApiKey": process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || process.env.GOOGLE_MAPS_API_KEY || "dummy_key_to_prevent_crash"
