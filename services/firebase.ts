@@ -1257,6 +1257,17 @@ export async function addComment(pinId: string, comment: Omit<Comment, "commentI
     5000,
     "Adding comment operation timed out."
   );
+
+  // Increment commentsCount field on parent pin document
+  try {
+    const pinRef = doc(db, "pins", pinId);
+    await updateDoc(pinRef, {
+      commentsCount: increment(1)
+    });
+  } catch (err) {
+    console.warn(`Failed to increment commentsCount on pin ${pinId}:`, err);
+  }
+
   return docRef.id;
 }
 

@@ -17,7 +17,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { Pin, UserProfile, toggleLikePin, calculateDistance, deletePin, toggleSavePin, cleanupMyExpiredStories, reportPin } from '../services/firebase';
+import { Pin, UserProfile, toggleLikePin, calculateDistance, deletePin, toggleSavePin, cleanupMyExpiredStories, reportPin, subscribeToComments } from '../services/firebase';
 import { PincTheme } from '../styles/theme';
 import { CachedVideo } from '../components/CachedVideo';
 import { WatermarkShare } from '../components/WatermarkShare';
@@ -94,10 +94,25 @@ const FeedPinItem: React.FC<FeedPinItemProps> = React.memo(({
     }
   };
 
+  const [commentsCount, setCommentsCount] = useState<number>(item.commentsCount || 0);
+
   useEffect(() => {
     setLiked(item.likes?.includes(currentUser.userId) || false);
     setLikesCount(item.likesCount || item.likes?.length || 0);
-  }, [item.likes, item.likesCount, currentUser.userId]);
+    setCommentsCount(item.commentsCount || 0);
+  }, [item.likes, item.likesCount, item.commentsCount, currentUser.userId]);
+
+  useEffect(() => {
+    if (!item.pinId) return;
+    const unsubscribe = subscribeToComments(
+      item.pinId,
+      (comments) => {
+        setCommentsCount(comments.length);
+      },
+      (err) => console.warn("Failed to subscribe to comments in FeedPinItem:", err)
+    );
+    return () => unsubscribe();
+  }, [item.pinId]);
 
   const onLikePress = () => {
     if (!item.pinId) return;
@@ -281,7 +296,7 @@ const FeedPinItem: React.FC<FeedPinItemProps> = React.memo(({
               onPress={() => item.pinId && setCommentPinId(item.pinId)}
             >
               <Ionicons name="chatbubble-outline" size={22} color={PincTheme.colors.textPrimary} />
-              <Text style={styles.actionText}>{item.commentsCount || 0}</Text>
+              <Text style={styles.actionText}>{commentsCount}</Text>
             </TouchableOpacity>
             <TouchableOpacity 
               style={styles.actionButton}

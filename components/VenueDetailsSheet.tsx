@@ -1245,7 +1245,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                   // Interaction activity cue checks
                   const isOwnPost = pin.userId === currentUser.userId;
                   const likeState = getPinLikeState(pin);
-                  const commentCount = commentsCounts[pin.pinId || ""] || 0;
+                  const commentCount = commentsCounts[pin.pinId || ""] || pin.commentsCount || 0;
                   const hasInteractions = likeState.count > 0 || commentCount > 0;
                   const showActivityCue = isOwnPost && hasInteractions;
 
@@ -1486,7 +1486,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                 // Interaction activity cue checks
                 const isOwnPost = pin.userId === currentUser.userId;
                 const likeState = getPinLikeState(pin);
-                const commentCount = commentsCounts[pin.pinId || ""] || 0;
+                const commentCount = commentsCounts[pin.pinId || ""] || pin.commentsCount || 0;
                 const hasInteractions = likeState.count > 0 || commentCount > 0;
                 const showActivityCue = isOwnPost && hasInteractions;
 

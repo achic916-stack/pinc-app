@@ -76,6 +76,22 @@ const FeedItem = ({
   const [isTogglingFollow, setIsTogglingFollow] = useState(false);
 
   useEffect(() => {
+    setCommentsCount(item.commentsCount || 0);
+  }, [item.commentsCount]);
+
+  useEffect(() => {
+    if (!item.pinId) return;
+    const unsubscribe = subscribeToComments(
+      item.pinId,
+      (comments) => {
+        setCommentsCount(comments.length);
+      },
+      (err) => console.warn("Failed to subscribe to comments in ReelsFeedModal:", err)
+    );
+    return () => unsubscribe();
+  }, [item.pinId]);
+
+  useEffect(() => {
     const checkStatus = async () => {
       if (!currentUserId || !item.userId || item.userId === currentUserId) return;
       try {
