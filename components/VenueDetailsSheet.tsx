@@ -1716,7 +1716,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
             username={sharePin.username || "user"}
             onClose={() => setSharePin(null)}
             isVideo={sharePin.media_type === 'video'}
-            watermarkedVideoUrl={(sharePin as any).watermarked_video_url}
+
           />
         </Modal>
       )}

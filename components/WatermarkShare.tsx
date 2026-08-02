@@ -25,7 +25,6 @@ interface WatermarkShareProps {
   username?: string;
   onClose?: () => void;
   isVideo?: boolean;
-  watermarkedVideoUrl?: string;
 }
 
 export const WatermarkShare: React.FC<WatermarkShareProps> = ({
@@ -34,7 +33,6 @@ export const WatermarkShare: React.FC<WatermarkShareProps> = ({
   username,
   onClose,
   isVideo = false,
-  watermarkedVideoUrl,
 }) => {
   const viewShotRef = useRef<ViewShot>(null);
   const [isSharing, setIsSharing] = useState(false);
@@ -45,10 +43,10 @@ export const WatermarkShare: React.FC<WatermarkShareProps> = ({
     try {
       setIsSharing(true);
 
-      let finalShareUri = watermarkedVideoUrl || photoUri;
+      let finalShareUri = photoUri;
 
       if (!isVideo) {
-        // --- STILL PHOTO SHARE: Capture watermarked JPG with ViewShot ---
+        // --- STILL PHOTO: Capture watermarked card (logo + @username) with ViewShot ---
         if (viewShotRef.current?.capture) {
           try {
             const capturedUri = await viewShotRef.current.capture();
@@ -59,15 +57,14 @@ export const WatermarkShare: React.FC<WatermarkShareProps> = ({
             console.warn("ViewShot photo capture warning:", captureErr);
           }
         }
-
+        // Download remote URL to local cache if needed
         if (finalShareUri.startsWith('http://') || finalShareUri.startsWith('https://')) {
           const localPath = `${FileSystem.cacheDirectory}pinc_share_${Date.now()}.jpg`;
           const downloadRes = await FileSystem.downloadAsync(finalShareUri, localPath);
           finalShareUri = downloadRes.uri;
         }
       } else {
-        // --- PLAYABLE VIDEO SHARE (.mp4): DO NOT USE VIEWSHOT ---
-        // Ensures the output is the REAL MOVING .mp4 VIDEO FILE (not a squished still image!)
+        // --- VIDEO: Share original .mp4 playable file (no watermark embedded in video) ---
         if (finalShareUri.startsWith('http://') || finalShareUri.startsWith('https://')) {
           const downloadPath = `${FileSystem.cacheDirectory}pinc_share_video_${Date.now()}.mp4`;
           const downloadRes = await FileSystem.downloadAsync(finalShareUri, downloadPath);
@@ -84,7 +81,6 @@ export const WatermarkShare: React.FC<WatermarkShareProps> = ({
       const shareMimeType = isVideo ? 'video/mp4' : 'image/jpeg';
       const shareUTI = isVideo ? 'com.apple.quicktime-movie' : 'public.jpeg';
 
-      // Open Native System Share Sheet with real playable video (.mp4) or watermarked photo (.jpg)
       await Sharing.shareAsync(finalShareUri, {
         mimeType: shareMimeType,
         dialogTitle: 'Share Pinc Memory',
@@ -128,7 +124,7 @@ export const WatermarkShare: React.FC<WatermarkShareProps> = ({
             />
           )}
 
-          {/* MIDDLE-LEFT WATERMARK BADGE */}
+          {/* MIDDLE-LEFT WATERMARK BADGE (preview only for video, baked-in for photo) */}
           <View style={styles.watermarkOverlayContainer} pointerEvents="none">
             <Image
               source={require("../assets/pinc_watermark_btn.png")}
