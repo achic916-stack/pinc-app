@@ -25,6 +25,7 @@ interface WatermarkShareProps {
   username?: string;
   onClose?: () => void;
   isVideo?: boolean;
+  watermarkedVideoUrl?: string;
 }
 
 export const WatermarkShare: React.FC<WatermarkShareProps> = ({
@@ -33,6 +34,7 @@ export const WatermarkShare: React.FC<WatermarkShareProps> = ({
   username,
   onClose,
   isVideo = false,
+  watermarkedVideoUrl,
 }) => {
   const viewShotRef = useRef<ViewShot>(null);
   const [isSharing, setIsSharing] = useState(false);
@@ -43,7 +45,7 @@ export const WatermarkShare: React.FC<WatermarkShareProps> = ({
     try {
       setIsSharing(true);
 
-      let finalShareUri = photoUri;
+      let finalShareUri = watermarkedVideoUrl || photoUri;
 
       if (!isVideo) {
         // --- STILL PHOTO SHARE: Capture watermarked JPG with ViewShot ---

@@ -527,6 +527,7 @@ export const ReelsFeedModal: React.FC<ReelsFeedModalProps> = ({
               username={sharePin.username || "user"}
               onClose={() => setSharePin(null)} 
               isVideo={sharePin.media_type === 'video'}
+              watermarkedVideoUrl={(sharePin as any).watermarked_video_url}
             />
           </Modal>
         )}
