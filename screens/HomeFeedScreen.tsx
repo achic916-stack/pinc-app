@@ -606,7 +606,7 @@ export const HomeFeedScreen: React.FC<HomeFeedScreenProps> = ({
   const renderItem = useCallback(({ item }: { item: Pin }) => (
     <FeedPinItem 
       item={item} 
-      isActiveVideo={isVisible && activeVideoId === (item.pinId || item.timestamp.toString())}
+      isActiveVideo={isVisible && !viewerVisible && !shareItem && !commentPinId && activeVideoId === (item.pinId || item.timestamp.toString())}
       currentUser={currentUser}
       localSavedPins={localSavedPins}
       onOpenUserProfile={onOpenUserProfile}
@@ -618,7 +618,7 @@ export const HomeFeedScreen: React.FC<HomeFeedScreenProps> = ({
       onGoToMap={onGoToMap}
       onOpenMedia={onOpenMedia}
     />
-  ), [activeVideoId, currentUser, localSavedPins, isVisible, onGoToMap, onOpenMedia]);
+  ), [activeVideoId, currentUser, localSavedPins, isVisible, viewerVisible, shareItem, commentPinId, onGoToMap, onOpenMedia]);
 
   return (
     <SafeAreaView style={styles.container}>

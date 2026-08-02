@@ -720,7 +720,7 @@ export default function App() {
                   setSelectedVenue(null);
                   setActiveTab('map');
                 }}
-                isVisible={activeTab === 'home'}
+                isVisible={activeTab === 'home' && appReelsPins.length === 0 && selectedUserProfileId === null && selectedVenue === null && !photoShelfVisible}
               />
           </View>
 
