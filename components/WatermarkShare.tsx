@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { PincTheme } from "../styles/theme";
 import { CachedVideo } from './CachedVideo';
 import * as FileSystem from 'expo-file-system';
+import { FFmpegKit, ReturnCode } from 'ffmpeg-kit-react-native';
 
 const { width } = Dimensions.get('window');
 const PREVIEW_SIZE = width - 40;
@@ -35,34 +36,86 @@ export const WatermarkShare: React.FC<WatermarkShareProps> = ({
   isVideo = false,
 }) => {
   const viewShotRef = useRef<ViewShot>(null);
+  const watermarkBadgeRef = useRef<ViewShot>(null);
   const [isSharing, setIsSharing] = useState(false);
+  const [shareProgressText, setShareProgressText] = useState('กำลังเตรียมไฟล์สำหรับแชร์...');
 
   const handleShareMedia = async () => {
     if (isSharing) return;
 
     try {
       setIsSharing(true);
+      setShareProgressText('กำลังเตรียมไฟล์สำหรับแชร์...');
 
       let finalShareUri = photoUri;
 
-      // Only capture ViewShot snapshot for STILL PHOTOS (so video stays as playable .mp4 video)
-      if (!isVideo && viewShotRef.current?.capture) {
-        try {
-          const capturedUri = await viewShotRef.current.capture();
-          if (capturedUri) {
-            finalShareUri = capturedUri;
+      if (!isVideo) {
+        // --- PHOTO WATERMARKING ---
+        if (viewShotRef.current?.capture) {
+          try {
+            const capturedUri = await viewShotRef.current.capture();
+            if (capturedUri) {
+              finalShareUri = capturedUri;
+            }
+          } catch (captureErr) {
+            console.warn("ViewShot photo capture warning:", captureErr);
           }
-        } catch (captureErr) {
-          console.warn("ViewShot capture warning:", captureErr);
         }
-      }
 
-      // Download remote http/https file to local cache for iOS/Android Share Sheet compatibility
-      if (finalShareUri.startsWith('http://') || finalShareUri.startsWith('https://')) {
-        const ext = isVideo ? '.mp4' : '.jpg';
-        const localPath = `${FileSystem.cacheDirectory}pinc_share_${Date.now()}${ext}`;
-        const downloadRes = await FileSystem.downloadAsync(finalShareUri, localPath);
-        finalShareUri = downloadRes.uri;
+        if (finalShareUri.startsWith('http://') || finalShareUri.startsWith('https://')) {
+          const localPath = `${FileSystem.cacheDirectory}pinc_share_${Date.now()}.jpg`;
+          const downloadRes = await FileSystem.downloadAsync(finalShareUri, localPath);
+          finalShareUri = downloadRes.uri;
+        }
+      } else {
+        // --- VIDEO WATERMARKING WITH FFMPEG ---
+        setShareProgressText('กำลังฝังลายน้ำลงในวิดีโอ...');
+
+        // 1. Download video locally if remote
+        let localVideoPath = photoUri;
+        if (localVideoPath.startsWith('http://') || localVideoPath.startsWith('https://')) {
+          const downloadPath = `${FileSystem.cacheDirectory}pinc_raw_video_${Date.now()}.mp4`;
+          const downloadRes = await FileSystem.downloadAsync(localVideoPath, downloadPath);
+          localVideoPath = downloadRes.uri;
+        }
+
+        // 2. Capture watermark badge PNG
+        let badgePngUri = '';
+        if (watermarkBadgeRef.current?.capture) {
+          try {
+            badgePngUri = await watermarkBadgeRef.current.capture();
+          } catch (badgeErr) {
+            console.warn("Watermark badge capture warning:", badgeErr);
+          }
+        }
+
+        // 3. Run FFmpeg overlay to burn watermark PNG into video frames
+        if (badgePngUri) {
+          try {
+            const inputVideoClean = localVideoPath.replace('file://', '');
+            const inputBadgeClean = badgePngUri.replace('file://', '');
+            const outputVideoPath = `${FileSystem.cacheDirectory}pinc_watermarked_${Date.now()}.mp4`;
+            const outputVideoClean = outputVideoPath.replace('file://', '');
+
+            // FFmpeg command to scale watermark PNG and overlay on middle-left (x=16, y=centered)
+            const ffmpegCmd = `-y -i "${inputVideoClean}" -i "${inputBadgeClean}" -filter_complex "[1:v]scale=120:-1[wm];[0:v][wm]overlay=16:(main_h-overlay_h)/2" -c:a copy "${outputVideoClean}"`;
+
+            const session = await FFmpegKit.execute(ffmpegCmd);
+            const returnCode = await session.getReturnCode();
+
+            if (ReturnCode.isSuccess(returnCode)) {
+              finalShareUri = outputVideoPath;
+            } else {
+              console.warn("FFmpeg execution returned non-success code, using raw video");
+              finalShareUri = localVideoPath;
+            }
+          } catch (ffmpegErr) {
+            console.warn("FFmpeg video watermark error:", ffmpegErr);
+            finalShareUri = localVideoPath;
+          }
+        } else {
+          finalShareUri = localVideoPath;
+        }
       }
 
       const isAvailable = await Sharing.isAvailableAsync();
@@ -74,7 +127,7 @@ export const WatermarkShare: React.FC<WatermarkShareProps> = ({
       const shareMimeType = isVideo ? 'video/mp4' : 'image/jpeg';
       const shareUTI = isVideo ? 'com.apple.quicktime-movie' : 'public.jpeg';
 
-      // Open Native System Share Sheet (User picks IG, TikTok, FB, LINE, etc.)
+      // Open Native System Share Sheet
       await Sharing.shareAsync(finalShareUri, {
         mimeType: shareMimeType,
         dialogTitle: 'Share Pinc Memory',
@@ -118,14 +171,20 @@ export const WatermarkShare: React.FC<WatermarkShareProps> = ({
             />
           )}
 
-          {/* MIDDLE-LEFT WATERMARK (pinc_watermark_btn + translucent @username) */}
+          {/* MIDDLE-LEFT WATERMARK BADGE */}
           <View style={styles.watermarkOverlayContainer} pointerEvents="none">
-            <Image
-              source={require("../assets/pinc_watermark_btn.png")}
-              style={styles.watermarkLogoImage}
-              contentFit="contain"
-            />
-            <Text style={styles.watermarkUsernameText}>{formattedUsername}</Text>
+            <ViewShot
+              ref={watermarkBadgeRef}
+              options={{ format: 'png', quality: 1.0 }}
+              style={styles.watermarkBadgeShot}
+            >
+              <Image
+                source={require("../assets/pinc_watermark_btn.png")}
+                style={styles.watermarkLogoImage}
+                contentFit="contain"
+              />
+              <Text style={styles.watermarkUsernameText}>{formattedUsername}</Text>
+            </ViewShot>
           </View>
         </ViewShot>
       </View>
@@ -135,7 +194,7 @@ export const WatermarkShare: React.FC<WatermarkShareProps> = ({
         {isSharing && (
           <View style={styles.loadingRow}>
             <ActivityIndicator color="#0084FF" size="small" style={{ marginRight: 8 }} />
-            <Text style={styles.loadingText}>กำลังเตรียมไฟล์สำหรับแชร์...</Text>
+            <Text style={styles.loadingText}>{shareProgressText}</Text>
           </View>
         )}
 
@@ -177,7 +236,7 @@ const styles = StyleSheet.create({
   },
   captureContainer: {
     width: PREVIEW_SIZE,
-    height: PREVIEW_SIZE * 1.35, // Preserves natural aspect ratio without squishing
+    height: PREVIEW_SIZE * 1.35,
     borderRadius: 20,
     overflow: 'hidden',
     backgroundColor: '#000000',
@@ -199,6 +258,10 @@ const styles = StyleSheet.create({
     top: '40%',
     left: 16,
     zIndex: 100,
+    alignItems: 'flex-start',
+  },
+  watermarkBadgeShot: {
+    backgroundColor: 'transparent',
     alignItems: 'flex-start',
   },
   watermarkLogoImage: {
