@@ -1,4 +1,4 @@
-import React, { useState, forwardRef, useImperativeHandle, useEffect } from "react";
+import React, { useState, forwardRef, useImperativeHandle, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -127,6 +127,7 @@ export const PincButton = forwardRef<PincButtonRef, PincButtonProps>(({
   const [isMediaSelectorVisible, setIsMediaSelectorVisible] = useState(false);
   const [isFromGallery, setIsFromGallery] = useState(false);
   const [forcedVenueId, setForcedVenueId] = useState<string | null>(null);
+  const composerScrollViewRef = useRef<ScrollView>(null);
 
   useImperativeHandle(ref, () => ({
     openMediaSelector: (venueId?: string) => {
@@ -540,6 +541,7 @@ export const PincButton = forwardRef<PincButtonRef, PincButtonProps>(({
           <KeyboardAvoidingView 
             style={{ flex: 1 }} 
             behavior={Platform.OS === "ios" ? "padding" : undefined}
+            keyboardVerticalOffset={Platform.OS === "ios" ? 10 : 0}
           >
           {/* Header */}
           <View style={styles.modalHeader}>
@@ -564,6 +566,7 @@ export const PincButton = forwardRef<PincButtonRef, PincButtonProps>(({
 
           {/* Composer Body */}
           <ScrollView 
+            ref={composerScrollViewRef}
             style={styles.composerBody}
             contentContainerStyle={styles.composerBodyContent}
             showsVerticalScrollIndicator={false}
@@ -691,6 +694,11 @@ export const PincButton = forwardRef<PincButtonRef, PincButtonProps>(({
               value={text}
               onChangeText={setText}
               editable={!isSubmitting}
+              onFocus={() => {
+                setTimeout(() => {
+                  composerScrollViewRef.current?.scrollToEnd({ animated: true });
+                }, 150);
+              }}
             />
 
             {/* Character Count Indicator */}
@@ -835,7 +843,7 @@ const styles = StyleSheet.create({
   },
   composerBodyContent: {
     padding: 16,
-    paddingBottom: 40
+    paddingBottom: Platform.OS === 'ios' ? 260 : 120
   },
   venueIndicator: {
     flexDirection: "row",
@@ -941,7 +949,7 @@ const styles = StyleSheet.create({
     color: PincTheme.colors.divider
   },
   textInput: {
-    flex: 1,
+    minHeight: 100,
     fontSize: 15,
     fontFamily: PincTheme.fonts.body,
     color: PincTheme.colors.textPrimary,
