@@ -946,7 +946,7 @@ export default function App() {
                             <View 
                               style={{ width: '100%', height: '100%' }} 
                             >
-                              <Image source={{ uri: getSafeVideoUrl(pin.image_url) }} style={styles.shelfImage} contentFit="cover" />
+                              <Image source={{ uri: pin.thumbnail_url || getSafeVideoUrl(pin.image_url) }} style={styles.shelfImage} contentFit="cover" />
                               <View style={[StyleSheet.absoluteFill, { justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)' }]}>
                                 <Ionicons name="play" size={24} color="#FFFFFF" />
                               </View>

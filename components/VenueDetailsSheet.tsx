@@ -1322,7 +1322,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                                 onPress={() => setActiveVideoId(pin.pinId || null)}
                                 activeOpacity={0.9}
                               >
-                                <Image source={{ uri: getSafeVideoUrl(pin.image_url) }} style={styles.feedImage} contentFit="cover" />
+                                <Image source={{ uri: pin.thumbnail_url || getSafeVideoUrl(pin.image_url) }} style={styles.feedImage} contentFit="cover" />
                                 <View style={[StyleSheet.absoluteFill, { justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 12 }]}>
                                   <Ionicons name="play" size={44} color="#FFF" />
                                 </View>
@@ -1414,7 +1414,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                           onPress={() => setActiveVideoId(pin.pinId || null)}
                           activeOpacity={0.8}
                         >
-                          <Image source={{ uri: getSafeVideoUrl(pin.image_url) }} style={styles.gridImage} contentFit="cover" />
+                          <Image source={{ uri: pin.thumbnail_url || getSafeVideoUrl(pin.image_url) }} style={styles.gridImage} contentFit="cover" />
                           <View style={[StyleSheet.absoluteFill, { justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)' }]}>
                             <Text style={{ fontSize: 32 }}>▶️</Text>
                           </View>
@@ -1562,7 +1562,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
                               onPress={() => setActiveVideoId(pin.pinId || null)}
                               activeOpacity={0.8}
                             >
-                              <Image source={{ uri: getSafeVideoUrl(pin.image_url) }} style={styles.feedImage} contentFit="cover" />
+                              <Image source={{ uri: pin.thumbnail_url || getSafeVideoUrl(pin.image_url) }} style={styles.feedImage} contentFit="cover" />
                               <View style={[StyleSheet.absoluteFill, { justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)' }]}>
                                 <Text style={{ fontSize: 48 }}>▶️</Text>
                               </View>
