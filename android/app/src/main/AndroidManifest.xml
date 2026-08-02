@@ -16,6 +16,15 @@
       <category android:name="android.intent.category.BROWSABLE"/>
       <data android:scheme="https"/>
     </intent>
+    <package android:name="com.instagram.android"/>
+    <package android:name="com.zhiliaoapp.musically"/>
+    <package android:name="com.ss.android.ugc.trill"/>
+    <package android:name="com.facebook.katana"/>
+    <package android:name="jp.naver.line.android"/>
+    <intent>
+      <action android:name="android.intent.action.VIEW"/>
+      <data android:scheme="instagram"/>
+    </intent>
   </queries>
   <application android:name=".MainApplication" android:label="@string/app_name" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round" android:allowBackup="true" android:theme="@style/AppTheme">
     <meta-data android:name="com.google.android.geo.API_KEY" android:value="${googleMapsApiKey}"/>
