@@ -1103,6 +1103,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           <WatermarkShare 
             photoUri={sharePin.image_url} 
             locationName={sharePin.username || "Pinc Memory"} 
+            username={sharePin.username || profile?.username || "user"}
             onClose={() => setSharePin(null)} 
             isVideo={sharePin.media_type === 'video'}
           />

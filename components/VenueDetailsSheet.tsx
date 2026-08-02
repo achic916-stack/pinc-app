@@ -1713,6 +1713,7 @@ export const VenueDetailsSheet: React.FC<VenueDetailsSheetProps> = ({
           <WatermarkShare
             photoUri={sharePin.image_url}
             locationName={sharePin.username || "Pinc Memory"}
+            username={sharePin.username || "user"}
             onClose={() => setSharePin(null)}
             isVideo={sharePin.media_type === 'video'}
           />

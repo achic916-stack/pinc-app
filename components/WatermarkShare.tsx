@@ -6,18 +6,15 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   Dimensions,
-  Platform,
   Alert,
   Linking
 } from 'react-native';
 import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
 import * as Sharing from 'expo-sharing';
 import ViewShot from 'react-native-view-shot';
 import { Ionicons, FontAwesome5 } from '@expo/vector-icons';
 import { PincTheme } from "../styles/theme";
 import { CachedVideo } from './CachedVideo';
-
 import * as FileSystem from 'expo-file-system';
 
 const { width } = Dimensions.get('window');
@@ -42,24 +39,28 @@ export const WatermarkShare: React.FC<WatermarkShareProps> = ({
   const [isSharing, setIsSharing] = useState(false);
   const [shareTarget, setShareTarget] = useState<string | null>(null);
 
-  const handleShareMedia = async (targetApp?: 'instagram' | 'tiktok' | 'general') => {
+  const handleShareMedia = async (targetApp: 'instagram' | 'tiktok' | 'facebook' | 'general') => {
     if (isSharing) return;
 
     try {
       setIsSharing(true);
-      setShareTarget(targetApp || 'general');
+      setShareTarget(targetApp);
 
       let finalShareUri = photoUri;
 
-      // If photo, capture watermarked ViewShot snapshot
-      if (!isVideo && viewShotRef.current?.capture) {
-        const capturedUri = await viewShotRef.current.capture();
-        if (capturedUri) {
-          finalShareUri = capturedUri;
+      // Capture watermarked ViewShot snapshot (works for both photo and video frame with watermark overlay)
+      if (viewShotRef.current?.capture) {
+        try {
+          const capturedUri = await viewShotRef.current.capture();
+          if (capturedUri) {
+            finalShareUri = capturedUri;
+          }
+        } catch (captureErr) {
+          console.warn("ViewShot capture warning:", captureErr);
         }
       }
 
-      // Download remote http/https file to local cache for iOS Share Sheet compatibility
+      // Download remote http/https file to local cache for iOS/Android Share Sheet compatibility
       if (finalShareUri.startsWith('http://') || finalShareUri.startsWith('https://')) {
         const ext = isVideo ? '.mp4' : '.jpg';
         const localPath = `${FileSystem.cacheDirectory}pinc_share_${Date.now()}${ext}`;
@@ -73,46 +74,80 @@ export const WatermarkShare: React.FC<WatermarkShareProps> = ({
         return;
       }
 
-      // Handle App Specific Deep Links safely
+      // Direct Deep Link Redirection to Instagram
       if (targetApp === 'instagram') {
-        try {
-          const instagramUrl = 'instagram://app';
-          const canOpen = await Linking.canOpenURL(instagramUrl);
-          if (canOpen) {
-            await Sharing.shareAsync(finalShareUri, {
-              mimeType: isVideo ? 'video/mp4' : 'image/jpeg',
-              dialogTitle: 'Share to Instagram',
-              UTI: isVideo ? 'com.apple.quicktime-movie' : 'public.jpeg',
-            });
-            return;
+        const igSchemes = ['instagram-stories://share', 'instagram://app', 'instagram://'];
+        for (const scheme of igSchemes) {
+          try {
+            const canOpen = await Linking.canOpenURL(scheme);
+            if (canOpen) {
+              await Sharing.shareAsync(finalShareUri, {
+                mimeType: 'image/jpeg',
+                dialogTitle: 'Share to Instagram',
+                UTI: 'com.instagram.photo',
+              });
+              setTimeout(() => {
+                Linking.openURL(scheme).catch(() => {});
+              }, 500);
+              return;
+            }
+          } catch (e) {
+            console.warn("Instagram scheme check:", e);
           }
-        } catch (e) {
-          console.warn("Instagram deep link check warning:", e);
         }
       }
 
+      // Direct Deep Link Redirection to TikTok
       if (targetApp === 'tiktok') {
-        try {
-          const tiktokUrl = 'snssdk1128://';
-          const canOpen = await Linking.canOpenURL(tiktokUrl);
-          if (canOpen) {
-            await Sharing.shareAsync(finalShareUri, {
-              mimeType: isVideo ? 'video/mp4' : 'image/jpeg',
-              dialogTitle: 'Share to TikTok',
-              UTI: isVideo ? 'com.apple.quicktime-movie' : 'public.jpeg',
-            });
-            return;
+        const tiktokSchemes = ['snssdk1128://', 'tiktok://', 'tiktoksharesdk://'];
+        for (const scheme of tiktokSchemes) {
+          try {
+            const canOpen = await Linking.canOpenURL(scheme);
+            if (canOpen) {
+              await Sharing.shareAsync(finalShareUri, {
+                mimeType: 'image/jpeg',
+                dialogTitle: 'Share to TikTok',
+                UTI: 'public.jpeg',
+              });
+              setTimeout(() => {
+                Linking.openURL(scheme).catch(() => {});
+              }, 500);
+              return;
+            }
+          } catch (e) {
+            console.warn("TikTok scheme check:", e);
           }
-        } catch (e) {
-          console.warn("TikTok deep link check warning:", e);
         }
       }
 
-      // Fallback: Native System Share Sheet (Supports IG, TikTok, FB, LINE, etc.)
+      // Direct Deep Link Redirection to Facebook
+      if (targetApp === 'facebook') {
+        const fbSchemes = ['fb://composer', 'fb://'];
+        for (const scheme of fbSchemes) {
+          try {
+            const canOpen = await Linking.canOpenURL(scheme);
+            if (canOpen) {
+              await Sharing.shareAsync(finalShareUri, {
+                mimeType: 'image/jpeg',
+                dialogTitle: 'Share to Facebook',
+                UTI: 'public.jpeg',
+              });
+              setTimeout(() => {
+                Linking.openURL(scheme).catch(() => {});
+              }, 500);
+              return;
+            }
+          } catch (e) {
+            console.warn("Facebook scheme check:", e);
+          }
+        }
+      }
+
+      // Fallback / General: Native System Share Sheet
       await Sharing.shareAsync(finalShareUri, {
-        mimeType: isVideo ? 'video/mp4' : 'image/jpeg',
+        mimeType: 'image/jpeg',
         dialogTitle: 'Share Pinc Memory',
-        UTI: isVideo ? 'com.apple.quicktime-movie' : 'public.jpeg',
+        UTI: 'public.jpeg',
       });
     } catch (error) {
       console.error('Error sharing media:', error);
@@ -123,9 +158,13 @@ export const WatermarkShare: React.FC<WatermarkShareProps> = ({
     }
   };
 
+  const formattedUsername = username
+    ? (username.startsWith('@') ? username : `@${username}`)
+    : '@pinc_user';
+
   return (
     <View style={styles.container}>
-      {/* Media Card Preview with Top-Left Watermark Badge */}
+      {/* Media Card Preview with Middle-Left Watermark Badge */}
       <View style={styles.captureContainer}>
         <ViewShot
           ref={viewShotRef}
@@ -149,23 +188,20 @@ export const WatermarkShare: React.FC<WatermarkShareProps> = ({
             />
           )}
 
-          {/* TOP-CENTER SINGLE LOGO WATERMARK (pinc_story_btn) */}
-          <View style={styles.topCenterWatermarkContainer} pointerEvents="none">
+          {/* MIDDLE-LEFT WATERMARK (pinc_watermark_btn + @username) */}
+          <View style={styles.watermarkOverlayContainer} pointerEvents="none">
             <Image
-              source={require("../assets/pinc_story_btn.png")}
-              style={styles.pincLogoImage}
+              source={require("../assets/pinc_watermark_btn.png")}
+              style={styles.watermarkLogoImage}
               contentFit="contain"
             />
+            <Text style={styles.watermarkUsernameText}>{formattedUsername}</Text>
           </View>
         </ViewShot>
       </View>
 
-      {/* Social Media Sharing Buttons */}
+      {/* Social Media Sharing Buttons Bar (No header text) */}
       <View style={styles.actionsContainer}>
-        <Text style={styles.shareTitleText}>
-          {isVideo ? '🎬 แชร์วิดีโอนี้ไปยังโซเชียล' : '📸 แชร์รูปภาพนี้ไปยังโซเชียล'}
-        </Text>
-
         <View style={styles.socialButtonsRow}>
           {/* Instagram Button */}
           <TouchableOpacity
@@ -173,7 +209,7 @@ export const WatermarkShare: React.FC<WatermarkShareProps> = ({
             onPress={() => handleShareMedia('instagram')}
             disabled={isSharing}
           >
-            <Ionicons name="logo-instagram" size={22} color="#FFF" />
+            <Ionicons name="logo-instagram" size={20} color="#FFF" />
             <Text style={styles.socialButtonText}>Instagram</Text>
           </TouchableOpacity>
 
@@ -183,17 +219,27 @@ export const WatermarkShare: React.FC<WatermarkShareProps> = ({
             onPress={() => handleShareMedia('tiktok')}
             disabled={isSharing}
           >
-            <FontAwesome5 name="tiktok" size={18} color="#FFF" />
+            <FontAwesome5 name="tiktok" size={16} color="#FFF" />
             <Text style={styles.socialButtonText}>TikTok</Text>
           </TouchableOpacity>
 
-          {/* General / Facebook Share Button */}
+          {/* Facebook Button */}
+          <TouchableOpacity
+            style={[styles.socialButton, { backgroundColor: '#1877F2' }]}
+            onPress={() => handleShareMedia('facebook')}
+            disabled={isSharing}
+          >
+            <Ionicons name="logo-facebook" size={20} color="#FFF" />
+            <Text style={styles.socialButtonText}>Facebook</Text>
+          </TouchableOpacity>
+
+          {/* General / Other Apps Button */}
           <TouchableOpacity
             style={[styles.socialButton, { backgroundColor: PincTheme.colors.primary }]}
             onPress={() => handleShareMedia('general')}
             disabled={isSharing}
           >
-            <Ionicons name="share-social" size={20} color="#FFF" />
+            <Ionicons name="share-social" size={18} color="#FFF" />
             <Text style={styles.socialButtonText}>แชร์แอปอื่น</Text>
           </TouchableOpacity>
         </View>
@@ -246,39 +292,41 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  topCenterWatermarkContainer: {
+  watermarkOverlayContainer: {
     position: 'absolute',
-    top: 14,
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
+    top: '42%',
+    left: 16,
     zIndex: 100,
+    alignItems: 'flex-start',
   },
-  pincLogoImage: {
-    width: 90,
-    height: 42,
+  watermarkLogoImage: {
+    width: 110,
+    height: 48,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.6,
     shadowRadius: 4,
     elevation: 6,
   },
+  watermarkUsernameText: {
+    color: 'rgba(255, 255, 255, 0.85)',
+    fontSize: 13,
+    fontWeight: '600',
+    marginTop: 2,
+    marginLeft: 4,
+    textShadowColor: 'rgba(0, 0, 0, 0.85)',
+    textShadowOffset: { width: 0, height: 1.5 },
+    textShadowRadius: 4,
+    fontFamily: PincTheme.fonts.body,
+  },
   actionsContainer: {
     marginTop: 20,
     width: PREVIEW_SIZE,
     alignItems: 'center',
   },
-  shareTitleText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '700',
-    marginBottom: 12,
-    fontFamily: PincTheme.fonts.heading,
-  },
   socialButtonsRow: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 6,
     width: '100%',
     justifyContent: 'space-between',
     marginBottom: 14,
@@ -289,13 +337,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 12,
-    borderRadius: 16,
-    gap: 6,
+    borderRadius: 14,
+    gap: 4,
     ...PincTheme.shadows.md,
   },
   socialButtonText: {
     color: '#FFFFFF',
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '800',
     fontFamily: PincTheme.fonts.heading,
   },
