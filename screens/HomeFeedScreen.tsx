@@ -373,6 +373,7 @@ export const HomeFeedScreen: React.FC<HomeFeedScreenProps> = ({
   isVisible,
 }) => {
   const flatListRef = useRef<FlatList>(null);
+  const lastShareTapRef = useRef<number>(0);
   const [refreshing, setRefreshing] = useState(false);
   const [isPostMenuOpen, setIsPostMenuOpen] = useState(false);
   const [commentPinId, setCommentPinId] = useState<string | null>(null);
@@ -573,6 +574,10 @@ export const HomeFeedScreen: React.FC<HomeFeedScreenProps> = ({
   }, [currentUser.userId]);
 
   const handleShare = useCallback(async (pin: Pin, mediaIndex: number = 0) => {
+    const now = Date.now();
+    if (now - lastShareTapRef.current < 1000) return;
+    lastShareTapRef.current = now;
+
     let targetPin = pin;
     if (pin.media_urls && pin.media_urls.length > 0 && pin.media_urls[mediaIndex]) {
       const selectedUrl = pin.media_urls[mediaIndex];

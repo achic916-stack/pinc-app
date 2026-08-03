@@ -89,8 +89,8 @@ missingDimensionStrategy "store", "play"
         applicationId 'com.achic.pinc'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 228
-        versionName "1.0.6"
+        versionCode 230
+        versionName "1.1.0"
 
         def envFile = file("../../.env")
         def mapsApiKey = ""

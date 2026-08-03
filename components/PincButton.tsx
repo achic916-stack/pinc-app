@@ -440,16 +440,26 @@ export const PincButton = forwardRef<PincButtonRef, PincButtonProps>(({
         is_gallery: isUnmapped,
       });
 
-      Alert.alert("Success", t("successPost"));
-      setModalVisible(false);
-      setCapturedPhotos([]);
-      setCapturedBase64(null);
-      setIsFromGallery(false);
-      setText("");
-      setPostType("standard");
-      setPostDuration("permanent");
-      setPostDelay(0);
-      onPinCreated();
+      Alert.alert(
+        "Success", 
+        t("successPost"),
+        [
+          {
+            text: "OK",
+            onPress: () => {
+              setModalVisible(false);
+              setCapturedPhotos([]);
+              setCapturedBase64(null);
+              setIsFromGallery(false);
+              setText("");
+              setPostType("standard");
+              setPostDuration("permanent");
+              setPostDelay(0);
+              onPinCreated();
+            }
+          }
+        ]
+      );
     } catch (error: any) {
       console.error(error);
       Alert.alert("Submission Failed", error.message || t("errorSubmission"));
