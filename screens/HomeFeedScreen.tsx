@@ -55,19 +55,20 @@ interface FeedPinItemProps {
   setCommentPinId: (pinId: string) => void;
   handleShare: (item: Pin, mediaIndex?: number) => void;
   handleToggleSave: (pinId: string) => void;
-  onGoToMap?: (latitude: number, longitude: number) => void;
   onOpenMedia: (url: string, type: 'video'|'image') => void;
   onOpenLikesList?: (userIds: string[]) => void;
+  isFeedMuted?: boolean;
+  onToggleMute?: () => void;
 }
 
 const FeedPinItem: React.FC<FeedPinItemProps> = React.memo(({ 
   item, isActiveVideo, currentUser, localSavedPins, 
   onOpenUserProfile, handleOptionsPress, handleLike, 
-  setCommentPinId, handleShare, handleToggleSave, onGoToMap, onOpenMedia, onOpenLikesList
+  setCommentPinId, handleShare, handleToggleSave, onGoToMap, onOpenMedia, onOpenLikesList,
+  isFeedMuted = false, onToggleMute
 }) => {
   const [localAspectRatios, setLocalAspectRatios] = useState<Record<string, number>>({});
   const [activeMediaIndex, setActiveMediaIndex] = useState(0);
-  const [isMuted, setIsMuted] = useState<boolean>(false);
 
   const [liked, setLiked] = useState(item.likes?.includes(currentUser.userId) || false);
   const [likesCount, setLikesCount] = useState(item.likesCount || item.likes?.length || 0);
@@ -220,13 +221,13 @@ const FeedPinItem: React.FC<FeedPinItemProps> = React.memo(({
                                 useNativeControls
                                 isLooping
                                 shouldPlay={true}
-                                isMuted={isMuted}
+                                isMuted={isFeedMuted}
                               />
                               <TouchableOpacity
-                                onPress={() => setIsMuted(!isMuted)}
+                                onPress={onToggleMute}
                                 style={{
                                   position: 'absolute',
-                                  bottom: 12,
+                                  top: 12,
                                   right: 12,
                                   backgroundColor: 'rgba(0, 0, 0, 0.6)',
                                   borderRadius: 20,
@@ -236,7 +237,7 @@ const FeedPinItem: React.FC<FeedPinItemProps> = React.memo(({
                                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                               >
                                 <Ionicons 
-                                  name={isMuted ? "volume-mute" : "volume-high"} 
+                                  name={isFeedMuted ? "volume-mute" : "volume-high"} 
                                   size={20} 
                                   color="#FFFFFF" 
                                 />
@@ -293,13 +294,13 @@ const FeedPinItem: React.FC<FeedPinItemProps> = React.memo(({
                         useNativeControls
                         isLooping
                         shouldPlay={true}
-                        isMuted={isMuted}
+                        isMuted={isFeedMuted}
                       />
                       <TouchableOpacity
-                        onPress={() => setIsMuted(!isMuted)}
+                        onPress={onToggleMute}
                         style={{
                           position: 'absolute',
-                          bottom: 12,
+                          top: 12,
                           right: 12,
                           backgroundColor: 'rgba(0, 0, 0, 0.6)',
                           borderRadius: 20,
@@ -309,7 +310,7 @@ const FeedPinItem: React.FC<FeedPinItemProps> = React.memo(({
                         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                       >
                         <Ionicons 
-                          name={isMuted ? "volume-mute" : "volume-high"} 
+                          name={isFeedMuted ? "volume-mute" : "volume-high"} 
                           size={20} 
                           color="#FFFFFF" 
                         />
@@ -440,6 +441,7 @@ export const HomeFeedScreen: React.FC<HomeFeedScreenProps> = ({
   const [reportPinItem, setReportPinItem] = useState<Pin | null>(null);
   const [reportReason, setReportReason] = useState("");
   const [likesModalUserIds, setLikesModalUserIds] = useState<string[] | null>(null);
+  const [isFeedMuted, setIsFeedMuted] = useState<boolean>(false);
 
   const [viewerVisible, setViewerVisible] = useState(false);
   const [viewerMediaUrl, setViewerMediaUrl] = useState<string | null>(null);
@@ -691,8 +693,10 @@ export const HomeFeedScreen: React.FC<HomeFeedScreenProps> = ({
       onGoToMap={onGoToMap}
       onOpenMedia={onOpenMedia}
       onOpenLikesList={(userIds) => setLikesModalUserIds(userIds)}
+      isFeedMuted={isFeedMuted}
+      onToggleMute={() => setIsFeedMuted(prev => !prev)}
     />
-  ), [activeVideoId, currentUser, localSavedPins, isVisible, viewerVisible, shareItem, commentPinId, onGoToMap, onOpenMedia]);
+  ), [activeVideoId, currentUser, localSavedPins, isVisible, viewerVisible, shareItem, commentPinId, onGoToMap, onOpenMedia, isFeedMuted]);
 
   return (
     <SafeAreaView style={styles.container}>
