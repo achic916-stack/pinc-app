@@ -15,7 +15,8 @@ import {
   ScrollView,
   BackHandler,
   Platform,
-  Linking
+  Linking,
+  StatusBar
 } from "react-native";
 import { Image } from "expo-image";
 import * as Location from "expo-location";
@@ -714,7 +715,7 @@ export default function App() {
   }
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={PincTheme.colors.background} />
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
       {!currentUser ? (
         /* If NOT logged in, show Sleek Sand Login Screen */
@@ -1021,7 +1022,7 @@ export default function App() {
             </View>
 
           {/* Premium Instagram-Style User Bottom Toolbar */}
-          <View style={[styles.bottomTabBar, { bottom: Platform.OS === 'ios' ? 24 : 56 }, !!settingCrewBaseVenue && { display: 'none' }]}>
+          <View style={[styles.bottomTabBar, { bottom: Platform.OS === 'ios' ? 24 : 16 }, !!settingCrewBaseVenue && { display: 'none' }]}>
             {/* Tab 1: Home Feed */}
             <TouchableOpacity 
               style={styles.tabBtn} 
