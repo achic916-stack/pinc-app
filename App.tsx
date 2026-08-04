@@ -15,8 +15,7 @@ import {
   ScrollView,
   BackHandler,
   Platform,
-  Linking,
-  StatusBar
+  Linking
 } from "react-native";
 import { Image } from "expo-image";
 import * as Location from "expo-location";
