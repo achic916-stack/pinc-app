@@ -1021,7 +1021,7 @@ export default function App() {
             </View>
 
           {/* Premium Instagram-Style User Bottom Toolbar */}
-          <View style={[styles.bottomTabBar, { bottom: Platform.OS === 'ios' ? 24 : 34 }, !!settingCrewBaseVenue && { display: 'none' }]}>
+          <View style={[styles.bottomTabBar, { bottom: Platform.OS === 'ios' ? 24 : 44 }, !!settingCrewBaseVenue && { display: 'none' }]}>
             {/* Tab 1: Home Feed */}
             <TouchableOpacity 
               style={styles.tabBtn} 
