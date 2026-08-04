@@ -787,7 +787,7 @@ export const HomeFeedScreen = forwardRef((props: HomeFeedScreenProps, ref: React
 
     </SafeAreaView>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {
