@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useCallback, useEffect, useImperativeHandle, forwardRef } from 'react';
 import {
   View,
   Text,
@@ -418,19 +418,31 @@ const FeedPinItem: React.FC<FeedPinItemProps> = React.memo(({
   );
 });
 
-export const HomeFeedScreen: React.FC<HomeFeedScreenProps> = ({
-  pins,
-  currentUser,
-  onOpenUserProfile,
-  onNewPostPress,
-  onStartVideoPost,
-  onStartPhotoPost,
-  onStartGalleryPost,
-  onGoToMap,
-  selectedPin,
-  isVisible,
-}) => {
+export interface HomeFeedScreenHandle {
+  scrollToTop: () => void;
+}
+
+export const HomeFeedScreen = forwardRef<HomeFeedScreenHandle, HomeFeedScreenProps>((props, ref) => {
+  const {
+    pins,
+    currentUser,
+    onOpenUserProfile,
+    onNewPostPress,
+    onStartVideoPost,
+    onStartPhotoPost,
+    onStartGalleryPost,
+    onGoToMap,
+    selectedPin,
+    isVisible,
+  } = props;
+
   const flatListRef = useRef<FlatList>(null);
+
+  useImperativeHandle(ref, () => ({
+    scrollToTop: () => {
+      flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+    }
+  }));
   const lastShareTapRef = useRef<number>(0);
   const [refreshing, setRefreshing] = useState(false);
   const [isPostMenuOpen, setIsPostMenuOpen] = useState(false);

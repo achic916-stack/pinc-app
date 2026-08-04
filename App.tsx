@@ -29,7 +29,7 @@ import { LoginScreen } from "./screens/LoginScreen";
 import { PincTheme } from "./styles/theme";
 import { ReelsFeedModal } from "./components/ReelsFeedModal";
 import { CachedVideo } from "./components/CachedVideo";
-import { HomeFeedScreen } from "./screens/HomeFeedScreen";
+import { HomeFeedScreen, HomeFeedScreenHandle } from "./screens/HomeFeedScreen";
 import { useShareIntent } from 'expo-share-intent';
 
 
@@ -98,6 +98,7 @@ export default function App() {
   const [activeVideoId, setActiveVideoId] = useState<string | null>(null);
   const [selectedPin, setSelectedPin] = useState<Pin | null>(null);
   const pincButtonRef = useRef<PincButtonRef>(null);
+  const homeFeedRef = useRef<HomeFeedScreenHandle>(null);
 
   // Settings & GDPR States
   const [locale, setLocale] = useState<"en" | "th">("en");
@@ -741,6 +742,7 @@ export default function App() {
           </View>
           <View style={{ flex: 1, display: activeTab === 'home' ? 'flex' : 'none', position: 'absolute', width: '100%', height: '100%', zIndex: 5 }}>
             <HomeFeedScreen 
+                ref={homeFeedRef}
                 pins={allPins}
                 currentUser={currentUser as UserProfile}
                 onOpenUserProfile={(userId) => {
