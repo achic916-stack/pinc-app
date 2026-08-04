@@ -238,13 +238,20 @@ export default function App() {
   };
 
   const handleHomeTabPress = () => {
-    setActiveTab("home");
-    setPhotoShelfVisible(false);
+    setSelectedUserProfileId(null);
+    setAppReelsPins([]);
+    setSelectedPin(null);
     setSelectedVenue(null);
+    setPhotoShelfVisible(false);
+    setActiveTab("home");
     const now = Date.now();
     setLastHomeViewTime(now);
     setHasNewFollowedPost(false);
     AsyncStorage.setItem('lastHomeViewTime', now.toString()).catch(() => {});
+
+    setTimeout(() => {
+      homeFeedRef.current?.scrollToTop();
+    }, 50);
   };
 
   const handlePhotoTabPress = () => {

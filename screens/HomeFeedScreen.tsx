@@ -440,7 +440,9 @@ export const HomeFeedScreen = forwardRef((props: HomeFeedScreenProps, ref: React
 
   useImperativeHandle(ref, () => ({
     scrollToTop: () => {
-      flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+      requestAnimationFrame(() => {
+        flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+      });
     }
   }));
   const lastShareTapRef = useRef<number>(0);
