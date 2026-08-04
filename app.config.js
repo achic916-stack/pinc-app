@@ -3,7 +3,7 @@ export default {
     "name": "pinc",
     "slug": "pinc",
     "scheme": "pinc",
-    "version": "1.1.7",
+    "version": "1.1.8",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -20,7 +20,7 @@ export default {
       "supportsTablet": false,
       "usesAppleSignIn": true,
       "bundleIdentifier": "com.achic.pinc",
-      "buildNumber": "215",
+      "buildNumber": "216",
       "googleServicesFile": "./GoogleService-Info.plist",
       "config": {
         "googleMapsApiKey": process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || process.env.GOOGLE_MAPS_API_KEY || "dummy_key_to_prevent_crash"
@@ -72,7 +72,7 @@ export default {
     },
     "android": {
       "package": "com.achic.pinc",
-      "versionCode": 239,
+      "versionCode": 240,
       "config": {
         "googleMaps": {
           "apiKey": process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || ""
