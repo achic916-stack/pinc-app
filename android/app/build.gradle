@@ -86,11 +86,19 @@ android {
     namespace 'com.achic.pinc'
     defaultConfig {
 missingDimensionStrategy "store", "play"
-        applicationId 'com.achic.pinc'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 232
-        versionName "1.1.2"
+        versionCode 233
+        versionName "1.1.3"
+        externalNativeBuild {
+            cmake {
+                cppFlags "-Wl,-z,max-page-size=16384"
+                arguments "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON"
+            }
+            ndkBuild {
+                arguments "APP_LDFLAGS+=-Wl,-z,max-page-size=16384"
+            }
+        }
 
         def envFile = file("../../.env")
         def mapsApiKey = ""
