@@ -93,6 +93,17 @@ function processAab(inputAabPath, outputAabPath) {
 
 const args = process.argv.slice(2);
 const inputAab = args[0] || 'android/app/build/outputs/bundle/release/app-release.aab';
-const outputAab = args[1] || 'pinc-production-v1.1.5-236.aab';
+
+let defaultOutputAab = 'pinc-production-v1.1.8-240.aab';
+try {
+  const gradleContent = fs.readFileSync('android/app/build.gradle', 'utf8');
+  const vCodeMatch = gradleContent.match(/versionCode\s+(\d+)/);
+  const vNameMatch = gradleContent.match(/versionName\s+"([^"]+)"/);
+  if (vCodeMatch && vNameMatch) {
+    defaultOutputAab = `pinc-production-v${vNameMatch[1]}-${vCodeMatch[1]}.aab`;
+  }
+} catch (e) {}
+
+const outputAab = args[1] || defaultOutputAab;
 
 processAab(inputAab, outputAab);
