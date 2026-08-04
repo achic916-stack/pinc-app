@@ -422,7 +422,7 @@ export interface HomeFeedScreenHandle {
   scrollToTop: () => void;
 }
 
-export const HomeFeedScreen = forwardRef<HomeFeedScreenHandle, HomeFeedScreenProps>((props, ref) => {
+export const HomeFeedScreen = forwardRef((props: HomeFeedScreenProps, ref: React.Ref<HomeFeedScreenHandle>) => {
   const {
     pins,
     currentUser,
