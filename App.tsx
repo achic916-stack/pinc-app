@@ -755,7 +755,6 @@ export default function App() {
                 onStartGalleryPost={() => pincButtonRef.current?.startGalleryPost()}
                 onGoToMap={(lat, lng) => {
                   setCameraTarget({ latitude: lat, longitude: lng, timestamp: Date.now() });
-                  setDirectionTarget({ latitude: lat, longitude: lng, timestamp: Date.now() });
                   setSelectedVenue(null);
                   setActiveTab('map');
                 }}
