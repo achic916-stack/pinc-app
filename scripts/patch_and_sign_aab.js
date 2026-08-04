@@ -34,8 +34,15 @@ function processAab(inputAabPath, outputAabPath) {
   if (fs.existsSync(workDir)) fs.rmSync(workDir, { recursive: true, force: true });
   fs.mkdirSync(workDir);
 
+  const tempZip = path.resolve('./tmp_aab_patch_file.zip');
+  const tempOutputZip = path.resolve('./tmp_aab_out_file.zip');
+  if (fs.existsSync(tempZip)) fs.unlinkSync(tempZip);
+  if (fs.existsSync(tempOutputZip)) fs.unlinkSync(tempOutputZip);
+
+  fs.copyFileSync(inputAabPath, tempZip);
+
   console.log(`Unpacking ${inputAabPath}...`);
-  execSync(`powershell -Command "Expand-Archive -Path '${inputAabPath}' -DestinationPath '${workDir}' -Force"`);
+  execSync(`powershell -Command "Expand-Archive -Path '${tempZip}' -DestinationPath '${workDir}' -Force"`);
 
   const libDirs = [
     path.join(workDir, 'base/lib/arm64-v8a'),
@@ -66,7 +73,8 @@ function processAab(inputAabPath, outputAabPath) {
 
   if (fs.existsSync(outputAabPath)) fs.unlinkSync(outputAabPath);
   console.log(`Repackaging to ${outputAabPath}...`);
-  execSync(`powershell -Command "Compress-Archive -Path '${workDir}\\*' -DestinationPath '${outputAabPath}' -Force"`);
+  execSync(`powershell -Command "Compress-Archive -Path '${workDir}\\*' -DestinationPath '${tempOutputZip}' -Force"`);
+  fs.copyFileSync(tempOutputZip, outputAabPath);
 
   console.log(`Signing AAB with release keystore...`);
   const keystorePath = path.resolve('android/app/pinc-release.jks');
@@ -77,7 +85,9 @@ function processAab(inputAabPath, outputAabPath) {
   const signCmd = `jarsigner -sigalg SHA256withRSA -digestalg SHA-256 -keystore "${keystorePath}" -storepass "${storePass}" -keypass "${keyPass}" "${outputAabPath}" ${keyAlias}`;
   execSync(signCmd);
 
-  fs.rmSync(workDir, { recursive: true, force: true });
+  try { fs.rmSync(workDir, { recursive: true, force: true }); } catch (e) {}
+  try { fs.unlinkSync(tempZip); } catch (e) {}
+  try { fs.unlinkSync(tempOutputZip); } catch (e) {}
   console.log(`✨ Successfully created 16KB aligned & signed AAB: ${outputAabPath}`);
 }
 
