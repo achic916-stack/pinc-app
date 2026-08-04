@@ -22,6 +22,7 @@ import { PincTheme } from '../styles/theme';
 import { CachedVideo } from '../components/CachedVideo';
 import { WatermarkShare } from '../components/WatermarkShare';
 import { CommentsDrawer } from '../components/CommentsDrawer';
+import { UserListModal } from '../components/UserListModal';
 import { FollowButton } from '../components/FollowButton';
 import { FullScreenMediaViewer } from '../components/FullScreenMediaViewer';
 import { VenueBottomSheet } from '../components/VenueBottomSheet';
@@ -56,15 +57,17 @@ interface FeedPinItemProps {
   handleToggleSave: (pinId: string) => void;
   onGoToMap?: (latitude: number, longitude: number) => void;
   onOpenMedia: (url: string, type: 'video'|'image') => void;
+  onOpenLikesList?: (userIds: string[]) => void;
 }
 
 const FeedPinItem: React.FC<FeedPinItemProps> = React.memo(({ 
   item, isActiveVideo, currentUser, localSavedPins, 
   onOpenUserProfile, handleOptionsPress, handleLike, 
-  setCommentPinId, handleShare, handleToggleSave, onGoToMap, onOpenMedia
+  setCommentPinId, handleShare, handleToggleSave, onGoToMap, onOpenMedia, onOpenLikesList
 }) => {
   const [localAspectRatios, setLocalAspectRatios] = useState<Record<string, number>>({});
   const [activeMediaIndex, setActiveMediaIndex] = useState(0);
+  const [isMuted, setIsMuted] = useState<boolean>(false);
 
   const [liked, setLiked] = useState(item.likes?.includes(currentUser.userId) || false);
   const [likesCount, setLikesCount] = useState(item.likesCount || item.likes?.length || 0);
@@ -209,14 +212,36 @@ const FeedPinItem: React.FC<FeedPinItemProps> = React.memo(({
                       <View style={{ flex: 1 }}>
                         {isVid ? (
                           (isActiveVideo && activeMediaIndex === index) ? (
-                            <CachedVideo
-                              source={{ uri: url }}
-                              style={styles.media}
-                              resizeMode="contain"
-                              useNativeControls
-                              isLooping
-                              shouldPlay={true}
-                            />
+                            <View style={{ flex: 1 }}>
+                              <CachedVideo
+                                source={{ uri: url }}
+                                style={styles.media}
+                                resizeMode="contain"
+                                useNativeControls
+                                isLooping
+                                shouldPlay={true}
+                                isMuted={isMuted}
+                              />
+                              <TouchableOpacity
+                                onPress={() => setIsMuted(!isMuted)}
+                                style={{
+                                  position: 'absolute',
+                                  bottom: 12,
+                                  right: 12,
+                                  backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                                  borderRadius: 20,
+                                  padding: 8,
+                                  zIndex: 10,
+                                }}
+                                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                              >
+                                <Ionicons 
+                                  name={isMuted ? "volume-mute" : "volume-high"} 
+                                  size={20} 
+                                  color="#FFFFFF" 
+                                />
+                              </TouchableOpacity>
+                            </View>
                           ) : (
                             <Image 
                               source={{ uri: item.thumbnail_url || url }} 
@@ -260,14 +285,36 @@ const FeedPinItem: React.FC<FeedPinItemProps> = React.memo(({
               <View style={{ flex: 1 }}>
                 {isVideo ? (
                   isActiveVideo ? (
-                    <CachedVideo
-                      source={{ uri: item.image_url }}
-                      style={styles.media}
-                      resizeMode="contain"
-                      useNativeControls
-                      isLooping
-                      shouldPlay={true}
-                    />
+                    <View style={{ flex: 1 }}>
+                      <CachedVideo
+                        source={{ uri: item.image_url }}
+                        style={styles.media}
+                        resizeMode="contain"
+                        useNativeControls
+                        isLooping
+                        shouldPlay={true}
+                        isMuted={isMuted}
+                      />
+                      <TouchableOpacity
+                        onPress={() => setIsMuted(!isMuted)}
+                        style={{
+                          position: 'absolute',
+                          bottom: 12,
+                          right: 12,
+                          backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                          borderRadius: 20,
+                          padding: 8,
+                          zIndex: 10,
+                        }}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      >
+                        <Ionicons 
+                          name={isMuted ? "volume-mute" : "volume-high"} 
+                          size={20} 
+                          color="#FFFFFF" 
+                        />
+                      </TouchableOpacity>
+                    </View>
                   ) : (
                     <Image 
                       source={{ uri: item.thumbnail_url || item.image_url }} 
@@ -297,7 +344,7 @@ const FeedPinItem: React.FC<FeedPinItemProps> = React.memo(({
         <View style={[styles.actions, { justifyContent: 'space-between' }]}>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <TouchableOpacity 
-              style={styles.actionButton}
+              style={{ flexDirection: 'row', alignItems: 'center' }}
               onPress={onLikePress}
             >
               <Ionicons 
@@ -305,6 +352,16 @@ const FeedPinItem: React.FC<FeedPinItemProps> = React.memo(({
                 size={24} 
                 color={liked ? PincTheme.colors.primary : PincTheme.colors.textPrimary} 
               />
+            </TouchableOpacity>
+            <TouchableOpacity 
+              onPress={() => {
+                if (item.likes && item.likes.length > 0 && onOpenLikesList) {
+                  onOpenLikesList(item.likes);
+                }
+              }}
+              style={{ paddingHorizontal: 6, marginRight: 14 }}
+              disabled={!item.likes || item.likes.length === 0}
+            >
               <Text style={styles.actionText}>{likesCount}</Text>
             </TouchableOpacity>
             <TouchableOpacity 
@@ -382,6 +439,7 @@ export const HomeFeedScreen: React.FC<HomeFeedScreenProps> = ({
   const [shareItem, setShareItem] = useState<Pin | null>(null);
   const [reportPinItem, setReportPinItem] = useState<Pin | null>(null);
   const [reportReason, setReportReason] = useState("");
+  const [likesModalUserIds, setLikesModalUserIds] = useState<string[] | null>(null);
 
   const [viewerVisible, setViewerVisible] = useState(false);
   const [viewerMediaUrl, setViewerMediaUrl] = useState<string | null>(null);
@@ -632,6 +690,7 @@ export const HomeFeedScreen: React.FC<HomeFeedScreenProps> = ({
       handleToggleSave={handleToggleSave}
       onGoToMap={onGoToMap}
       onOpenMedia={onOpenMedia}
+      onOpenLikesList={(userIds) => setLikesModalUserIds(userIds)}
     />
   ), [activeVideoId, currentUser, localSavedPins, isVisible, viewerVisible, shareItem, commentPinId, onGoToMap, onOpenMedia]);
 
@@ -696,6 +755,18 @@ export const HomeFeedScreen: React.FC<HomeFeedScreenProps> = ({
         mediaUrl={viewerMediaUrl}
         mediaType={viewerMediaType}
         onClose={() => setViewerVisible(false)}
+      />
+
+      <UserListModal 
+        visible={!!likesModalUserIds}
+        type="likes"
+        userIds={likesModalUserIds || []}
+        onClose={() => setLikesModalUserIds(null)}
+        onSelectUser={(uid) => {
+          setLikesModalUserIds(null);
+          onOpenUserProfile(uid);
+        }}
+        locale="th"
       />
 
     </SafeAreaView>

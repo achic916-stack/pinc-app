@@ -11,6 +11,7 @@ interface CachedVideoProps {
   shouldPlay?: boolean;
   isLooping?: boolean;
   useNativeControls?: boolean;
+  isMuted?: boolean;
 }
 
 export const CachedVideo: React.FC<CachedVideoProps> = ({ source, ...props }) => {
@@ -62,6 +63,7 @@ export const CachedVideo: React.FC<CachedVideoProps> = ({ source, ...props }) =>
           resizeMode={props.resizeMode === 'cover' ? ResizeMode.COVER : ResizeMode.CONTAIN}
           shouldPlay={props.shouldPlay !== false}
           isLooping={props.isLooping !== false}
+          isMuted={props.isMuted}
           useNativeControls={props.useNativeControls}
           onError={(err) => {
             console.warn("Native Video error, falling back to WebView:", err);

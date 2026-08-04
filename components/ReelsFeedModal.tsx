@@ -13,7 +13,8 @@ import {
   Alert,
   TouchableWithoutFeedback,
   Animated,
-  Easing
+  Easing,
+  ScrollView
 } from "react-native";
 import { Audio, Video, ResizeMode } from "expo-av";
 
@@ -23,6 +24,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Pin, auth, toggleLikePin, subscribeToComments, fetchUserProfile, UserProfile, checkIsFollowing, toggleFollow, reportPin } from "../services/firebase";
 import { PincTheme } from "../styles/theme";
 import { CommentsDrawer } from './CommentsDrawer';
+import { UserListModal } from './UserListModal';
 import { WatermarkShare } from './WatermarkShare';
 import { FullScreenMediaViewer } from './FullScreenMediaViewer';
 import { NeonHeartOverlay, NeonHeartRef } from './NeonHeartOverlay';
@@ -51,7 +53,8 @@ const FeedItem = ({
   locale = "en",
   onReport,
   onOpenMedia,
-  onGetDirections
+  onGetDirections,
+  onOpenLikesList
 }: { 
   item: Pin; 
   isVisible: boolean;
@@ -64,9 +67,12 @@ const FeedItem = ({
   onReport?: (pinId: string) => void;
   onOpenMedia: (url: string, type: 'video' | 'image') => void;
   onGetDirections?: (pin: Pin) => void;
+  onOpenLikesList?: (userIds: string[]) => void;
 }) => {
   const [liked, setLiked] = useState(item.likes?.includes(currentUserId) || false);
   const [likesCount, setLikesCount] = useState(item.likes?.length || item.likesCount || 0);
+  const [isMuted, setIsMuted] = useState<boolean>(false);
+  const [isCaptionExpanded, setIsCaptionExpanded] = useState<boolean>(false);
   const [commentsCount, setCommentsCount] = useState(item.commentsCount || 0);
   const [lastTap, setLastTap] = useState(0);
   const doubleTapRef = useRef<NodeJS.Timeout | null>(null);
@@ -215,6 +221,7 @@ const FeedItem = ({
                   resizeMode="contain"
                   shouldPlay={isVisible}
                   isLooping
+                  isMuted={isMuted}
                   useNativeControls={false}
                 />
               )}
@@ -278,11 +285,41 @@ const FeedItem = ({
             captionText = captionText.replace(/\n?📍\s*Current Location.*/g, '');
           }
           captionText = captionText.trim();
-          return captionText ? (
-            <Text style={styles.caption} numberOfLines={2}>
-              {captionText}
-            </Text>
-          ) : null;
+          if (!captionText) return null;
+
+          const isLong = captionText.length > 35 || captionText.includes('\n');
+
+          return (
+            <TouchableOpacity 
+              activeOpacity={0.8}
+              onPress={() => setIsCaptionExpanded(!isCaptionExpanded)}
+              style={{ marginBottom: 10 }}
+            >
+              {isCaptionExpanded ? (
+                <ScrollView 
+                  nestedScrollEnabled 
+                  style={{ maxHeight: 160 }} 
+                  showsVerticalScrollIndicator={true}
+                >
+                  <Text style={styles.captionExpanded}>
+                    {captionText}
+                    <Text style={styles.moreLessBtn}>
+                      {locale === "th" ? "  ย่อลง" : "  Show less"}
+                    </Text>
+                  </Text>
+                </ScrollView>
+              ) : (
+                <Text style={styles.caption} numberOfLines={2}>
+                  {captionText}
+                  {isLong && (
+                    <Text style={styles.moreLessBtn}>
+                      {locale === "th" ? " ...เพิ่มเติม" : " ...more"}
+                    </Text>
+                  )}
+                </Text>
+              )}
+            </TouchableOpacity>
+          );
         })()}
         
         <View style={styles.musicRow}>
@@ -292,10 +329,22 @@ const FeedItem = ({
       </View>
 
       <View style={styles.rightOverlay}>
-        <TouchableOpacity hitSlop={{ top: 15, bottom: 15, left: 20, right: 20 }} style={styles.actionButton} onPress={handleLike}>
-          <Ionicons name={liked ? "heart" : "heart-outline"} size={36} color={liked ? "#FF2D55" : "#FFF"} />
-          <Text style={styles.actionText}>{likesCount}</Text>
-        </TouchableOpacity>
+        <View style={styles.actionButton}>
+          <TouchableOpacity hitSlop={{ top: 15, bottom: 5, left: 20, right: 20 }} onPress={handleLike}>
+            <Ionicons name={liked ? "heart" : "heart-outline"} size={36} color={liked ? "#FF2D55" : "#FFF"} />
+          </TouchableOpacity>
+          <TouchableOpacity 
+            onPress={() => {
+              if (item.likes && item.likes.length > 0 && onOpenLikesList) {
+                onOpenLikesList(item.likes);
+              }
+            }}
+            hitSlop={{ top: 5, bottom: 15, left: 20, right: 20 }}
+            disabled={!item.likes || item.likes.length === 0}
+          >
+            <Text style={styles.actionText}>{likesCount}</Text>
+          </TouchableOpacity>
+        </View>
 
         <TouchableOpacity hitSlop={{ top: 15, bottom: 15, left: 20, right: 20 }} style={styles.actionButton} onPress={onCommentPress}>
           <Ionicons name="chatbubble-outline" size={32} color="#FFF" />
@@ -305,6 +354,11 @@ const FeedItem = ({
         <TouchableOpacity hitSlop={{ top: 15, bottom: 15, left: 20, right: 20 }} style={styles.actionButton} onPress={onSharePress}>
           <MaterialCommunityIcons name="share" size={32} color="#FFF" />
           <Text style={styles.actionText}>Share</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity hitSlop={{ top: 15, bottom: 15, left: 20, right: 20 }} style={styles.actionButton} onPress={() => setIsMuted(!isMuted)}>
+          <Ionicons name={isMuted ? "volume-mute-outline" : "volume-high-outline"} size={32} color="#FFF" />
+          <Text style={styles.actionText}>{isMuted ? "Muted" : "Mute"}</Text>
         </TouchableOpacity>
 
         {!!(item.latitude && item.longitude) && (
@@ -385,6 +439,8 @@ export const ReelsFeedModal: React.FC<ReelsFeedModalProps> = ({
     setViewerMediaType(type);
     setViewerVisible(true);
   }, []);
+
+  const [likesModalUserIds, setLikesModalUserIds] = useState<string[] | null>(null);
 
   const [currentUserProfile, setCurrentUserProfile] = useState<UserProfile>({
     userId: currentUserId || auth.currentUser?.uid || "cafe_hopper",
@@ -483,6 +539,7 @@ export const ReelsFeedModal: React.FC<ReelsFeedModalProps> = ({
                   onClose();
                   if (onGetDirections) onGetDirections(pin);
                 }}
+                onOpenLikesList={(userIds) => setLikesModalUserIds(userIds)}
               />
             )}
             onViewableItemsChanged={handleViewableItemsChanged}
@@ -537,6 +594,18 @@ export const ReelsFeedModal: React.FC<ReelsFeedModalProps> = ({
           mediaUrl={viewerMediaUrl}
           mediaType={viewerMediaType}
           onClose={() => setViewerVisible(false)}
+        />
+
+        <UserListModal 
+          visible={!!likesModalUserIds}
+          type="likes"
+          userIds={likesModalUserIds || []}
+          onClose={() => setLikesModalUserIds(null)}
+          onSelectUser={(uid) => {
+            setLikesModalUserIds(null);
+            if (onOpenUserProfile) onOpenUserProfile(uid);
+          }}
+          locale={locale}
         />
       </View>
     </Modal>
@@ -634,8 +703,17 @@ const styles = StyleSheet.create({
   caption: {
     color: "#FFF",
     fontSize: 14,
-    marginBottom: 10,
     lineHeight: 20,
+  },
+  captionExpanded: {
+    color: "#FFF",
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  moreLessBtn: {
+    color: "#E4007F",
+    fontWeight: "bold",
+    fontSize: 13,
   },
   musicRow: {
     flexDirection: "row",

@@ -11,13 +11,16 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  SafeAreaView
+  SafeAreaView,
+  Alert
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { PincTheme } from "../styles/theme";
 import {
   UserProfile,
   Comment,
   addComment,
+  deleteComment,
   subscribeToComments
 } from "../services/firebase";
 import { t } from "../services/localization";
@@ -113,6 +116,30 @@ export const CommentsDrawer: React.FC<CommentsDrawerProps> = ({
     }
   };
 
+  const handleDeleteComment = (commentId: string) => {
+    if (!pinId) return;
+    Alert.alert(
+      locale === "th" ? "ลบคอมเมนต์" : "Delete Comment",
+      locale === "th" ? "คุณต้องการลบคอมเมนต์นี้หรือไม่?" : "Are you sure you want to delete this comment?",
+      [
+        { text: locale === "th" ? "ยกเลิก" : "Cancel", style: "cancel" },
+        {
+          text: locale === "th" ? "ลบ" : "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              setComments((prev) => prev.filter((c) => c.commentId !== commentId));
+              await deleteComment(pinId, commentId);
+            } catch (err) {
+              console.warn("Failed to delete comment:", err);
+              Alert.alert("Error", "Failed to delete comment.");
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const handleAvatarPress = (commentUserId: string) => {
     onClose();
     if (onOpenUserProfile) {
@@ -186,6 +213,15 @@ export const CommentsDrawer: React.FC<CommentsDrawerProps> = ({
                           <Text style={styles.commentTime}>
                             {commentDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                           </Text>
+                          {isOwnComment && comment.commentId && (
+                            <TouchableOpacity 
+                              onPress={() => handleDeleteComment(comment.commentId!)}
+                              style={{ marginLeft: "auto", padding: 4 }}
+                              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                            >
+                              <Ionicons name="trash-outline" size={16} color={PincTheme.colors.textSecondary} />
+                            </TouchableOpacity>
+                          )}
                         </View>
                         <Text style={styles.commentText}>{comment.text}</Text>
                       </View>

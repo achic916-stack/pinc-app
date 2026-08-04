@@ -1055,6 +1055,16 @@ export async function getFollowersList(userId: string): Promise<UserProfile[]> {
 }
 
 /**
+ * Retrieves the profiles list of users who liked a pin by their userIds array.
+ */
+export async function getLikedUsersList(userIds: string[]): Promise<UserProfile[]> {
+  if (!userIds || userIds.length === 0) return [];
+  const fetchPromises = userIds.map(id => fetchUserProfile(id));
+  const fetchedProfiles = await Promise.all(fetchPromises);
+  return fetchedProfiles.filter((p): p is UserProfile => p !== null);
+}
+
+/**
  * Subscribes to the list of user IDs that followerId is following in real-time.
  */
 export function subscribeToFollowingIds(followerId: string, onUpdate: (ids: string[]) => void, onError?: (error: any) => void) {
@@ -1272,6 +1282,23 @@ export async function addComment(pinId: string, comment: Omit<Comment, "commentI
   }
 
   return docRef.id;
+}
+
+/**
+ * Deletes a comment document from the sub-collection 'comments' under the target pin.
+ */
+export async function deleteComment(pinId: string, commentId: string): Promise<void> {
+  const commentRef = doc(db, "pins", pinId, "comments", commentId);
+  await deleteDoc(commentRef);
+
+  try {
+    const pinRef = doc(db, "pins", pinId);
+    await updateDoc(pinRef, {
+      commentsCount: increment(-1)
+    });
+  } catch (err) {
+    console.warn(`Failed to decrement commentsCount on pin ${pinId}:`, err);
+  }
 }
 
 /**

@@ -59,7 +59,7 @@ export async function uploadVideoWithWatermark(
         if (data.totalBytesExpectedToSend > 0 && onProgress) {
           const progress = data.totalBytesSent / data.totalBytesExpectedToSend;
           // Upload takes up to 70%, Cloudinary processing takes the remaining 30%
-          onProgress(progress * 0.7); 
+          onProgress(progress * 0.7);
         }
       }
     );
@@ -76,7 +76,7 @@ export async function uploadVideoWithWatermark(
     } else {
       throw new Error('Cloudinary did not return eager transformation result');
     }
-    
+
     onProgress?.(0.95);
   } catch (error: any) {
     throw new Error(`Failed to upload to Cloudinary: ${error.message}`);

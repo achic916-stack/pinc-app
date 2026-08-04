@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, Modal, FlatList, TouchableOpacity, SafeAreaView, ActivityIndicator } from "react-native";
 import { Image } from "expo-image";
-import { UserProfile, getFollowingList, getFollowersList } from "../services/firebase";
+import { UserProfile, getFollowingList, getFollowersList, getLikedUsersList } from "../services/firebase";
 import { PincTheme } from "../styles/theme";
 
 interface UserListModalProps {
   visible: boolean;
-  userId: string;
-  type: "followers" | "following" | null;
+  userId?: string;
+  userIds?: string[];
+  type: "followers" | "following" | "likes" | null;
   onClose: () => void;
   onSelectUser: (userId: string) => void;
   locale?: "en" | "th";
@@ -16,6 +17,7 @@ interface UserListModalProps {
 export const UserListModal: React.FC<UserListModalProps> = ({
   visible,
   userId,
+  userIds,
   type,
   onClose,
   onSelectUser,
@@ -25,17 +27,20 @@ export const UserListModal: React.FC<UserListModalProps> = ({
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    if (!visible || !userId || !type) return;
+    if (!visible || !type) return;
 
     const fetchUsers = async () => {
       setIsLoading(true);
       try {
-        if (type === "followers") {
+        if (type === "followers" && userId) {
           const followers = await getFollowersList(userId);
           setUsers(followers);
-        } else {
+        } else if (type === "following" && userId) {
           const following = await getFollowingList(userId);
           setUsers(following);
+        } else if (type === "likes" && userIds) {
+          const likedUsers = await getLikedUsersList(userIds);
+          setUsers(likedUsers);
         }
       } catch (err) {
         console.warn("Failed to fetch user list:", err);
@@ -45,11 +50,13 @@ export const UserListModal: React.FC<UserListModalProps> = ({
     };
 
     fetchUsers();
-  }, [visible, userId, type]);
+  }, [visible, userId, userIds, type]);
 
-  const title = type === "followers" 
-    ? (locale === "th" ? "ผู้ติดตาม" : "Followers")
-    : (locale === "th" ? "กำลังติดตาม" : "Following");
+  const title = type === "likes"
+    ? (locale === "th" ? "ถูกใจโดย" : "Liked by")
+    : type === "followers" 
+      ? (locale === "th" ? "ผู้ติดตาม" : "Followers")
+      : (locale === "th" ? "กำลังติดตาม" : "Following");
 
   return (
     <Modal visible={visible} animationType="slide" transparent={true} onRequestClose={onClose}>
