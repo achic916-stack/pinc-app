@@ -20,7 +20,7 @@ export default {
       "supportsTablet": false,
       "usesAppleSignIn": true,
       "bundleIdentifier": "com.achic.pinc",
-      "buildNumber": "211",
+      "buildNumber": "212",
       "googleServicesFile": "./GoogleService-Info.plist",
       "config": {
         "googleMapsApiKey": process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || process.env.GOOGLE_MAPS_API_KEY || "dummy_key_to_prevent_crash"
@@ -72,7 +72,7 @@ export default {
     },
     "android": {
       "package": "com.achic.pinc",
-      "versionCode": 235,
+      "versionCode": 236,
       "config": {
         "googleMaps": {
           "apiKey": process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || ""
