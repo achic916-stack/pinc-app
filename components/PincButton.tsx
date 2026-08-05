@@ -22,7 +22,7 @@ import { Feather, Ionicons } from "@expo/vector-icons";
 import { Audio, Video, ResizeMode } from "expo-av";
 
 import { PincTheme } from "../styles/theme";
-import { Venue, createPin, calculateDistance, db } from "../services/firebase";
+import { Venue, createPin, calculateDistance, db, isLocationInSafeZone, getProtectedCoordinates } from "../services/firebase";
 import { collection, addDoc } from "firebase/firestore";
 import { useTranslation } from 'react-i18next';
 import { compressImage } from "../services/imageCompressor";
@@ -84,6 +84,8 @@ export interface PincButtonProps {
     role?: "USER" | "ADMIN" | "PREMIUM_STORE";
     isVip?: boolean;
     subscriptionTier?: number;
+    safeZones?: SafeZone[];
+    safeZoneEnabled?: boolean;
   };
   locationTrackingEnabled?: boolean;
   hideButton?: boolean;
@@ -415,7 +417,13 @@ export const PincButton = forwardRef<PincButtonRef, PincButtonProps>(({
       }
 
       setProcessingMessage("Uploading to Pinc...");
-      const loc = currentGPSLocation || userLocation || { latitude: 0, longitude: 0 };
+      let loc = currentGPSLocation || userLocation || { latitude: 0, longitude: 0 };
+      
+      // Safe Zone Check: Protect exact coordinates if within an active Safe Zone
+      const activeSafeZone = isLocationInSafeZone(loc.latitude, loc.longitude, currentUser.safeZones, currentUser.safeZoneEnabled);
+      if (activeSafeZone) {
+        loc = getProtectedCoordinates(loc.latitude, loc.longitude);
+      }
       
       // Save Pin to Firebase Firestore & Storage
       await createPin({
@@ -581,6 +589,31 @@ export const PincButton = forwardRef<PincButtonRef, PincButtonProps>(({
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
+            {/* Safe Zone Active Protection Badge */}
+            {(() => {
+              const loc = currentGPSLocation || userLocation;
+              const activeSZ = loc ? isLocationInSafeZone(loc.latitude, loc.longitude, currentUser.safeZones, currentUser.safeZoneEnabled) : null;
+              if (!activeSZ) return null;
+              return (
+                <View style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  backgroundColor: '#E8F5E9',
+                  borderWidth: 1,
+                  borderColor: '#4CAF50',
+                  paddingHorizontal: 12,
+                  paddingVertical: 8,
+                  borderRadius: 10,
+                  marginBottom: 10
+                }}>
+                  <Ionicons name="shield-checkmark" size={18} color="#2E7D32" style={{ marginRight: 6 }} />
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: '#1B5E20', flex: 1 }}>
+                    🛡️ Safe Zone Active ({activeSZ.name})
+                  </Text>
+                </View>
+              );
+            })()}
+
             {/* Nearest Venue Geotag Indicator */}
             {nearestVenue ? (
               <View style={styles.venueIndicator}>

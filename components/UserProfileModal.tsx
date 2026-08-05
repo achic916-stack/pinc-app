@@ -18,9 +18,11 @@ import {
 } from "react-native";
 import { Ionicons, MaterialIcons, Feather, FontAwesome5 } from "@expo/vector-icons";
 import { LinearGradient } from 'expo-linear-gradient';
+import * as Location from "expo-location";
 import { PincTheme } from "../styles/theme";
 import {
   UserProfile,
+  SafeZone,
   Pin,
   Venue,
   fetchUserProfile,
@@ -141,6 +143,94 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const [activeTab, setActiveTab] = useState<"posts" | "saved">("posts");
   const [savedPinsData, setSavedPinsData] = useState<Pin[]>([]);
   const [isLoadingSaved, setIsLoadingSaved] = useState(false);
+
+  const [safeZoneEnabled, setSafeZoneEnabled] = useState<boolean>(true);
+  const [safeZones, setSafeZones] = useState<SafeZone[]>([]);
+  const [isAddingSafeZone, setIsAddingSafeZone] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (profile) {
+      setSafeZoneEnabled(profile.safeZoneEnabled ?? true);
+      setSafeZones(profile.safeZones ?? []);
+    }
+  }, [profile]);
+
+  const handleToggleMasterSafeZone = async (enabled: boolean) => {
+    setSafeZoneEnabled(enabled);
+    if (!currentUserId || !profile) return;
+    try {
+      await updateUserProfile(currentUserId, { safeZoneEnabled: enabled });
+      const updated = { ...profile, safeZoneEnabled: enabled };
+      setProfile(updated);
+      if (onUpdateProfile) onUpdateProfile(updated);
+    } catch (e) {
+      console.error("Error updating safeZoneEnabled:", e);
+    }
+  };
+
+  const handleAddCurrentSafeZone = async () => {
+    if (!currentUserId || !profile) return;
+    setIsAddingSafeZone(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(locale === 'th' ? "เข้าถึงพิกัดไม่สำเร็จ" : "Permission Denied", locale === 'th' ? "กรุณาเปิดการสิทธิ์เข้าถึงพิกัด GPS" : "Location permission is required.");
+        return;
+      }
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const newZone: SafeZone = {
+        id: Date.now().toString(),
+        name: locale === 'th' ? `เซฟโซน (${safeZones.length + 1})` : `Safe Zone ${safeZones.length + 1}`,
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude,
+        radiusMeters: 500,
+        enabled: true
+      };
+      const updatedZones = [...safeZones, newZone];
+      setSafeZones(updatedZones);
+      await updateUserProfile(currentUserId, { safeZones: updatedZones });
+      const updated = { ...profile, safeZones: updatedZones };
+      setProfile(updated);
+      if (onUpdateProfile) onUpdateProfile(updated);
+      Alert.alert(
+        locale === 'th' ? "เพิ่มเซฟโซนสำเร็จ 🛡️" : "Safe Zone Added 🛡️",
+        locale === 'th' ? "บันทึกพิกัดปัจจุบันในรัศมี 500 เมตรเรียบร้อยแล้ว" : "Current location saved with 500m protection radius."
+      );
+    } catch (e) {
+      console.error("Error adding Safe Zone:", e);
+      Alert.alert("Error", "Could not save current location as Safe Zone.");
+    } finally {
+      setIsAddingSafeZone(false);
+    }
+  };
+
+  const handleDeleteSafeZone = async (zoneId: string) => {
+    if (!currentUserId || !profile) return;
+    const updatedZones = safeZones.filter(z => z.id !== zoneId);
+    setSafeZones(updatedZones);
+    try {
+      await updateUserProfile(currentUserId, { safeZones: updatedZones });
+      const updated = { ...profile, safeZones: updatedZones };
+      setProfile(updated);
+      if (onUpdateProfile) onUpdateProfile(updated);
+    } catch (e) {
+      console.error("Error deleting Safe Zone:", e);
+    }
+  };
+
+  const handleToggleSafeZoneItem = async (zoneId: string) => {
+    if (!currentUserId || !profile) return;
+    const updatedZones = safeZones.map(z => z.id === zoneId ? { ...z, enabled: !z.enabled } : z);
+    setSafeZones(updatedZones);
+    try {
+      await updateUserProfile(currentUserId, { safeZones: updatedZones });
+      const updated = { ...profile, safeZones: updatedZones };
+      setProfile(updated);
+      if (onUpdateProfile) onUpdateProfile(updated);
+    } catch (e) {
+      console.error("Error toggling Safe Zone item:", e);
+    }
+  };
 
   useEffect(() => {
     if (!profile?.savedPins || activeTab !== "saved") return;
@@ -736,7 +826,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                         >
                           <View style={styles.memoryCard}>
                             {displayImgUri ? (
-                              <Image source={{ uri: displayImgUri }} style={styles.memoryThumbnail} contentFit="cover" />
+                              <Image source={{ uri: displayImgUri }} style={styles.memoryThumbnail} resizeMode="cover" />
                             ) : (
                               <CachedVideo source={{ uri: pin.image_url }} style={styles.memoryThumbnail} shouldPlay={false} />
                             )}
@@ -783,7 +873,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                         >
                           <View style={styles.memoryCard}>
                             {displayImgUri ? (
-                              <Image source={{ uri: displayImgUri }} style={styles.memoryThumbnail} contentFit="cover" />
+                              <Image source={{ uri: displayImgUri }} style={styles.memoryThumbnail} resizeMode="cover" />
                             ) : (
                               <CachedVideo source={{ uri: pin.image_url }} style={styles.memoryThumbnail} shouldPlay={false} />
                             )}
@@ -998,6 +1088,98 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   trackColor={{ false: "rgba(0,0,0,0.2)", true: "#34C759" }}
                   thumbColor="#FFFFFF"
                 />
+              </View>
+
+              {/* Safe Zone Privacy Protection Section */}
+              <View style={{
+                backgroundColor: "#FFFFFF",
+                borderWidth: 1.5,
+                borderColor: PincTheme.colors.primary,
+                borderRadius: PincTheme.borderRadius.md,
+                paddingVertical: 14,
+                paddingHorizontal: 14,
+                marginBottom: 12
+              }}>
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+                  <View style={{ flex: 1, marginRight: 12 }}>
+                    <Text style={{ fontSize: 13, fontWeight: "bold", color: PincTheme.colors.primary, fontFamily: PincTheme.fonts.heading }}>
+                      🛡️ {locale === 'th' ? 'เซฟโซนความปลอดภัย (Safe Zone)' : 'Privacy Safe Zone'}
+                    </Text>
+                    <Text style={{ fontSize: 10, color: PincTheme.colors.primary, opacity: 0.8, fontFamily: PincTheme.fonts.body, marginTop: 2 }}>
+                      {locale === 'th' ? 'คุ้มครองตำแหน่งบ้าน/ที่ทำงานไม่ให้ถูกระบุพิกัดตรงสดบนแผนที่สาธารณะ' : 'Protects home/office coordinates from being exact on public map'}
+                    </Text>
+                  </View>
+                  <Switch
+                    value={safeZoneEnabled}
+                    onValueChange={handleToggleMasterSafeZone}
+                    trackColor={{ false: "rgba(0,0,0,0.2)", true: "#34C759" }}
+                    thumbColor="#FFFFFF"
+                  />
+                </View>
+
+                {safeZoneEnabled && (
+                  <View style={{ marginTop: 8, paddingTop: 10, borderTopWidth: 1, borderTopColor: "rgba(0,0,0,0.08)" }}>
+                    {safeZones.length > 0 ? (
+                      safeZones.map((zone) => (
+                        <View key={zone.id} style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          backgroundColor: PincTheme.colors.primaryLight,
+                          paddingHorizontal: 10,
+                          paddingVertical: 8,
+                          borderRadius: 8,
+                          marginBottom: 6
+                        }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                            <Ionicons name="shield-checkmark" size={16} color={PincTheme.colors.primary} style={{ marginRight: 6 }} />
+                            <View style={{ flex: 1 }}>
+                              <Text style={{ fontSize: 12, fontWeight: '700', color: PincTheme.colors.textPrimary }}>
+                                {zone.name}
+                              </Text>
+                              <Text style={{ fontSize: 10, color: PincTheme.colors.textSecondary }}>
+                                {zone.radiusMeters || 500}m radius
+                              </Text>
+                            </View>
+                          </View>
+                          <TouchableOpacity onPress={() => handleDeleteSafeZone(zone.id)} style={{ padding: 4 }}>
+                            <Ionicons name="trash-outline" size={16} color="#FF3B30" />
+                          </TouchableOpacity>
+                        </View>
+                      ))
+                    ) : (
+                      <Text style={{ fontSize: 11, color: PincTheme.colors.textSecondary, fontStyle: 'italic', marginBottom: 8 }}>
+                        {locale === 'th' ? 'ยังไม่ได้เพิ่มเซฟโซน (กดปุ่มด้านล่างเพื่อบันทึกพิกัดปัจจุบัน)' : 'No Safe Zones added yet. Tap below to save current location.'}
+                      </Text>
+                    )}
+
+                    <TouchableOpacity
+                      onPress={handleAddCurrentSafeZone}
+                      disabled={isAddingSafeZone}
+                      style={{
+                        backgroundColor: PincTheme.colors.primary,
+                        paddingVertical: 8,
+                        paddingHorizontal: 12,
+                        borderRadius: 8,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        marginTop: 4
+                      }}
+                    >
+                      {isAddingSafeZone ? (
+                        <ActivityIndicator size="small" color="#FFF" />
+                      ) : (
+                        <>
+                          <Ionicons name="location-outline" size={14} color="#FFF" style={{ marginRight: 4 }} />
+                          <Text style={{ color: '#FFF', fontSize: 12, fontWeight: '700' }}>
+                            {locale === 'th' ? '+ เพิ่มพิกัดปัจจุบันเป็นเซฟโซน' : '+ Add Current Location as Safe Zone'}
+                          </Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                )}
               </View>
 
               {/* Sign Out */}

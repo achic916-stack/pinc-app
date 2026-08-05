@@ -81,6 +81,15 @@ export const storage = getStorage(app);
 // ==========================================
 // INTERFACES & SCHEMAS
 // ==========================================
+export interface SafeZone {
+  id: string;
+  name: string;
+  latitude: number;
+  longitude: number;
+  radiusMeters: number;
+  enabled: boolean;
+}
+
 export interface UserProfile {
   userId: string;
   username: string;
@@ -101,6 +110,8 @@ export interface UserProfile {
   savedPins?: string[];
   blockedUsers?: string[];
   reportedPins?: string[];
+  safeZones?: SafeZone[];
+  safeZoneEnabled?: boolean;
 }
 
 export interface Venue {
@@ -573,6 +584,39 @@ export function calculateDistance(lat1: number, lon1: number, lat2: number, lon2
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
   return R * c;
+}
+
+/**
+ * Checks if a given location (lat, lng) falls inside any enabled SafeZone for the user.
+ */
+export function isLocationInSafeZone(
+  lat: number,
+  lng: number,
+  safeZones?: SafeZone[],
+  safeZoneEnabled: boolean = true
+): SafeZone | null {
+  if (safeZoneEnabled === false || !safeZones || safeZones.length === 0) return null;
+  for (const sz of safeZones) {
+    if (sz.enabled) {
+      const distMeters = calculateDistance(lat, lng, sz.latitude, sz.longitude);
+      if (distMeters <= (sz.radiusMeters || 500)) {
+        return sz;
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * Returns jittered/fuzzed coordinates (approx 200m offset) to protect exact home location on public map.
+ */
+export function getProtectedCoordinates(lat: number, lng: number): { latitude: number; longitude: number } {
+  const offsetLat = (Math.sin(lat * 1000) * 0.0018);
+  const offsetLng = (Math.cos(lng * 1000) * 0.0018);
+  return {
+    latitude: lat + offsetLat,
+    longitude: lng + offsetLng
+  };
 }
 
 export function subscribeToVenues(onUpdate: (venues: Venue[]) => void, onError?: (error: any) => void) {
