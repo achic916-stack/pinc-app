@@ -185,6 +185,10 @@ export interface Pin {
     tiktokUrl?: string;
   };
   pinColor?: string;
+  is_pending_departure?: boolean;
+  departure_lat?: number;
+  departure_lng?: number;
+  departure_radius_meters?: number;
 }
 
 export interface Comment {
@@ -870,6 +874,9 @@ export async function createPin(params: {
   isPinned?: boolean;
   is_gallery?: boolean;
   cloudinary_video_url?: string; // Cloudinary watermarked video URL for sharing
+  isPendingDeparture?: boolean;
+  departureCoords?: { latitude: number; longitude: number };
+  departureRadiusMeters?: number;
 }): Promise<string> {
   const { 
     userId, 
@@ -988,6 +995,10 @@ export async function createPin(params: {
     pinColor: userPinColor,
     is_gallery: params.is_gallery || false,
     cloudinary_video_url: cloudinaryVideoUrl || null,
+    is_pending_departure: params.isPendingDeparture || false,
+    departure_lat: params.departureCoords?.latitude || userCoords.latitude,
+    departure_lng: params.departureCoords?.longitude || userCoords.longitude,
+    departure_radius_meters: params.departureRadiusMeters || 100,
   };
 
   if (typeof aestheticRating === "number") {
@@ -1189,7 +1200,7 @@ export async function fetchSavedPins(pinIds: string[]): Promise<Pin[]> {
 /**
  * Subscribes to all pins in the database in real-time, ordered by timestamp desc.
  */
-export function subscribeToAllPins(onUpdate: (pins: Pin[]) => void, onError?: (error: any) => void) {
+export function subscribeToAllPins(onUpdate: (pins: Pin[]) => void, onError?: (error: any) => void, currentUserId?: string) {
   const q = query(
     collection(db, "pins"),
     orderBy("timestamp", "desc"),
@@ -1207,6 +1218,11 @@ export function subscribeToAllPins(onUpdate: (pins: Pin[]) => void, onError?: (e
         if (diffHours > 24) return;
       }
 
+      // Filter out pending departure posts for non-owners
+      if (data.is_pending_departure === true && currentUserId && data.userId !== currentUserId) {
+        return;
+      }
+
       pins.push({
         pinId: doc.id,
         ...data,
@@ -1218,6 +1234,51 @@ export function subscribeToAllPins(onUpdate: (pins: Pin[]) => void, onError?: (e
     console.warn("Firestore subscribeToAllPins failed:", error);
     if (onError) onError(error);
   });
+}
+
+/**
+ * Checks all pending departure pins for the given user.
+ * If user moved > departure_radius_meters (default 100m) away from departure_lat/lng,
+ * unlocks the pin (sets is_pending_departure = false).
+ */
+export async function checkAndUnlockPendingDeparturePins(
+  userId: string,
+  currentLat: number,
+  currentLng: number
+): Promise<string[]> {
+  if (!userId || !currentLat || !currentLng) return [];
+  const unlockedTitles: string[] = [];
+  try {
+    const q = query(
+      collection(db, "pins"),
+      where("userId", "==", userId),
+      where("is_pending_departure", "==", true)
+    );
+    const snapshot = await getDocs(q);
+    const now = Date.now();
+
+    for (const docSnap of snapshot.docs) {
+      const data = docSnap.data();
+      const depLat = data.departure_lat || data.latitude;
+      const depLng = data.departure_lng || data.longitude;
+      const radius = data.departure_radius_meters || 100;
+      const createdAt = (data.timestamp as Timestamp)?.toDate()?.getTime() || now;
+      
+      const distanceMeters = calculateDistance(currentLat, currentLng, depLat, depLng);
+      const hoursElapsed = (now - createdAt) / (1000 * 3600);
+
+      // Unlock if user moved > radius meters away OR if > 3 hours elapsed (safety fallback)
+      if (distanceMeters >= radius || hoursElapsed >= 3) {
+        await updateDoc(doc(db, "pins", docSnap.id), {
+          is_pending_departure: false
+        });
+        unlockedTitles.push(data.text_content ? data.text_content.slice(0, 30) : "Post");
+      }
+    }
+  } catch (err) {
+    console.warn("checkAndUnlockPendingDeparturePins error:", err);
+  }
+  return unlockedTitles;
 }
 
 /**

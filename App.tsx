@@ -57,7 +57,8 @@ import {
   subscribeToFollowingIds,
   getFollowingList,
   unfollowUser,
-  subscribeToActiveChats
+  subscribeToActiveChats,
+  checkAndUnlockPendingDeparturePins
 } from "./services/firebase";
 import { doc, setDoc, query, collection, where, onSnapshot, deleteDoc } from "firebase/firestore";
 import './i18n';
@@ -447,11 +448,25 @@ export default function App() {
         });
 
         // Track location in the background while app is active
-        Location.watchPositionAsync({ accuracy: Location.Accuracy.Balanced, distanceInterval: 10 }, (loc) => {
-          setUserLocation({
+        Location.watchPositionAsync({ accuracy: Location.Accuracy.Balanced, distanceInterval: 10 }, async (loc) => {
+          const coords = {
             latitude: loc.coords.latitude,
             longitude: loc.coords.longitude
-          });
+          };
+          setUserLocation(coords);
+
+          // Geofence Departure Check: Auto-unlock pending departure pins if user moved > 100m away
+          if (currentUser?.userId) {
+            const unlockedTitles = await checkAndUnlockPendingDeparturePins(currentUser.userId, coords.latitude, coords.longitude);
+            if (unlockedTitles && unlockedTitles.length > 0) {
+              Alert.alert(
+                locale === 'th' ? "🚀 โพสต์ของคุณถูกส่งขึ้นระบบแล้ว!" : "🚀 Post Published!",
+                locale === 'th'
+                  ? `คุณเดินทางออกจากสถานที่เรียบร้อยแล้ว โพสต์ของคุณถูกแสดงบนฟีดและแผนที่แล้ว`
+                  : `You departed the location. Your post is now live on the Feed & Map.`
+              );
+            }
+          }
         });
       } catch (error) {
         console.warn("Could not fetch location in App.tsx", error);
@@ -623,7 +638,8 @@ export default function App() {
       },
       (error) => {
         console.warn("Real-time pins subscription failed:", error);
-      }
+      },
+      currentUser.userId
     );
 
     return () => unsubscribe();

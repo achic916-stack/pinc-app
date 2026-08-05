@@ -155,7 +155,21 @@ const FeedPinItem: React.FC<FeedPinItemProps> = React.memo(({
             <View style={{ flex: 1 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <Text style={[styles.username, { flexShrink: 1 }]} numberOfLines={1}>{safeUsername}</Text>
-                {item.post_type === "live_news" ? (
+                {item.is_pending_departure ? (
+                  <View style={{
+                    backgroundColor: "#FFF3E0",
+                    borderColor: "#FF9800",
+                    borderWidth: 1,
+                    paddingHorizontal: 6,
+                    paddingVertical: 2,
+                    borderRadius: 6,
+                    marginLeft: 8,
+                    marginTop: 2,
+                    flexShrink: 0
+                  }}>
+                    <Text style={{ color: '#E65100', fontSize: 9, fontWeight: '800' }}>⏳ รอเดินทางออก 100m</Text>
+                  </View>
+                ) : item.post_type === "live_news" ? (
                   <View style={{
                     backgroundColor: PincTheme.colors.crowdRed,
                     paddingHorizontal: 6,

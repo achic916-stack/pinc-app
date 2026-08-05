@@ -22,7 +22,7 @@ import { Feather, Ionicons } from "@expo/vector-icons";
 import { Audio, Video, ResizeMode } from "expo-av";
 
 import { PincTheme } from "../styles/theme";
-import { Venue, createPin, calculateDistance, db, isLocationInSafeZone, getProtectedCoordinates } from "../services/firebase";
+import { Venue, SafeZone, createPin, calculateDistance, db, isLocationInSafeZone, getProtectedCoordinates } from "../services/firebase";
 import { collection, addDoc } from "firebase/firestore";
 import { useTranslation } from 'react-i18next';
 import { compressImage } from "../services/imageCompressor";
@@ -119,6 +119,7 @@ export const PincButton = forwardRef<PincButtonRef, PincButtonProps>(({
   const [postType, setPostType] = useState<"standard" | "live_news">("standard");
   const [postDuration, setPostDuration] = useState<"24h" | "permanent">("permanent");
   const [postDelay, setPostDelay] = useState<number>(0);
+  const [isDepartureDelay, setIsDepartureDelay] = useState<boolean>(false);
   const [capturedBase64, setCapturedBase64] = useState<string | null>(null);
   
   const [currentGPSLocation, setCurrentGPSLocation] = useState<{ latitude: number; longitude: number } | null>(null);
@@ -443,14 +444,19 @@ export const PincButton = forwardRef<PincButtonRef, PincButtonProps>(({
         musicTitle: "",
         musicUrl: "",
         thumbnailUri: thumbnailUri,
-        postDelayMins: postDelay,
+        postDelayMins: isDepartureDelay ? 0 : postDelay,
+        isPendingDeparture: isDepartureDelay,
+        departureCoords: loc,
+        departureRadiusMeters: 100,
         isPinned: !isUnmapped,
         is_gallery: isUnmapped,
       });
 
       Alert.alert(
         "Success", 
-        t("successPost"),
+        isDepartureDelay 
+          ? (i18n.language === "th" ? "🚀 บันทึกโพสต์เรียบร้อยแล้ว!\nโพสต์จะแสดงบนฟีดและแผนที่เมื่อคุณเดินทางออกจากสถานที่นี้ (100m Geofence)" : "🚀 Post Saved!\nYour post will go live automatically when you depart 100m from this venue.")
+          : t("successPost"),
         [
           {
             text: "OK",
@@ -709,20 +715,44 @@ export const PincButton = forwardRef<PincButtonRef, PincButtonProps>(({
               </TouchableOpacity>
             </View>
 
-            {/* Delay Selector for Permanent Posts */}
+            {/* Delay & Geofence Departure Selector */}
             {postType === "standard" && (
               <View style={{ flexDirection: 'row', justifyContent: 'space-around', marginTop: 4, marginBottom: 12, backgroundColor: PincTheme.colors.card, borderRadius: 12, padding: 4, borderWidth: 1, borderColor: '#f0f0f0' }}>
-                {[0, 15, 30].map(delay => (
-                  <TouchableOpacity
-                    key={delay}
-                    style={{ paddingVertical: 8, paddingHorizontal: 16, borderRadius: 8, backgroundColor: postDelay === delay ? PincTheme.colors.primary : 'transparent' }}
-                    onPress={() => setPostDelay(delay)}
-                  >
-                    <Text style={{ fontSize: 12, color: postDelay === delay ? '#fff' : PincTheme.colors.textSecondary, fontWeight: postDelay === delay ? '800' : '500' }}>
-                      {delay === 0 ? "โพสเลย" : `Delay ${delay} นาที`}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                <TouchableOpacity
+                  style={{ paddingVertical: 8, paddingHorizontal: 10, borderRadius: 8, backgroundColor: (!isDepartureDelay && postDelay === 0) ? PincTheme.colors.primary : 'transparent' }}
+                  onPress={() => { setIsDepartureDelay(false); setPostDelay(0); }}
+                >
+                  <Text style={{ fontSize: 11, color: (!isDepartureDelay && postDelay === 0) ? '#fff' : PincTheme.colors.textSecondary, fontWeight: (!isDepartureDelay && postDelay === 0) ? '800' : '500' }}>
+                    ⚡ {i18n.language === "th" ? "โพสต์เลย" : "Instant"}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={{ paddingVertical: 8, paddingHorizontal: 10, borderRadius: 8, backgroundColor: isDepartureDelay ? PincTheme.colors.primary : 'transparent' }}
+                  onPress={() => { setIsDepartureDelay(true); setPostDelay(0); }}
+                >
+                  <Text style={{ fontSize: 11, color: isDepartureDelay ? '#fff' : PincTheme.colors.textSecondary, fontWeight: isDepartureDelay ? '800' : '500' }}>
+                    🚀 {i18n.language === "th" ? "เมื่อออก 100m" : "On Depart"}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={{ paddingVertical: 8, paddingHorizontal: 10, borderRadius: 8, backgroundColor: (!isDepartureDelay && postDelay === 15) ? PincTheme.colors.primary : 'transparent' }}
+                  onPress={() => { setIsDepartureDelay(false); setPostDelay(15); }}
+                >
+                  <Text style={{ fontSize: 11, color: (!isDepartureDelay && postDelay === 15) ? '#fff' : PincTheme.colors.textSecondary, fontWeight: (!isDepartureDelay && postDelay === 15) ? '800' : '500' }}>
+                    ⏱️ 15m
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={{ paddingVertical: 8, paddingHorizontal: 10, borderRadius: 8, backgroundColor: (!isDepartureDelay && postDelay === 30) ? PincTheme.colors.primary : 'transparent' }}
+                  onPress={() => { setIsDepartureDelay(false); setPostDelay(30); }}
+                >
+                  <Text style={{ fontSize: 11, color: (!isDepartureDelay && postDelay === 30) ? '#fff' : PincTheme.colors.textSecondary, fontWeight: (!isDepartureDelay && postDelay === 30) ? '800' : '500' }}>
+                    ⏱️ 30m
+                  </Text>
+                </TouchableOpacity>
               </View>
             )}
 
