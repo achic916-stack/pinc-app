@@ -12,6 +12,7 @@ import {
   SafeAreaView,
   KeyboardAvoidingView,
   ScrollView,
+  Switch,
   Platform
 } from "react-native";
 import * as Location from "expo-location";
@@ -27,6 +28,7 @@ import { collection, addDoc } from "firebase/firestore";
 import { useTranslation } from 'react-i18next';
 import { compressImage } from "../services/imageCompressor";
 import { compressVideo, generateThumbnail } from "../services/videoCompressor";
+import { applyPrivacyBlurToImage } from "../services/mediaPrivacyService";
 
 
 
@@ -120,6 +122,7 @@ export const PincButton = forwardRef<PincButtonRef, PincButtonProps>(({
   const [postDuration, setPostDuration] = useState<"24h" | "permanent">("permanent");
   const [postDelay, setPostDelay] = useState<number>(0);
   const [isDepartureDelay, setIsDepartureDelay] = useState<boolean>(false);
+  const [isPrivacyBlurEnabled, setIsPrivacyBlurEnabled] = useState<boolean>(false);
   const [capturedBase64, setCapturedBase64] = useState<string | null>(null);
   
   const [currentGPSLocation, setCurrentGPSLocation] = useState<{ latitude: number; longitude: number } | null>(null);
@@ -386,9 +389,14 @@ export const PincButton = forwardRef<PincButtonRef, PincButtonProps>(({
       let thumbnailUri = null;
       if (capturedPhotos.length > 0) {
         if (capturedMediaType === "image") {
-          setProcessingMessage("Optimizing images...");
+          setProcessingMessage(isPrivacyBlurEnabled ? "🎭 AI Blurring faces & license plates..." : "Optimizing images...");
           for (const photo of capturedPhotos) {
-            const compressed = await compressImage(photo);
+            let targetPhoto = photo;
+            if (isPrivacyBlurEnabled) {
+              const { uri } = await applyPrivacyBlurToImage(photo, capturedBase64 || undefined);
+              targetPhoto = uri;
+            }
+            const compressed = await compressImage(targetPhoto);
             mediaUrisToUpload.push(compressed);
           }
         } else if (capturedMediaType === "video") {
@@ -753,6 +761,40 @@ export const PincButton = forwardRef<PincButtonRef, PincButtonProps>(({
                     ⏱️ 30m
                   </Text>
                 </TouchableOpacity>
+              </View>
+            )}
+
+            {/* AI Media Privacy (Blur Faces & License Plates) Toggle */}
+            {capturedMediaType === "image" && (
+              <View style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                backgroundColor: PincTheme.colors.card,
+                borderRadius: 12,
+                paddingHorizontal: 12,
+                paddingVertical: 10,
+                marginBottom: 12,
+                borderWidth: 1,
+                borderColor: isPrivacyBlurEnabled ? PincTheme.colors.primary : '#E0E0E0'
+              }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 8 }}>
+                  <Text style={{ fontSize: 16, marginRight: 8 }}>🎭</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: PincTheme.colors.textPrimary }}>
+                      {i18n.language === "th" ? "เบลอใบหน้า & ป้ายทะเบียน" : "Blur Faces & Plates"}
+                    </Text>
+                    <Text style={{ fontSize: 10, color: PincTheme.colors.textSecondary }}>
+                      {i18n.language === "th" ? "ใช้ AI ซ่อนใบหน้าและป้ายทะเบียนอัตโนมัติ" : "Auto-pixelate faces and license plates"}
+                    </Text>
+                  </View>
+                </View>
+                <Switch
+                  value={isPrivacyBlurEnabled}
+                  onValueChange={setIsPrivacyBlurEnabled}
+                  trackColor={{ false: '#D1D1D6', true: PincTheme.colors.primaryLight || '#FFB6C1' }}
+                  thumbColor={isPrivacyBlurEnabled ? PincTheme.colors.primary : '#F4F3F4'}
+                />
               </View>
             )}
 
