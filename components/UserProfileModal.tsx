@@ -34,7 +34,8 @@ import {
   uploadProfileImage,
   subscribeToActiveChats,
   fetchSavedPins,
-  blockUser
+  blockUser,
+  isViewerRestricted
 } from "../services/firebase";
 import { t } from "../services/localization";
 import * as ImagePicker from "expo-image-picker";
@@ -147,6 +148,15 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const [safeZoneEnabled, setSafeZoneEnabled] = useState<boolean>(true);
   const [safeZones, setSafeZones] = useState<SafeZone[]>([]);
   const [isAddingSafeZone, setIsAddingSafeZone] = useState<boolean>(false);
+  const [isRestricted, setIsRestricted] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (visible && currentUserId && userId && currentUserId !== userId) {
+      isViewerRestricted(currentUserId, userId).then(res => setIsRestricted(res));
+    } else {
+      setIsRestricted(false);
+    }
+  }, [visible, currentUserId, userId]);
 
   useEffect(() => {
     if (profile) {
@@ -509,7 +519,27 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         </View>
 
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          {isLoadingProfile ? (
+          {isRestricted ? (
+            <View style={{ backgroundColor: PincTheme.colors.card, margin: 20, padding: 24, borderRadius: 20, alignItems: 'center', borderWidth: 1, borderColor: '#FFE0B2' }}>
+              <Ionicons name="lock-closed" size={54} color="#E65100" style={{ marginBottom: 16 }} />
+              <Text style={{ fontSize: 18, fontWeight: '800', color: PincTheme.colors.textPrimary, textAlign: 'center', marginBottom: 8 }}>
+                {locale === 'th' ? "🔒 การมองเห็นถูกจำกัดเพื่อความปลอดภัย" : "🔒 Visibility Restricted"}
+              </Text>
+              <Text style={{ fontSize: 13, color: PincTheme.colors.textSecondary, textAlign: 'center', lineHeight: 20, marginBottom: 20 }}>
+                {locale === 'th'
+                  ? "ระบบจำกัดการเข้าชมชั่วคราวเป็นเวลา 24 ชั่วโมง เพื่อปกป้องความเป็นส่วนตัวและความปลอดภัยของบัญชีนี้"
+                  : "Visibility is temporarily restricted for 24 hours to protect the privacy and safety of this profile."}
+              </Text>
+              <TouchableOpacity
+                style={{ backgroundColor: PincTheme.colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 }}
+                onPress={onClose}
+              >
+                <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 14 }}>
+                  {locale === 'th' ? "ปิดหน้าต่าง" : "Close"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : isLoadingProfile ? (
             <View style={styles.loaderContainer}>
               <ActivityIndicator size="large" color={PincTheme.colors.primary} style={{ marginTop: 40 }} />
             </View>

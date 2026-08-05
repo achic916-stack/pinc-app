@@ -1281,6 +1281,145 @@ export async function checkAndUnlockPendingDeparturePins(
   return unlockedTitles;
 }
 
+export interface StalkerNotification {
+  id?: string;
+  userId: string;
+  viewerId: string;
+  title: string;
+  message: string;
+  timestamp: Date;
+  read: boolean;
+  type?: string;
+}
+
+const stalkerActivityCache: Record<string, number[]> = {};
+
+/**
+ * Logs viewing activity (profile view, pin view, route request) from viewerId to targetUserId.
+ * If non-friend views > 5 times in 10 minutes, triggers a Stalker Alert notification
+ * and temporarily restricts viewerId for 24 hours.
+ */
+export async function logStalkerActivity(
+  viewerId: string,
+  targetUserId: string,
+  actionType: 'profile_view' | 'pin_view' | 'route_request'
+): Promise<boolean> {
+  if (!viewerId || !targetUserId || viewerId === targetUserId) return false;
+
+  const cacheKey = `${viewerId}_${targetUserId}`;
+  const now = Date.now();
+  const TEN_MINUTES_MS = 10 * 60 * 1000;
+
+  // Initialize or prune old timestamps (> 10 mins ago)
+  const timestamps = (stalkerActivityCache[cacheKey] || []).filter(ts => now - ts < TEN_MINUTES_MS);
+  timestamps.push(now);
+  stalkerActivityCache[cacheKey] = timestamps;
+
+  // Trigger threshold: 5 views in 10 minutes
+  if (timestamps.length >= 5) {
+    try {
+      // Check if targetUserId follows viewerId (friend exception)
+      const followDocRef = doc(db, "follows", `${targetUserId}_${viewerId}`);
+      const followSnap = await getDoc(followDocRef);
+      if (followSnap.exists()) {
+        return false; // Friends/Mutuals are exempt from stalker alerts
+      }
+
+      // Check if already alerted/restricted recently to avoid duplicate alerts
+      const restRef = doc(db, "restricted_views", cacheKey);
+      const restSnap = await getDoc(restRef);
+      if (restSnap.exists() && restSnap.data().expiresAt > now) {
+        return true; // Already restricted
+      }
+
+      // 1. Save 24-hour restriction record
+      const expiresAt = now + 24 * 3600 * 1000;
+      await setDoc(restRef, {
+        viewerId,
+        targetUserId,
+        expiresAt,
+        createdAt: serverTimestamp()
+      });
+
+      // 2. Send Stalker Alert Notification to targetUserId
+      await addDoc(collection(db, "notifications"), {
+        userId: targetUserId,
+        viewerId,
+        title: "👁️ ระบบตรวจพบการเข้าชมบ่อยผิดปกติ (Stalker Alert)",
+        message: "มีผู้ใช้บางคนเข้าชมหมุด/โปรไฟล์ของคุณบ่อยเป็นพิเศษในช่วงเวลาสั้นๆ ระบบได้ทำการจำกัดการมองเห็นคนดังกล่าวชั่วคราวเป็นเวลา 24 ชั่วโมงเพื่อความปลอดภัยของคุณ",
+        type: "stalker_alert",
+        read: false,
+        timestamp: serverTimestamp()
+      });
+
+      console.log(`[StalkerAlert] Viewer ${viewerId} restricted from targeting ${targetUserId} for 24h.`);
+      return true;
+    } catch (err) {
+      console.warn("logStalkerActivity failed:", err);
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Checks if viewerId is temporarily restricted from viewing targetUserId.
+ */
+export async function isViewerRestricted(viewerId: string, targetUserId: string): Promise<boolean> {
+  if (!viewerId || !targetUserId || viewerId === targetUserId) return false;
+  try {
+    const cacheKey = `${viewerId}_${targetUserId}`;
+    const restRef = doc(db, "restricted_views", cacheKey);
+    const restSnap = await getDoc(restRef);
+    if (restSnap.exists()) {
+      const data = restSnap.data();
+      if (data.expiresAt > Date.now()) {
+        return true;
+      }
+    }
+  } catch (err) {
+    console.warn("isViewerRestricted check failed:", err);
+  }
+  return false;
+}
+
+/**
+ * Subscribes to safety notifications for a user in real-time.
+ */
+export function subscribeToUserNotifications(
+  userId: string,
+  onUpdate: (notifications: StalkerNotification[]) => void,
+  onError?: (error: any) => void
+) {
+  const q = query(
+    collection(db, "notifications"),
+    where("userId", "==", userId),
+    orderBy("timestamp", "desc"),
+    limit(20)
+  );
+
+  return onSnapshot(q, (snapshot) => {
+    const list: StalkerNotification[] = [];
+    snapshot.forEach((docSnap) => {
+      const data = docSnap.data();
+      list.push({
+        id: docSnap.id,
+        userId: data.userId,
+        viewerId: data.viewerId,
+        title: data.title || "Notification",
+        message: data.message || "",
+        timestamp: (data.timestamp as Timestamp)?.toDate() || new Date(),
+        read: data.read || false,
+        type: data.type
+      });
+    });
+    onUpdate(list);
+  }, (error) => {
+    console.warn("subscribeToUserNotifications failed:", error);
+    if (onError) onError(error);
+  });
+}
+
 /**
  * Toggles like status for a pin. Stores likes inside the pin document's 'likes' array field.
  * Returns true if the pin is now liked by the user, false if unliked.

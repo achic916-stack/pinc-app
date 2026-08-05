@@ -58,7 +58,10 @@ import {
   getFollowingList,
   unfollowUser,
   subscribeToActiveChats,
-  checkAndUnlockPendingDeparturePins
+  checkAndUnlockPendingDeparturePins,
+  logStalkerActivity,
+  isViewerRestricted,
+  subscribeToUserNotifications
 } from "./services/firebase";
 import { doc, setDoc, query, collection, where, onSnapshot, deleteDoc } from "firebase/firestore";
 import './i18n';
@@ -553,6 +556,36 @@ export default function App() {
 
     return () => backHandler.remove();
   }, [selectedUserProfileId, selectedVenue]);
+
+  // Track Stalker Activity when viewing another user's profile
+  useEffect(() => {
+    if (currentUser && selectedUserProfileId && selectedUserProfileId !== currentUser.userId) {
+      logStalkerActivity(currentUser.userId, selectedUserProfileId, 'profile_view');
+    }
+  }, [selectedUserProfileId, currentUser]);
+
+  // Subscribe to real-time Stalker Safety Notifications
+  useEffect(() => {
+    if (!currentUser) return;
+    let initialLoadComplete = false;
+
+    const unsubscribe = subscribeToUserNotifications(currentUser.userId, (notifications) => {
+      if (!initialLoadComplete) {
+        initialLoadComplete = true;
+        return;
+      }
+      const latest = notifications[0];
+      if (latest && latest.type === 'stalker_alert') {
+        Alert.alert(
+          latest.title,
+          latest.message,
+          [{ text: locale === 'th' ? "รับทราบ" : "OK" }]
+        );
+      }
+    });
+
+    return () => unsubscribe();
+  }, [currentUser]);
 
   // 5. Subscribe to real-time Following user IDs
   useEffect(() => {
