@@ -189,6 +189,7 @@ export interface Pin {
   departure_lat?: number;
   departure_lng?: number;
   departure_radius_meters?: number;
+  is_anonymous?: boolean;
 }
 
 export interface Comment {
@@ -877,6 +878,7 @@ export async function createPin(params: {
   isPendingDeparture?: boolean;
   departureCoords?: { latitude: number; longitude: number };
   departureRadiusMeters?: number;
+  isAnonymous?: boolean;
 }): Promise<string> {
   const { 
     userId, 
@@ -965,10 +967,14 @@ export async function createPin(params: {
     console.warn("Failed to fetch user pin color", err);
   }
   
+  const isAnon = params.isAnonymous || false;
+  const ANONYMOUS_AVATAR = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80";
+
   const pinData: any = {
     userId,
-    username,
-    user_profile_pic,
+    username: isAnon ? "ผู้ใช้นิรนาม" : username,
+    user_profile_pic: isAnon ? ANONYMOUS_AVATAR : user_profile_pic,
+    is_anonymous: isAnon,
     venueId,
     image_url: imageUrl,
     media_urls: downloadUrls,

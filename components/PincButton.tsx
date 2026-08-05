@@ -123,6 +123,7 @@ export const PincButton = forwardRef<PincButtonRef, PincButtonProps>(({
   const [postDelay, setPostDelay] = useState<number>(0);
   const [isDepartureDelay, setIsDepartureDelay] = useState<boolean>(false);
   const [isPrivacyBlurEnabled, setIsPrivacyBlurEnabled] = useState<boolean>(false);
+  const [isAnonymousPost, setIsAnonymousPost] = useState<boolean>(false);
   const [capturedBase64, setCapturedBase64] = useState<string | null>(null);
   
   const [currentGPSLocation, setCurrentGPSLocation] = useState<{ latitude: number; longitude: number } | null>(null);
@@ -456,6 +457,7 @@ export const PincButton = forwardRef<PincButtonRef, PincButtonProps>(({
         isPendingDeparture: isDepartureDelay,
         departureCoords: loc,
         departureRadiusMeters: 100,
+        isAnonymous: isAnonymousPost,
         isPinned: !isUnmapped,
         is_gallery: isUnmapped,
       });
@@ -797,6 +799,38 @@ export const PincButton = forwardRef<PincButtonRef, PincButtonProps>(({
                 />
               </View>
             )}
+
+            {/* Anonymous Vibe Check Mode Toggle */}
+            <View style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              backgroundColor: PincTheme.colors.card,
+              borderRadius: 12,
+              paddingHorizontal: 12,
+              paddingVertical: 10,
+              marginBottom: 12,
+              borderWidth: 1,
+              borderColor: isAnonymousPost ? '#9C27B0' : '#E0E0E0'
+            }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 8 }}>
+                <Text style={{ fontSize: 16, marginRight: 8 }}>🕵️</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: PincTheme.colors.textPrimary }}>
+                    {i18n.language === "th" ? "โพสต์แบบนิรนาม (Anonymous Mode)" : "Anonymous Vibe Check"}
+                  </Text>
+                  <Text style={{ fontSize: 10, color: PincTheme.colors.textSecondary }}>
+                    {i18n.language === "th" ? "ซ่อนชื่อและรูปโปรไฟล์ของคุณจากผู้ใช้อื่นบนฟีดและแผนที่" : "Hide your name & avatar from other users"}
+                  </Text>
+                </View>
+              </View>
+              <Switch
+                value={isAnonymousPost}
+                onValueChange={setIsAnonymousPost}
+                trackColor={{ false: '#D1D1D6', true: '#E1BEE7' }}
+                thumbColor={isAnonymousPost ? '#9C27B0' : '#F4F3F4'}
+              />
+            </View>
 
             {/* Text Input (Caption / Description) */}
             <TextInput

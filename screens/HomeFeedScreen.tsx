@@ -27,6 +27,7 @@ import { FollowButton } from '../components/FollowButton';
 import { FullScreenMediaViewer } from '../components/FullScreenMediaViewer';
 import { VenueBottomSheet } from '../components/VenueBottomSheet';
 import { NeonHeartOverlay, NeonHeartRef } from '../components/NeonHeartOverlay';
+import { useTranslation } from 'react-i18next';
 
 const defaultAvatar = 'https://firebasestorage.googleapis.com/v0/b/pinc-5460b.appspot.com/o/default-avatar.png?alt=media';
 
@@ -44,7 +45,7 @@ interface HomeFeedScreenProps {
 }
 
 
-interface FeedPinItemProps {
+export interface FeedPinItemProps {
   item: Pin;
   isActiveVideo: boolean;
   currentUser: UserProfile;
@@ -57,6 +58,7 @@ interface FeedPinItemProps {
   handleToggleSave: (pinId: string) => void;
   onOpenMedia: (url: string, type: 'video'|'image') => void;
   onOpenLikesList?: (userIds: string[]) => void;
+  onGoToMap?: (latitude: number, longitude: number) => void;
   isFeedMuted?: boolean;
   onToggleMute?: () => void;
 }
@@ -67,6 +69,7 @@ const FeedPinItem: React.FC<FeedPinItemProps> = React.memo(({
   setCommentPinId, handleShare, handleToggleSave, onGoToMap, onOpenMedia, onOpenLikesList,
   isFeedMuted = false, onToggleMute
 }) => {
+  const { t, i18n } = useTranslation();
   const [localAspectRatios, setLocalAspectRatios] = useState<Record<string, number>>({});
   const [activeMediaIndex, setActiveMediaIndex] = useState(0);
 
@@ -133,7 +136,7 @@ const FeedPinItem: React.FC<FeedPinItemProps> = React.memo(({
   };
 
   const isVideo = item.media_type === "video" || (item.image_url && item.image_url.includes(".mp4"));
-  const safeUsername = item.username || "Unknown";
+  const safeUsername = item.is_anonymous ? (i18n.language === 'th' ? "👤 ผู้ใช้นิรนาม" : "👤 Anonymous User") : (item.username || "Unknown");
   const safeHandle = safeUsername.toLowerCase().replace(/\s+/g, '_');
   const timeFormatted = new Intl.DateTimeFormat('en-GB', { 
     day: 'numeric', month: 'short', 
@@ -146,10 +149,19 @@ const FeedPinItem: React.FC<FeedPinItemProps> = React.memo(({
         <View style={styles.cardHeader}>
           <TouchableOpacity 
             style={[styles.userInfo, { flex: 1, paddingRight: 10 }]}
-            onPress={() => onOpenUserProfile(item.userId)}
+            onPress={() => {
+              if (item.is_anonymous) {
+                Alert.alert(
+                  i18n.language === 'th' ? "🕵️ โพสต์แบบนิรนาม" : "🕵️ Anonymous Post",
+                  i18n.language === 'th' ? "โพสต์นี้ถูกสร้างในโหมดนิรนามเพื่อปกป้องความเป็นส่วนตัวของผู้ใช้งาน" : "This post was created in Anonymous Mode for user privacy."
+                );
+              } else {
+                onOpenUserProfile(item.userId);
+              }
+            }}
           >
             <Image 
-              source={{ uri: item.user_profile_pic || 'https://via.placeholder.com/40' }} 
+              source={{ uri: item.is_anonymous ? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80' : (item.user_profile_pic || 'https://via.placeholder.com/40') }} 
               style={styles.avatar} 
             />
             <View style={{ flex: 1 }}>
@@ -185,7 +197,7 @@ const FeedPinItem: React.FC<FeedPinItemProps> = React.memo(({
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
                 <Text style={[styles.handle, { marginTop: 0 }]}>{timeFormatted}</Text>
-                <FollowButton currentUserId={currentUser.userId} targetUserId={item.userId} size="small" />
+                {!item.is_anonymous && <FollowButton currentUserId={currentUser.userId} targetUserId={item.userId} size="small" />}
               </View>
             </View>
           </TouchableOpacity>
