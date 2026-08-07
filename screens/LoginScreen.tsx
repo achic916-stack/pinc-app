@@ -17,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { PincTheme } from "../styles/theme";
 import { signInUser, signUpUser, signInWithGoogle, signInWithApple, fetchUserProfile, createUserProfile, UserProfile } from "../services/firebase";
 import * as AppleAuthentication from 'expo-apple-authentication';
+import { PrivacyPolicyModal } from "../components/PrivacyPolicyModal";
 
 interface LoginScreenProps {
   onAuthSuccess: (userProfile: any) => void;
@@ -24,6 +25,7 @@ interface LoginScreenProps {
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ onAuthSuccess }) => {
   const [isSignUp, setIsSignUp] = useState(false);
+  const [isPrivacyModalVisible, setIsPrivacyModalVisible] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [username, setUsername] = useState("");
@@ -308,7 +310,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onAuthSuccess }) => {
 
           <View style={styles.eulaContainer}>
             <Text style={styles.eulaText}>
-              By continuing, you agree to our <Text style={styles.eulaLink} onPress={() => Alert.alert("Terms of Service", "EULA and Terms of Service placeholder.")}>Terms of Service & EULA</Text>. 
+              By continuing, you agree to our <Text style={styles.eulaLink} onPress={() => setIsPrivacyModalVisible(true)}>Terms of Service, EULA & Privacy Policy</Text>. 
               We maintain a strict zero-tolerance policy for objectionable content and abusive users.
             </Text>
           </View>
@@ -383,6 +385,11 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onAuthSuccess }) => {
             🔑 Demo Access (App Review)
           </Text>
         </TouchableOpacity>
+        {/* Privacy Policy & EULA Modal */}
+        <PrivacyPolicyModal 
+          visible={isPrivacyModalVisible} 
+          onClose={() => setIsPrivacyModalVisible(false)} 
+        />
       </ScrollView>
     </KeyboardAvoidingView>
   );
